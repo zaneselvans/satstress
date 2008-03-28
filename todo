@@ -1,0 +1,62 @@
+Python SatStress Tasks:
+=======================
+Polish the stress library:
+--------------------------
+  - Format __doc__ strings for use with Epydoc.
+  - Generate Epydoc output
+  - Sync my SVN repository with GoogleCode
+  - Email anyone interested in this stuff
+    - Ask for bug reports (including unclear documentation)
+    - Ask other people to submit their stress fields!
+
+  - When outputting a Satellite object, also output derived parameters (mass,
+    radius, etc) as comments, for reference.
+  - Provide some kind of structured input/output for stress field definitions,
+    and the frequency dependent parameters... like the Love numbers.
+
+GridCalc:
+---------
+  - Make single slice calculations work sensibly
+  - Implement Grid.__str__()
+  - Insert all run parameters into netCDF headers
+  - Make sure file complies with COARDS convention
+  - Implement exception based error-checking
+  - Expand Documentation and format for Epydoc output
+  - Release on GoogleCode
+
+Love Numbers:
+-------------
+  - Wait until I get code from James
+
+  - The Love number code should be generalized to
+    - allow many layers
+    - allow user to specify layer boundaries as radii range
+    - use only SI units!
+
+  - Validate John's vs. James' codes
+
+  - For whichever one I decide to release, I should get rid of the front end
+    they have and wrap the core subroutine(s) in Python (for input/output),
+    unless I end up wanting to actually translate the code into Python.
+
+Better Plotting Tool:
+---------------------
+  - plot from GridCalc netCDF files using mpl_toolkits.basemap
+    - should allow exploration of:
+      - NSR (alone)
+      - Diurnal (alone)
+      - NSR + Diurnal
+    - As functions of:
+      - time (orbital position) and
+      - Delta (as varied through the NSR forcing frequency)
+  - either vector (PC) or magnitude (tens, comp) output
+  - viewing of the stress tensor components directly
+  - plotting of shapefiles (linear features) for visual comparison
+  - Europa basemap image in the background (alpha blended)
+
+Migrate web interface:
+----------------------
+  - Change the PHP script to work with pySatStress
+  - Write a script that converts old input files into the new sat/grid format
+  - Convert the old preset input files (SaturnEnceladus, etc)
+  - Figure out how to serve netCDF data cubes using OpenDAP on Apache

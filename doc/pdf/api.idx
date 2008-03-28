@@ -1,0 +1,97 @@
+\indexentry{SatStress \textit{(package)}|(hyperpage}{4}
+\indexentry{SatStress \textit{(package)}|)hyperpage}{6}
+\indexentry{SatStress \textit{(package)}!SatStress.GridCalc \textit{(module)}|(hyperpage}{7}
+\indexentry{SatStress \textit{(package)}!SatStress.GridCalc \textit{(module)}!SatStress.GridCalc.main \textit{(function)}|hyperpage}{7}
+\indexentry{SatStress \textit{(package)}!SatStress.GridCalc \textit{(module)}!SatStress.GridCalc.Grid \textit{(class)}|(hyperpage}{7}
+\indexentry{SatStress \textit{(package)}!SatStress.GridCalc \textit{(module)}!SatStress.GridCalc.Grid \textit{(class)}!SatStress.GridCalc.Grid.\_\_init\_\_ \textit{(method)}|hyperpage}{7}
+\indexentry{SatStress \textit{(package)}!SatStress.GridCalc \textit{(module)}!SatStress.GridCalc.Grid \textit{(class)}|)hyperpage}{8}
+\indexentry{SatStress \textit{(package)}!SatStress.GridCalc \textit{(module)}|)hyperpage}{8}
+\indexentry{SatStress \textit{(package)}!SatStress.SatStress \textit{(module)}|(hyperpage}{9}
+\indexentry{SatStress \textit{(package)}!SatStress.SatStress \textit{(module)}!SatStress.SatStress.nvf2dict \textit{(function)}|hyperpage}{12}
+\indexentry{SatStress \textit{(package)}!SatStress.SatStress \textit{(module)}!SatStress.SatStress.test \textit{(function)}|hyperpage}{12}
+\indexentry{SatStress \textit{(package)}!SatStress.SatStress \textit{(module)}!SatStress.SatStress.Satellite \textit{(class)}|(hyperpage}{13}
+\indexentry{SatStress \textit{(package)}!SatStress.SatStress \textit{(module)}!SatStress.SatStress.Satellite \textit{(class)}!SatStress.SatStress.Satellite.mass \textit{(method)}|hyperpage}{14}
+\indexentry{SatStress \textit{(package)}!SatStress.SatStress \textit{(module)}!SatStress.SatStress.Satellite \textit{(class)}!SatStress.SatStress.Satellite.radius \textit{(method)}|hyperpage}{15}
+\indexentry{SatStress \textit{(package)}!SatStress.SatStress \textit{(module)}!SatStress.SatStress.Satellite \textit{(class)}!SatStress.SatStress.Satellite.density \textit{(method)}|hyperpage}{15}
+\indexentry{SatStress \textit{(package)}!SatStress.SatStress \textit{(module)}!SatStress.SatStress.Satellite \textit{(class)}!SatStress.SatStress.Satellite.surface\_gravity \textit{(method)}|hyperpage}{15}
+\indexentry{SatStress \textit{(package)}!SatStress.SatStress \textit{(module)}!SatStress.SatStress.Satellite \textit{(class)}!SatStress.SatStress.Satellite.orbit\_period \textit{(method)}|hyperpage}{15}
+\indexentry{SatStress \textit{(package)}!SatStress.SatStress \textit{(module)}!SatStress.SatStress.Satellite \textit{(class)}!SatStress.SatStress.Satellite.mean\_motion \textit{(method)}|hyperpage}{15}
+\indexentry{SatStress \textit{(package)}!SatStress.SatStress \textit{(module)}!SatStress.SatStress.Satellite \textit{(class)}|)hyperpage}{16}
+\indexentry{SatStress \textit{(package)}!SatStress.SatStress \textit{(module)}!SatStress.SatStress.SatLayer \textit{(class)}|(hyperpage}{16}
+\indexentry{SatStress \textit{(package)}!SatStress.SatStress \textit{(module)}!SatStress.SatStress.SatLayer \textit{(class)}!SatStress.SatStress.SatLayer.maxwell\_time \textit{(method)}|hyperpage}{20}
+\indexentry{SatStress \textit{(package)}!SatStress.SatStress \textit{(module)}!SatStress.SatStress.SatLayer \textit{(class)}!SatStress.SatStress.SatLayer.bulk\_modulus \textit{(method)}|hyperpage}{20}
+\indexentry{SatStress \textit{(package)}!SatStress.SatStress \textit{(module)}!SatStress.SatStress.SatLayer \textit{(class)}!SatStress.SatStress.SatLayer.youngs\_modulus \textit{(method)}|hyperpage}{20}
+\indexentry{SatStress \textit{(package)}!SatStress.SatStress \textit{(module)}!SatStress.SatStress.SatLayer \textit{(class)}!SatStress.SatStress.SatLayer.poissons\_ratio \textit{(method)}|hyperpage}{20}
+\indexentry{SatStress \textit{(package)}!SatStress.SatStress \textit{(module)}!SatStress.SatStress.SatLayer \textit{(class)}!SatStress.SatStress.SatLayer.p\_wave\_velocity \textit{(method)}|hyperpage}{20}
+\indexentry{SatStress \textit{(package)}!SatStress.SatStress \textit{(module)}!SatStress.SatStress.SatLayer \textit{(class)}|)hyperpage}{21}
+\indexentry{SatStress \textit{(package)}!SatStress.SatStress \textit{(module)}!SatStress.SatStress.LoveNum \textit{(class)}|(hyperpage}{21}
+\indexentry{SatStress \textit{(package)}!SatStress.SatStress \textit{(module)}!SatStress.SatStress.LoveNum \textit{(class)}|)hyperpage}{22}
+\indexentry{SatStress \textit{(package)}!SatStress.SatStress \textit{(module)}!SatStress.SatStress.StressDef \textit{(class)}|(hyperpage}{22}
+\indexentry{SatStress \textit{(package)}!SatStress.SatStress \textit{(module)}!SatStress.SatStress.StressDef \textit{(class)}!SatStress.SatStress.StressDef.calcLove \textit{(method)}|hyperpage}{23}
+\indexentry{SatStress \textit{(package)}!SatStress.SatStress \textit{(module)}!SatStress.SatStress.StressDef \textit{(class)}!SatStress.SatStress.StressDef.calcLoveInfinitePeriod \textit{(method)}|hyperpage}{23}
+\indexentry{SatStress \textit{(package)}!SatStress.SatStress \textit{(module)}!SatStress.SatStress.StressDef \textit{(class)}!SatStress.SatStress.StressDef.calcLoveWahr4LayerExternal \textit{(method)}|hyperpage}{23}
+\indexentry{SatStress \textit{(package)}!SatStress.SatStress \textit{(module)}!SatStress.SatStress.StressDef \textit{(class)}!SatStress.SatStress.StressDef.Delta \textit{(method)}|hyperpage}{24}
+\indexentry{SatStress \textit{(package)}!SatStress.SatStress \textit{(module)}!SatStress.SatStress.StressDef \textit{(class)}!SatStress.SatStress.StressDef.Z \textit{(method)}|hyperpage}{24}
+\indexentry{SatStress \textit{(package)}!SatStress.SatStress \textit{(module)}!SatStress.SatStress.StressDef \textit{(class)}!SatStress.SatStress.StressDef.mu\_twiddle \textit{(method)}|hyperpage}{25}
+\indexentry{SatStress \textit{(package)}!SatStress.SatStress \textit{(module)}!SatStress.SatStress.StressDef \textit{(class)}!SatStress.SatStress.StressDef.lambda\_twiddle \textit{(method)}|hyperpage}{25}
+\indexentry{SatStress \textit{(package)}!SatStress.SatStress \textit{(module)}!SatStress.SatStress.StressDef \textit{(class)}!SatStress.SatStress.StressDef.alpha \textit{(method)}|hyperpage}{25}
+\indexentry{SatStress \textit{(package)}!SatStress.SatStress \textit{(module)}!SatStress.SatStress.StressDef \textit{(class)}!SatStress.SatStress.StressDef.Gamma \textit{(method)}|hyperpage}{25}
+\indexentry{SatStress \textit{(package)}!SatStress.SatStress \textit{(module)}!SatStress.SatStress.StressDef \textit{(class)}!SatStress.SatStress.StressDef.b1 \textit{(method)}|hyperpage}{26}
+\indexentry{SatStress \textit{(package)}!SatStress.SatStress \textit{(module)}!SatStress.SatStress.StressDef \textit{(class)}!SatStress.SatStress.StressDef.g1 \textit{(method)}|hyperpage}{26}
+\indexentry{SatStress \textit{(package)}!SatStress.SatStress \textit{(module)}!SatStress.SatStress.StressDef \textit{(class)}!SatStress.SatStress.StressDef.b2 \textit{(method)}|hyperpage}{26}
+\indexentry{SatStress \textit{(package)}!SatStress.SatStress \textit{(module)}!SatStress.SatStress.StressDef \textit{(class)}!SatStress.SatStress.StressDef.g2 \textit{(method)}|hyperpage}{26}
+\indexentry{SatStress \textit{(package)}!SatStress.SatStress \textit{(module)}!SatStress.SatStress.StressDef \textit{(class)}!SatStress.SatStress.StressDef.Ttt \textit{(method)}|hyperpage}{27}
+\indexentry{SatStress \textit{(package)}!SatStress.SatStress \textit{(module)}!SatStress.SatStress.StressDef \textit{(class)}!SatStress.SatStress.StressDef.Tpp \textit{(method)}|hyperpage}{27}
+\indexentry{SatStress \textit{(package)}!SatStress.SatStress \textit{(module)}!SatStress.SatStress.StressDef \textit{(class)}!SatStress.SatStress.StressDef.Tpt \textit{(method)}|hyperpage}{28}
+\indexentry{SatStress \textit{(package)}!SatStress.SatStress \textit{(module)}!SatStress.SatStress.StressDef \textit{(class)}|)hyperpage}{29}
+\indexentry{SatStress \textit{(package)}!SatStress.SatStress \textit{(module)}!SatStress.SatStress.NSR \textit{(class)}|(hyperpage}{29}
+\indexentry{SatStress \textit{(package)}!SatStress.SatStress \textit{(module)}!SatStress.SatStress.NSR \textit{(class)}|)hyperpage}{32}
+\indexentry{SatStress \textit{(package)}!SatStress.SatStress \textit{(module)}!SatStress.SatStress.Diurnal \textit{(class)}|(hyperpage}{32}
+\indexentry{SatStress \textit{(package)}!SatStress.SatStress \textit{(module)}!SatStress.SatStress.Diurnal \textit{(class)}|)hyperpage}{34}
+\indexentry{SatStress \textit{(package)}!SatStress.SatStress \textit{(module)}!SatStress.SatStress.StressCalc \textit{(class)}|(hyperpage}{34}
+\indexentry{SatStress \textit{(package)}!SatStress.SatStress \textit{(module)}!SatStress.SatStress.StressCalc \textit{(class)}!SatStress.SatStress.StressCalc.tensor \textit{(method)}|hyperpage}{35}
+\indexentry{SatStress \textit{(package)}!SatStress.SatStress \textit{(module)}!SatStress.SatStress.StressCalc \textit{(class)}|)hyperpage}{36}
+\indexentry{SatStress \textit{(package)}!SatStress.SatStress \textit{(module)}!SatStress.SatStress.Error \textit{(class)}|(hyperpage}{36}
+\indexentry{SatStress \textit{(package)}!SatStress.SatStress \textit{(module)}!SatStress.SatStress.Error \textit{(class)}|)hyperpage}{37}
+\indexentry{SatStress \textit{(package)}!SatStress.SatStress \textit{(module)}!SatStress.SatStress.NameValueFileError \textit{(class)}|(hyperpage}{37}
+\indexentry{SatStress \textit{(package)}!SatStress.SatStress \textit{(module)}!SatStress.SatStress.NameValueFileError \textit{(class)}|)hyperpage}{38}
+\indexentry{SatStress \textit{(package)}!SatStress.SatStress \textit{(module)}!SatStress.SatStress.NameValueFileParseError \textit{(class)}|(hyperpage}{38}
+\indexentry{SatStress \textit{(package)}!SatStress.SatStress \textit{(module)}!SatStress.SatStress.NameValueFileParseError \textit{(class)}|)hyperpage}{39}
+\indexentry{SatStress \textit{(package)}!SatStress.SatStress \textit{(module)}!SatStress.SatStress.NameValueFileDuplicateNameError \textit{(class)}|(hyperpage}{39}
+\indexentry{SatStress \textit{(package)}!SatStress.SatStress \textit{(module)}!SatStress.SatStress.NameValueFileDuplicateNameError \textit{(class)}|)hyperpage}{40}
+\indexentry{SatStress \textit{(package)}!SatStress.SatStress \textit{(module)}!SatStress.SatStress.SatelliteParamError \textit{(class)}|(hyperpage}{40}
+\indexentry{SatStress \textit{(package)}!SatStress.SatStress \textit{(module)}!SatStress.SatStress.SatelliteParamError \textit{(class)}|)hyperpage}{41}
+\indexentry{SatStress \textit{(package)}!SatStress.SatStress \textit{(module)}!SatStress.SatStress.MissingSatelliteParamError \textit{(class)}|(hyperpage}{41}
+\indexentry{SatStress \textit{(package)}!SatStress.SatStress \textit{(module)}!SatStress.SatStress.MissingSatelliteParamError \textit{(class)}|)hyperpage}{42}
+\indexentry{SatStress \textit{(package)}!SatStress.SatStress \textit{(module)}!SatStress.SatStress.InvalidSatelliteParamError \textit{(class)}|(hyperpage}{42}
+\indexentry{SatStress \textit{(package)}!SatStress.SatStress \textit{(module)}!SatStress.SatStress.InvalidSatelliteParamError \textit{(class)}|)hyperpage}{44}
+\indexentry{SatStress \textit{(package)}!SatStress.SatStress \textit{(module)}!SatStress.SatStress.LargeEccentricityError \textit{(class)}|(hyperpage}{44}
+\indexentry{SatStress \textit{(package)}!SatStress.SatStress \textit{(module)}!SatStress.SatStress.LargeEccentricityError \textit{(class)}|)hyperpage}{45}
+\indexentry{SatStress \textit{(package)}!SatStress.SatStress \textit{(module)}!SatStress.SatStress.NegativeNSRPeriodError \textit{(class)}|(hyperpage}{45}
+\indexentry{SatStress \textit{(package)}!SatStress.SatStress \textit{(module)}!SatStress.SatStress.NegativeNSRPeriodError \textit{(class)}|)hyperpage}{46}
+\indexentry{SatStress \textit{(package)}!SatStress.SatStress \textit{(module)}!SatStress.SatStress.ExcessiveSatelliteMassError \textit{(class)}|(hyperpage}{46}
+\indexentry{SatStress \textit{(package)}!SatStress.SatStress \textit{(module)}!SatStress.SatStress.ExcessiveSatelliteMassError \textit{(class)}|)hyperpage}{47}
+\indexentry{SatStress \textit{(package)}!SatStress.SatStress \textit{(module)}!SatStress.SatStress.LoveLayerNumberError \textit{(class)}|(hyperpage}{47}
+\indexentry{SatStress \textit{(package)}!SatStress.SatStress \textit{(module)}!SatStress.SatStress.LoveLayerNumberError \textit{(class)}|)hyperpage}{49}
+\indexentry{SatStress \textit{(package)}!SatStress.SatStress \textit{(module)}!SatStress.SatStress.InvalidLoveNumberError \textit{(class)}|(hyperpage}{49}
+\indexentry{SatStress \textit{(package)}!SatStress.SatStress \textit{(module)}!SatStress.SatStress.InvalidLoveNumberError \textit{(class)}|)hyperpage}{50}
+\indexentry{SatStress \textit{(package)}!SatStress.SatStress \textit{(module)}!SatStress.SatStress.LoveExcessiveDeltaError \textit{(class)}|(hyperpage}{50}
+\indexentry{SatStress \textit{(package)}!SatStress.SatStress \textit{(module)}!SatStress.SatStress.LoveExcessiveDeltaError \textit{(class)}|)hyperpage}{51}
+\indexentry{SatStress \textit{(package)}!SatStress.SatStress \textit{(module)}!SatStress.SatStress.GravitationallyUnstableSatelliteError \textit{(class)}|(hyperpage}{51}
+\indexentry{SatStress \textit{(package)}!SatStress.SatStress \textit{(module)}!SatStress.SatStress.GravitationallyUnstableSatelliteError \textit{(class)}|)hyperpage}{53}
+\indexentry{SatStress \textit{(package)}!SatStress.SatStress \textit{(module)}!SatStress.SatStress.NonNumberSatelliteParamError \textit{(class)}|(hyperpage}{53}
+\indexentry{SatStress \textit{(package)}!SatStress.SatStress \textit{(module)}!SatStress.SatStress.NonNumberSatelliteParamError \textit{(class)}|)hyperpage}{54}
+\indexentry{SatStress \textit{(package)}!SatStress.SatStress \textit{(module)}!SatStress.SatStress.LowLayerDensityError \textit{(class)}|(hyperpage}{54}
+\indexentry{SatStress \textit{(package)}!SatStress.SatStress \textit{(module)}!SatStress.SatStress.LowLayerDensityError \textit{(class)}|)hyperpage}{55}
+\indexentry{SatStress \textit{(package)}!SatStress.SatStress \textit{(module)}!SatStress.SatStress.LowLayerThicknessError \textit{(class)}|(hyperpage}{55}
+\indexentry{SatStress \textit{(package)}!SatStress.SatStress \textit{(module)}!SatStress.SatStress.LowLayerThicknessError \textit{(class)}|)hyperpage}{57}
+\indexentry{SatStress \textit{(package)}!SatStress.SatStress \textit{(module)}!SatStress.SatStress.NegativeLayerParamError \textit{(class)}|(hyperpage}{57}
+\indexentry{SatStress \textit{(package)}!SatStress.SatStress \textit{(module)}!SatStress.SatStress.NegativeLayerParamError \textit{(class)}|)hyperpage}{58}
+\indexentry{SatStress \textit{(package)}!SatStress.SatStress \textit{(module)}|)hyperpage}{58}
+\indexentry{SatStress \textit{(package)}!SatStress.physcon \textit{(module)}|(hyperpage}{59}
+\indexentry{SatStress \textit{(package)}!SatStress.physcon \textit{(module)}!SatStress.physcon.descr \textit{(function)}|hyperpage}{59}
+\indexentry{SatStress \textit{(package)}!SatStress.physcon \textit{(module)}!SatStress.physcon.help \textit{(function)}|hyperpage}{59}
+\indexentry{SatStress \textit{(package)}!SatStress.physcon \textit{(module)}!SatStress.physcon.relsd \textit{(function)}|hyperpage}{59}
+\indexentry{SatStress \textit{(package)}!SatStress.physcon \textit{(module)}!SatStress.physcon.sd \textit{(function)}|hyperpage}{59}
+\indexentry{SatStress \textit{(package)}!SatStress.physcon \textit{(module)}!SatStress.physcon.value \textit{(function)}|hyperpage}{60}
+\indexentry{SatStress \textit{(package)}!SatStress.physcon \textit{(module)}|)hyperpage}{60}
