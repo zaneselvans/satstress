@@ -3,7 +3,7 @@
           "DTD/xhtml1-transitional.dtd">
 <html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en" lang="en">
 <head>
-  <title>satstress.SatStress</title>
+  <title>SatStress.SatStress</title>
   <link rel="stylesheet" href="epydoc.css" type="text/css" />
   <script type="text/javascript" src="epydoc.js"></script>
 </head>
@@ -16,7 +16,7 @@
   <tr valign="middle">
   <!-- Home link -->
       <th>&nbsp;&nbsp;&nbsp;<a
-        href="satstress-module.html">Home</a>&nbsp;&nbsp;&nbsp;</th>
+        href="SatStress-module.html">Home</a>&nbsp;&nbsp;&nbsp;</th>
 
   <!-- Tree link -->
       <th>&nbsp;&nbsp;&nbsp;<a
@@ -42,7 +42,7 @@
   <tr valign="top">
     <td width="100%">
       <span class="breadcrumbs">
-        <a href="satstress-module.html">Package&nbsp;satstress</a> ::
+        <a href="SatStress-module.html">Package&nbsp;SatStress</a> ::
         Module&nbsp;SatStress
       </span>
     </td>
@@ -56,17 +56,17 @@
   </tr>
 </table>
 <!-- ==================== MODULE DESCRIPTION ==================== -->
-<h1 class="epydoc">Module SatStress</h1><p class="nomargin-top"><span class="codelink"><a href="satstress.SatStress-pysrc.html">source&nbsp;code</a></span></p>
+<h1 class="epydoc">Module SatStress</h1><p class="nomargin-top"><span class="codelink"><a href="SatStress.SatStress-pysrc.html">source&nbsp;code</a></span></p>
 <p>A framework for calculating the surface stresses at a particular place
   and time on a satellite resulting from one or more tidal potentials.</p>
   <h1 class="heading">1 Input and Output</h1>
     <p>Because <code>SatStress</code> is a &quot;library&quot; module, it 
     doesn't do a lot of input and output - it's mostly about doing 
     calculations.  It does need to read in the specification of a <a 
-    href="satstress.SatStress.Satellite-class.html" 
+    href="SatStress.SatStress.Satellite-class.html" 
     class="link">Satellite</a> object though, and it can write the same 
     kind of specification out.  To do this, it uses name-value files, and a
-    function called <a href="satstress.SatStress-module.html#nvf2dict" 
+    function called <a href="SatStress.SatStress-module.html#nvf2dict" 
     class="link">nvf2dict</a>, which creates a Python dictionary (or 
     &quot;associative array&quot;).</p>
     <p>A name-value file is just a file containing a bunch of name-value 
@@ -80,7 +80,7 @@
   <h1 class="heading">2 Satellites</h1>
     <p>Obviously if we want to calculate the stresses on the surface of a 
     satellite, we need to define the satellite, this is what the <a 
-    href="satstress.SatStress.Satellite-class.html" 
+    href="SatStress.SatStress.Satellite-class.html" 
     class="link">Satellite</a> object does.</p>
     <h2 class="heading">2.1 Specifying a Satellite</h2>
       <p>In order to specify a satellite, we need:</p>
@@ -107,10 +107,10 @@
       thicknesses of the these layers, we can calculate the satellite's 
       overall size, mass, density, etc.</p>
       <p>Specifying a tidal forcing may be simple or complex.  For 
-      instance, the <a href="satstress.SatStress.Diurnal-class.html" 
+      instance, the <a href="SatStress.SatStress.Diurnal-class.html" 
       class="link">Diurnal</a> forcing depends only on the orbital 
       eccentricity (and other orbital parameters already supplied), and the
-      <a href="satstress.SatStress.NSR-class.html" class="link">NSR</a> 
+      <a href="SatStress.SatStress.NSR-class.html" class="link">NSR</a> 
       forcing requires only the addition of the non-synchronous rotation 
       period of the shell.  Specifying an arbitrary true polar wander 
       trajectory would be much more complex.</p>
@@ -158,12 +158,12 @@
     fields:</p>
     <ol start="1">
       <li>
-        <b><a href="satstress.SatStress.Diurnal-class.html" 
+        <b><a href="SatStress.SatStress.Diurnal-class.html" 
         class="link">Diurnal</a></b>: stresses arising from an eccentric 
         orbit, having a forcing frequency equal to the orbital frequency.
       </li>
       <li>
-        <b><a href="satstress.SatStress.NSR-class.html" 
+        <b><a href="SatStress.SatStress.NSR-class.html" 
         class="link">NSR</a></b>: stresses arising due to the 
         faster-than-synchronous rotation of a floating shell that is 
         decoupled from the satellite's interior by a fluid layer (an 
@@ -176,29 +176,29 @@
     href="http://icymoons.com/Wahretal2008/stress.paper.pdf" 
     target="_top">preprint, 15MB PDF</a>) by Wahr et al. (submitted to 
     <i>Icarus</i>, in March, 2008).</p>
-    <h2 class="heading">3.1 Stress Fields Live in <a href="satstress.SatStress.StressDef-class.html" class="link">StressDef</a> Objects</h2>
+    <h2 class="heading">3.1 Stress Fields Live in <a href="SatStress.SatStress.StressDef-class.html" class="link">StressDef</a> Objects</h2>
       <p>Each of the above stress fields is defined by a similarly named <a
-      href="satstress.SatStress.StressDef-class.html" 
+      href="SatStress.SatStress.StressDef-class.html" 
       class="link">StressDef</a> object.  These objects contain the 
       formulae necessary to calculate the surface stress.  The expressions 
       for the stresses depend on many parameters which are defined within 
-      the <a href="satstress.SatStress.Satellite-class.html" 
+      the <a href="SatStress.SatStress.Satellite-class.html" 
       class="link">Satellite</a> object, and so to create a <a 
-      href="satstress.SatStress.StressDef-class.html" 
+      href="SatStress.SatStress.StressDef-class.html" 
       class="link">StressDef</a> object, you need to provide a <a 
-      href="satstress.SatStress.Satellite-class.html" 
+      href="SatStress.SatStress.Satellite-class.html" 
       class="link">Satellite</a> object.</p>
       <p>There are many formulae which are identical for both the <a 
-      href="satstress.SatStress.NSR-class.html" class="link">NSR</a> and <a
-      href="satstress.SatStress.Diurnal-class.html" 
+      href="SatStress.SatStress.NSR-class.html" class="link">NSR</a> and <a
+      href="SatStress.SatStress.Diurnal-class.html" 
       class="link">Diurnal</a> stress fields, and so instead of duplicating
       them in both classes, they reside in the <a 
-      href="satstress.SatStress.StressDef-class.html" 
+      href="SatStress.SatStress.StressDef-class.html" 
       class="link">StressDef</a> <i>base class</i>, from which all <a 
-      href="satstress.SatStress.StressDef-class.html" 
+      href="SatStress.SatStress.StressDef-class.html" 
       class="link">StressDef</a> objects inherit many properties.</p>
       <p>The main requirement for each <a 
-      href="satstress.SatStress.StressDef-class.html" 
+      href="SatStress.SatStress.StressDef-class.html" 
       class="link">StressDef</a> object is that it must define the three 
       components of the stress tensor &tau;:</p>
       <ul>
@@ -215,18 +215,18 @@
           component
         </li>
       </ul>
-    <h2 class="heading">3.2 Stress Calculations are Performed by <a href="satstress.SatStress.StressCalc-class.html" class="link">StressCalc</a> Objects</h2>
+    <h2 class="heading">3.2 Stress Calculations are Performed by <a href="SatStress.SatStress.StressCalc-class.html" class="link">StressCalc</a> Objects</h2>
       <p>Once you've <i>instantiated</i> a <a 
-      href="satstress.SatStress.StressDef-class.html" 
+      href="SatStress.SatStress.StressDef-class.html" 
       class="link">StressDef</a> object, or several of them (one for each 
       stress you want to include), you can compose them together into a <a 
-      href="satstress.SatStress.StressCalc-class.html" 
+      href="SatStress.SatStress.StressCalc-class.html" 
       class="link">StressCalc</a> object, which will actually do 
       calculations at given points on the surface, and given times, and 
       return a 2x2 matrix containing the resulting stress tensor (each 
       component of which is the sum of all of the corresponding components 
       of the stress fields that were used to instantiated the <a 
-      href="satstress.SatStress.StressCalc-class.html" 
+      href="SatStress.SatStress.StressCalc-class.html" 
       class="link">StressCalc</a> object).</p>
       <p>This is (hopefully) easier than it sounds.  With the following few
       lines, you can construct a satellite, do a single calculation on its 
@@ -237,7 +237,7 @@
 <span class="py-prompt">&gt;&gt;&gt; </span>the_stresses = StressCalc([Diurnal(the_sat), NSR(the_sat)])
 <span class="py-prompt">&gt;&gt;&gt; </span>Tau = the_stresses.tensor(theta=pi/4.0, phi=pi/3.0, t=10000)
 <span class="py-prompt">&gt;&gt;&gt; </span><span class="py-keyword">print</span>(Tau)</pre>
-      <p>The <a href="satstress.SatStress-module.html#test" 
+      <p>The <a href="SatStress.SatStress-module.html#test" 
       class="link">SatStress.test</a> function shows a slightly more 
       complex example, which should be enough to get you started using the 
       package.</p>
@@ -258,7 +258,7 @@
 
 <hr />
 <div class="fields">      <p><strong>Date:</strong>
-        Fri Mar 28 20:14:31 2008
+        Fri Mar 28 20:31:48 2008
       </p>
       <p><strong>Author:</strong>
         Zane Selvans
@@ -293,7 +293,7 @@
     <td width="15%" align="right" valign="top" class="summary">
       <span class="summary-type">&nbsp;</span>
     </td><td class="summary">
-        <a href="satstress.SatStress.Satellite-class.html" class="summary-name">Satellite</a><br />
+        <a href="SatStress.SatStress.Satellite-class.html" class="summary-name">Satellite</a><br />
       An object describing the physical structure and context of a 
         satellite.
     </td>
@@ -302,7 +302,7 @@
     <td width="15%" align="right" valign="top" class="summary">
       <span class="summary-type">&nbsp;</span>
     </td><td class="summary">
-        <a href="satstress.SatStress.SatLayer-class.html" class="summary-name">SatLayer</a><br />
+        <a href="SatStress.SatStress.SatLayer-class.html" class="summary-name">SatLayer</a><br />
       An object describing a uniform material layer within a satellite.
     </td>
   </tr>
@@ -310,7 +310,7 @@
     <td width="15%" align="right" valign="top" class="summary">
       <span class="summary-type">&nbsp;</span>
     </td><td class="summary">
-        <a href="satstress.SatStress.LoveNum-class.html" class="summary-name">LoveNum</a><br />
+        <a href="SatStress.SatStress.LoveNum-class.html" class="summary-name">LoveNum</a><br />
       A container class for the complex Love numbers: h2, k2, and l2.
     </td>
   </tr>
@@ -318,7 +318,7 @@
     <td width="15%" align="right" valign="top" class="summary">
       <span class="summary-type">&nbsp;</span>
     </td><td class="summary">
-        <a href="satstress.SatStress.StressDef-class.html" class="summary-name">StressDef</a><br />
+        <a href="SatStress.SatStress.StressDef-class.html" class="summary-name">StressDef</a><br />
       A base class from which particular tidal stress field objects 
         descend.
     </td>
@@ -327,7 +327,7 @@
     <td width="15%" align="right" valign="top" class="summary">
       <span class="summary-type">&nbsp;</span>
     </td><td class="summary">
-        <a href="satstress.SatStress.NSR-class.html" class="summary-name">NSR</a><br />
+        <a href="SatStress.SatStress.NSR-class.html" class="summary-name">NSR</a><br />
       An object defining the stress field which arises from the 
         non-synchronous rotation (NSR) of a satellite's icy shell.
     </td>
@@ -336,7 +336,7 @@
     <td width="15%" align="right" valign="top" class="summary">
       <span class="summary-type">&nbsp;</span>
     </td><td class="summary">
-        <a href="satstress.SatStress.Diurnal-class.html" class="summary-name">Diurnal</a><br />
+        <a href="SatStress.SatStress.Diurnal-class.html" class="summary-name">Diurnal</a><br />
       An object defining the stress field that arises on a satellite due 
         to an eccentric orbit.
     </td>
@@ -345,9 +345,9 @@
     <td width="15%" align="right" valign="top" class="summary">
       <span class="summary-type">&nbsp;</span>
     </td><td class="summary">
-        <a href="satstress.SatStress.StressCalc-class.html" class="summary-name">StressCalc</a><br />
+        <a href="SatStress.SatStress.StressCalc-class.html" class="summary-name">StressCalc</a><br />
       An object which calculates the stresses on the surface of a <a 
-        href="satstress.SatStress.Satellite-class.html" 
+        href="SatStress.SatStress.Satellite-class.html" 
         class="link">Satellite</a> that result from one or more stress 
         fields.
     </td>
@@ -359,7 +359,7 @@
     <td width="15%" align="right" valign="top" class="summary">
       <span class="summary-type">&nbsp;</span>
     </td><td class="summary">
-        <a href="satstress.SatStress.Error-class.html" class="summary-name">Error</a><br />
+        <a href="SatStress.SatStress.Error-class.html" class="summary-name">Error</a><br />
       Base class for errors within the SatStress module.
     </td>
   </tr>
@@ -367,7 +367,7 @@
     <td width="15%" align="right" valign="top" class="summary">
       <span class="summary-type">&nbsp;</span>
     </td><td class="summary">
-        <a href="satstress.SatStress.NameValueFileError-class.html" class="summary-name">NameValueFileError</a><br />
+        <a href="SatStress.SatStress.NameValueFileError-class.html" class="summary-name">NameValueFileError</a><br />
       Base class for errors related to NAME=VALUE style input files.
     </td>
   </tr>
@@ -375,7 +375,7 @@
     <td width="15%" align="right" valign="top" class="summary">
       <span class="summary-type">&nbsp;</span>
     </td><td class="summary">
-        <a href="satstress.SatStress.NameValueFileParseError-class.html" class="summary-name">NameValueFileParseError</a><br />
+        <a href="SatStress.SatStress.NameValueFileParseError-class.html" class="summary-name">NameValueFileParseError</a><br />
       Indicates a poorly formatted NAME=VALUE files.
     </td>
   </tr>
@@ -383,7 +383,7 @@
     <td width="15%" align="right" valign="top" class="summary">
       <span class="summary-type">&nbsp;</span>
     </td><td class="summary">
-        <a href="satstress.SatStress.NameValueFileDuplicateNameError-class.html" class="summary-name">NameValueFileDuplicateNameError</a><br />
+        <a href="SatStress.SatStress.NameValueFileDuplicateNameError-class.html" class="summary-name">NameValueFileDuplicateNameError</a><br />
       Indicates multiple copies of the same name in an input file.
     </td>
   </tr>
@@ -391,7 +391,7 @@
     <td width="15%" align="right" valign="top" class="summary">
       <span class="summary-type">&nbsp;</span>
     </td><td class="summary">
-        <a href="satstress.SatStress.SatelliteParamError-class.html" class="summary-name">SatelliteParamError</a><br />
+        <a href="SatStress.SatStress.SatelliteParamError-class.html" class="summary-name">SatelliteParamError</a><br />
       Indicates a problem with the Satellite initialization.
     </td>
   </tr>
@@ -399,7 +399,7 @@
     <td width="15%" align="right" valign="top" class="summary">
       <span class="summary-type">&nbsp;</span>
     </td><td class="summary">
-        <a href="satstress.SatStress.MissingSatelliteParamError-class.html" class="summary-name">MissingSatelliteParamError</a><br />
+        <a href="SatStress.SatStress.MissingSatelliteParamError-class.html" class="summary-name">MissingSatelliteParamError</a><br />
       Indicates a required parameter was not found in the input file.
     </td>
   </tr>
@@ -407,7 +407,7 @@
     <td width="15%" align="right" valign="top" class="summary">
       <span class="summary-type">&nbsp;</span>
     </td><td class="summary">
-        <a href="satstress.SatStress.InvalidSatelliteParamError-class.html" class="summary-name">InvalidSatelliteParamError</a><br />
+        <a href="SatStress.SatStress.InvalidSatelliteParamError-class.html" class="summary-name">InvalidSatelliteParamError</a><br />
       Raised when a required parameter is not found in the input file.
     </td>
   </tr>
@@ -415,7 +415,7 @@
     <td width="15%" align="right" valign="top" class="summary">
       <span class="summary-type">&nbsp;</span>
     </td><td class="summary">
-        <a href="satstress.SatStress.LargeEccentricityError-class.html" class="summary-name">LargeEccentricityError</a><br />
+        <a href="SatStress.SatStress.LargeEccentricityError-class.html" class="summary-name">LargeEccentricityError</a><br />
       Raised when satellite orbital eccentricity is &gt; 0.25
     </td>
   </tr>
@@ -423,7 +423,7 @@
     <td width="15%" align="right" valign="top" class="summary">
       <span class="summary-type">&nbsp;</span>
     </td><td class="summary">
-        <a href="satstress.SatStress.NegativeNSRPeriodError-class.html" class="summary-name">NegativeNSRPeriodError</a><br />
+        <a href="SatStress.SatStress.NegativeNSRPeriodError-class.html" class="summary-name">NegativeNSRPeriodError</a><br />
       Raised if the satellite's NSR period is less than zero
     </td>
   </tr>
@@ -431,7 +431,7 @@
     <td width="15%" align="right" valign="top" class="summary">
       <span class="summary-type">&nbsp;</span>
     </td><td class="summary">
-        <a href="satstress.SatStress.ExcessiveSatelliteMassError-class.html" class="summary-name">ExcessiveSatelliteMassError</a><br />
+        <a href="SatStress.SatStress.ExcessiveSatelliteMassError-class.html" class="summary-name">ExcessiveSatelliteMassError</a><br />
       Raised if the satellite's parent planet is less than 10x as massive
         as the satellite.
     </td>
@@ -440,7 +440,7 @@
     <td width="15%" align="right" valign="top" class="summary">
       <span class="summary-type">&nbsp;</span>
     </td><td class="summary">
-        <a href="satstress.SatStress.LoveLayerNumberError-class.html" class="summary-name">LoveLayerNumberError</a><br />
+        <a href="SatStress.SatStress.LoveLayerNumberError-class.html" class="summary-name">LoveLayerNumberError</a><br />
       Raised if the number of layers specified in the satellite 
         definition file is incompatible with the Love number code.
     </td>
@@ -449,7 +449,7 @@
     <td width="15%" align="right" valign="top" class="summary">
       <span class="summary-type">&nbsp;</span>
     </td><td class="summary">
-        <a href="satstress.SatStress.InvalidLoveNumberError-class.html" class="summary-name">InvalidLoveNumberError</a><br />
+        <a href="SatStress.SatStress.InvalidLoveNumberError-class.html" class="summary-name">InvalidLoveNumberError</a><br />
       Raised if the Love numbers are found to be suspicious.
     </td>
   </tr>
@@ -457,7 +457,7 @@
     <td width="15%" align="right" valign="top" class="summary">
       <span class="summary-type">&nbsp;</span>
     </td><td class="summary">
-        <a href="satstress.SatStress.LoveExcessiveDeltaError-class.html" class="summary-name">LoveExcessiveDeltaError</a><br />
+        <a href="SatStress.SatStress.LoveExcessiveDeltaError-class.html" class="summary-name">LoveExcessiveDeltaError</a><br />
       Raised when &Delta; &gt; 10^9 for any of the ice layers, at which 
         point the Love number code becomes unreliable.
     </td>
@@ -466,7 +466,7 @@
     <td width="15%" align="right" valign="top" class="summary">
       <span class="summary-type">&nbsp;</span>
     </td><td class="summary">
-        <a href="satstress.SatStress.GravitationallyUnstableSatelliteError-class.html" class="summary-name">GravitationallyUnstableSatelliteError</a><br />
+        <a href="SatStress.SatStress.GravitationallyUnstableSatelliteError-class.html" class="summary-name">GravitationallyUnstableSatelliteError</a><br />
       Raised if the density of layers is found not to decrease as you 
         move toward the surface from the center of the satellite.
     </td>
@@ -475,7 +475,7 @@
     <td width="15%" align="right" valign="top" class="summary">
       <span class="summary-type">&nbsp;</span>
     </td><td class="summary">
-        <a href="satstress.SatStress.NonNumberSatelliteParamError-class.html" class="summary-name">NonNumberSatelliteParamError</a><br />
+        <a href="SatStress.SatStress.NonNumberSatelliteParamError-class.html" class="summary-name">NonNumberSatelliteParamError</a><br />
       Indicates that a non-numeric value was found for a numerical 
         parameter.
     </td>
@@ -484,7 +484,7 @@
     <td width="15%" align="right" valign="top" class="summary">
       <span class="summary-type">&nbsp;</span>
     </td><td class="summary">
-        <a href="satstress.SatStress.LowLayerDensityError-class.html" class="summary-name">LowLayerDensityError</a><br />
+        <a href="SatStress.SatStress.LowLayerDensityError-class.html" class="summary-name">LowLayerDensityError</a><br />
       Indicates that a layer has been assigned an unrealistically low 
         density.
     </td>
@@ -493,7 +493,7 @@
     <td width="15%" align="right" valign="top" class="summary">
       <span class="summary-type">&nbsp;</span>
     </td><td class="summary">
-        <a href="satstress.SatStress.LowLayerThicknessError-class.html" class="summary-name">LowLayerThicknessError</a><br />
+        <a href="SatStress.SatStress.LowLayerThicknessError-class.html" class="summary-name">LowLayerThicknessError</a><br />
       Indicates that a layer has been given too small of a thickness
     </td>
   </tr>
@@ -501,7 +501,7 @@
     <td width="15%" align="right" valign="top" class="summary">
       <span class="summary-type">&nbsp;</span>
     </td><td class="summary">
-        <a href="satstress.SatStress.NegativeLayerParamError-class.html" class="summary-name">NegativeLayerParamError</a><br />
+        <a href="SatStress.SatStress.NegativeLayerParamError-class.html" class="summary-name">NegativeLayerParamError</a><br />
       Indicates a layer has been given an unphysical material property.
     </td>
   </tr>
@@ -529,12 +529,12 @@
     </td><td class="summary">
       <table width="100%" cellpadding="0" cellspacing="0" border="0">
         <tr>
-          <td><span class="summary-sig"><a href="satstress.SatStress-module.html#nvf2dict" class="summary-sig-name">nvf2dict</a>(<span class="summary-sig-arg">nvf</span>,
+          <td><span class="summary-sig"><a href="SatStress.SatStress-module.html#nvf2dict" class="summary-sig-name">nvf2dict</a>(<span class="summary-sig-arg">nvf</span>,
         <span class="summary-sig-arg">comment</span>=<span class="summary-sig-default"><code class="variable-quote">'</code><code class="variable-string">#</code><code class="variable-quote">'</code></span>)</span><br />
       Reads from a file object listing name value pairs, creating and 
       returning a corresponding Python dictionary.</td>
           <td align="right" valign="top">
-            <span class="codelink"><a href="satstress.SatStress-pysrc.html#nvf2dict">source&nbsp;code</a></span>
+            <span class="codelink"><a href="SatStress.SatStress-pysrc.html#nvf2dict">source&nbsp;code</a></span>
             
           </td>
         </tr>
@@ -548,11 +548,11 @@
     </td><td class="summary">
       <table width="100%" cellpadding="0" cellspacing="0" border="0">
         <tr>
-          <td><span class="summary-sig"><a href="satstress.SatStress-module.html#test" class="summary-sig-name">test</a>(<span class="summary-sig-arg">argv</span>=<span class="summary-sig-default"><code class="variable-group">[</code><code class="variable-quote">'</code><code class="variable-string">(imported)</code><code class="variable-quote">'</code><code class="variable-group">]</code></span>)</span><br />
+          <td><span class="summary-sig"><a href="SatStress.SatStress-module.html#test" class="summary-sig-name">test</a>(<span class="summary-sig-arg">argv</span>=<span class="summary-sig-default"><code class="variable-group">[</code><code class="variable-quote">'</code><code class="variable-string">(imported)</code><code class="variable-quote">'</code><code class="variable-group">]</code></span>)</span><br />
       Check to see that SatStress gives the expected output from a series 
       of known calculations.</td>
           <td align="right" valign="top">
-            <span class="codelink"><a href="satstress.SatStress-pysrc.html#test">source&nbsp;code</a></span>
+            <span class="codelink"><a href="SatStress.SatStress-pysrc.html#test">source&nbsp;code</a></span>
             
           </td>
         </tr>
@@ -590,7 +590,7 @@
         <span class="sig-arg">comment</span>=<span class="sig-default"><code class="variable-quote">'</code><code class="variable-string">#</code><code class="variable-quote">'</code></span>)</span>
   </h3>
   </td><td align="right" valign="top"
-    ><span class="codelink"><a href="satstress.SatStress-pysrc.html#nvf2dict">source&nbsp;code</a></span>&nbsp;
+    ><span class="codelink"><a href="SatStress.SatStress-pysrc.html#nvf2dict">source&nbsp;code</a></span>&nbsp;
     </td>
   </tr></table>
   
@@ -618,10 +618,10 @@
           <code>nvf</code>.</dd>
     <dt>Raises:</dt>
     <dd><ul class="nomargin-top">
-        <li><code><strong class='fraise'><a href="satstress.SatStress.NameValueFileParseError-class.html">NameValueFileParseError</a></strong></code> - if a non-comment input line does not contain an '=' character, or 
+        <li><code><strong class='fraise'><a href="SatStress.SatStress.NameValueFileParseError-class.html">NameValueFileParseError</a></strong></code> - if a non-comment input line does not contain an '=' character, or 
         if a non-comment line has nothing but whitespace preceeding or 
         following the '=' character.</li>
-        <li><code><strong class='fraise'><a href="satstress.SatStress.NameValueFileDuplicateNameError-class.html">NameValueFileDuplicateNameError</a></strong></code> - if more than one instance of the same name is found in the input 
+        <li><code><strong class='fraise'><a href="SatStress.SatStress.NameValueFileDuplicateNameError-class.html">NameValueFileDuplicateNameError</a></strong></code> - if more than one instance of the same name is found in the input 
         file <code>nvf</code>.</li>
     </ul></dd>
   </dl>
@@ -637,15 +637,15 @@
   <h3 class="epydoc"><span class="sig"><span class="sig-name">test</span>(<span class="sig-arg">argv</span>=<span class="sig-default"><code class="variable-group">[</code><code class="variable-quote">'</code><code class="variable-string">(imported)</code><code class="variable-quote">'</code><code class="variable-group">]</code></span>)</span>
   </h3>
   </td><td align="right" valign="top"
-    ><span class="codelink"><a href="satstress.SatStress-pysrc.html#test">source&nbsp;code</a></span>&nbsp;
+    ><span class="codelink"><a href="SatStress.SatStress-pysrc.html#test">source&nbsp;code</a></span>&nbsp;
     </td>
   </tr></table>
   
   <p>Check to see that SatStress gives the expected output from a series of
   known calculations.</p>
   <p>Calculates the stresses due to the <a 
-  href="satstress.SatStress.NSR-class.html" class="link">NSR</a> and <a 
-  href="satstress.SatStress.Diurnal-class.html" class="link">Diurnal</a> 
+  href="SatStress.SatStress.NSR-class.html" class="link">NSR</a> and <a 
+  href="SatStress.SatStress.Diurnal-class.html" class="link">Diurnal</a> 
   forcings at a series of lat lon points on Europa, over the course of most
   of an orbit, and also at a variety of different amounts of viscous 
   relaxation.  Compares the calculated values to those listed in the 
@@ -674,7 +674,7 @@
   <tr valign="middle">
   <!-- Home link -->
       <th>&nbsp;&nbsp;&nbsp;<a
-        href="satstress-module.html">Home</a>&nbsp;&nbsp;&nbsp;</th>
+        href="SatStress-module.html">Home</a>&nbsp;&nbsp;&nbsp;</th>
 
   <!-- Tree link -->
       <th>&nbsp;&nbsp;&nbsp;<a
@@ -699,7 +699,7 @@
 <table border="0" cellpadding="0" cellspacing="0" width="100%%">
   <tr>
     <td align="left" class="footer">
-    Generated by Epydoc 3.0.1 on Fri Mar 28 13:14:33 2008
+    Generated by Epydoc 3.0.1 on Fri Mar 28 13:31:50 2008
     </td>
     <td align="right" class="footer">
       <a target="mainFrame" href="http://epydoc.sourceforge.net"
