@@ -1,18 +1,23 @@
 Python SatStress Tasks:
 =======================
-Polish the stress library:
---------------------------
-  - Format __doc__ strings for use with Epydoc.
-  - Generate Epydoc output
-  - Sync my SVN repository with GoogleCode
-  - Email anyone interested in this stuff
-    - Ask for bug reports (including unclear documentation)
-    - Ask other people to submit their stress fields!
+  - Write a 'make release x.y.z' function in the Makefile that builds doc,
+    removes compiled files and .svn directories, and creates a .tgz archive
 
+  - Write generic release files:
+    - README
+    - INSTALL
+    - LICENSE
+    - Put some info on the sample input files (*.grid, *.satellite)
+
+  - Try and do a more standard 'python setup.py install' installation
+
+SatStress:
+----------
   - When outputting a Satellite object, also output derived parameters (mass,
     radius, etc) as comments, for reference.
-  - Provide some kind of structured input/output for stress field definitions,
-    and the frequency dependent parameters... like the Love numbers.
+
+  - Write __str__ methods for NSR and Diurnal that output all of their 
+    derived quantities in a human readable way.
 
 GridCalc:
 ---------
@@ -26,14 +31,12 @@ GridCalc:
 
 Love Numbers:
 -------------
-  - Wait until I get code from James
-
   - The Love number code should be generalized to
     - allow many layers
     - allow user to specify layer boundaries as radii range
     - use only SI units!
 
-  - Validate John's vs. James' codes
+  - Validate John's vs. James' codes (when I get it)
 
   - For whichever one I decide to release, I should get rid of the front end
     they have and wrap the core subroutine(s) in Python (for input/output),
