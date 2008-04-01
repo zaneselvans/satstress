@@ -1,34 +1,26 @@
+#!python
 """Check to see that SatStress gives the expected output from a series
 of known calculations.
 
-Calculates the stresses due to the L{NSR} and L{Diurnal} forcings at a
-series of lat lon points on Europa, over the course of most of an orbit, and
-also at a variety of different amounts of viscous relaxation.  Compares the
-calculated values to those listed in the C{pickle} file passed in via the
-command line.
+Calculates the stresses due to the L{NSR} and L{Diurnal} forcings at a series
+of lat lon points on Europa, over the course of most of an orbit, and also at a
+variety of different amounts of viscous relaxation.  Compares the calculated
+values to those listed in the the test ouput file distributed with SatStress
+(test/SS_test_calc.pkl).
 
-C{test} is called from the C{SatStress Makefile}, when one does C{make test},
-with the appropriate C{pickle}d input to compare against (it is provided with
-the source code).
+C{test.py} is called from the C{SatStress Makefile}, when one does C{make
+test}.  It also acts as a short demonstration of how to use the SatStress
+package.
 
-This function also acts as a short demonstration of how to use the SatStress
-module.
 """
 
-import pickle
 import sys
-from optparse import OptionParser
+import pickle
+import scipy
 import SatStress as SS
 
-usage = "usage: %prog satfile [testoutput.pkl]"
-op = OptionParser(usage)
-(options, args) = op.parse_args(sys.argv[1:])
-
-if len(args) < 1 or len(args) > 2:
-    op.error("incorrect number of arguments")
-
 # Create a new satellite object, as defined by the input file:
-the_sat = SS.Satellite(open(args[0],'r'))
+the_sat = SS.Satellite(open('input/Europa.satellite','r'))
 
 # Create a StressCalc object, that calculates both the NSR and Diurnal
 # stresses on the Satellite just instantiated:
@@ -58,7 +50,7 @@ while the_stresses.stresses[1].Delta() > 0.01 and t < 2.0*scipy.pi/the_sat.mean_
 # Now we want to compare this against reference output, just to make sure
 # that we're getting the right numbers...
 
-pickledTau = pickle.load(open(args[1]))
+pickledTau = pickle.load(open('test/SS_test_calc.pkl', 'r'))
 for (tau1, tau2) in zip(Taulist, pickledTau):
     if tau1.all() != tau2.all():
         print("\nTest failed.  :(\n")
