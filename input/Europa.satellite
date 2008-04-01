@@ -1,0 +1,50 @@
+# All quantities are in SI (meters, kilograms, seconds) units
+
+# Satellite system ID
+SYSTEM_ID = JupiterEuropa
+
+# System orbital parameters:
+PLANET_MASS          = 1.8987e27
+ORBIT_ECCENTRICITY   = 0.0094
+ORBIT_SEMIMAJOR_AXIS = 6.709e8
+
+# Descriptions of the layers in the satellite:
+
+LAYER_ID_3    = ICE_UPPER
+DENSITY_3     = 917
+LAME_MU_3     = 3.487e+9
+LAME_LAMBDA_3 = 6.79533e+9
+THICKNESS_3   = 8e+3
+VISCOSITY_3   = 1e+22
+TENSILE_STR_3 = 0
+
+LAYER_ID_2    = ICE_LOWER
+DENSITY_2     = 917
+LAME_MU_2     = 3.487e+9
+LAME_LAMBDA_2 = 6.79533e+9
+THICKNESS_2   = 1.2e+4
+VISCOSITY_2   = 1e+17
+TENSILE_STR_2 = 0
+
+LAYER_ID_1    = OCEAN
+DENSITY_1     = 1000
+LAME_MU_1     = 0.0
+LAME_LAMBDA_1 = 2e+9
+THICKNESS_1   = 1.5e+5
+VISCOSITY_1   = 0.0
+TENSILE_STR_1 = 0.0
+
+LAYER_ID_0    = CORE
+DENSITY_0     = 3847.6
+LAME_MU_0     = 4e+10
+LAME_LAMBDA_0 = 4e+10
+THICKNESS_0   = 1.391e+6
+VISCOSITY_0   = 0.0
+TENSILE_STR_0 = 0.0
+
+# Parameters affecting the additional stresses that the satellite is subject to:
+NSR_PERIOD = 3.1556926e16 # seconds
+# NSR_PERIOD = infinity # also acceptable: all NSR stress relaxes away
+
+# Where do we find the program that calculates Love numbers?
+LOVE_PATH = ./Love/JohnWahr/love
