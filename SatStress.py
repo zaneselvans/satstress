@@ -156,8 +156,9 @@ Gravitational Potential Theory" (U{preprint, 15MB PDF
 __author__  = "Zane Selvans"
 __contact__ = "zane.selvans@colorado.edu"
 __license__ = "GNU General Public License version 3 (GPL v3)"
-__copyright__ = "2008"
+__copyright__ = "2008 %s" % __author__
 __docformat__ = 'epytext en'
+__version__ = '0.1.1'
 import datetime
 __date__   = datetime.datetime.utcnow().ctime()
 
