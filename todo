@@ -1,15 +1,17 @@
 Python SatStress Tasks:
 =======================
-  - Write a 'make release x.y.z' function in the Makefile that builds doc,
-    removes compiled files and .svn directories, and creates a .tgz archive
-
-  - Write generic release files:
+  - Add generic release files:
     - README
     - INSTALL
-    - LICENSE
-    - Put some info on the sample input files (*.grid, *.satellite)
+    - COPYING (GPL v3)
+
+  - documentation for non-python module stuff:
+    - sample input files:
+      - input/Europa.satellite
+      - input/NSR_Diurnal_exhaustive.grid
 
   - Try and do a more standard 'python setup.py install' installation
+  - Fix permissions on released files to be consistent with GNU standards
 
 SatStress:
 ----------
