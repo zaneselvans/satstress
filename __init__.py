@@ -62,9 +62,6 @@ should install:
 
 1.2 Building and Installing SatStress
 -------------------------------------
-
-B{RESUME HERE}
-
 Once you have the required software prerequisites installed, you should be able
 to C{cd} into the directory containing the L{SatStress} module, and simply type
 C{make all} at the command line.  This will compile the Love number code and
@@ -75,12 +72,22 @@ Love number code::
 
   ./Love/JohnWahr/Makefile
 
+and tell it what Fortran compiler it ought to be using.
 
 2 Design Overview
 =================
 A few notes on the general architecture of the C{SatStress} package.
 
-2.1 A Toolkit, not a Program
+2.1 Who is the Audience?
+------------------------
+  In writing this software and documentation, my hope is that an undergraduate
+  research assistant who has been hired for the summer, and who has at least
+  some experience with programming (though not necessarily in Python), should
+  be able to understand how the system works, and make fruitful use of it.  So
+  if it seems like things are sometimes over-explained or over-commented,
+  that's why.
+
+2.2 A Toolkit, not a Program
 ----------------------------
   The C{SatStress} package is not itself a stand-alone program (or not much of
   one anyway).  Instead it is a set of tools with which you can build programs
@@ -88,7 +95,7 @@ A few notes on the general architecture of the C{SatStress} package.
   they compare to tectonic features, so you can do your own hypothesizing and
   testing.
 
-2.2 Object Oriented
+2.3 Object Oriented
 -------------------
   The package attempts to make use of U{object oriented programming
   <http://en.wikipedia.org/wiki/Object-oriented_programming>} (OOP) in order to
@@ -101,7 +108,7 @@ A few notes on the general architecture of the C{SatStress} package.
   advantages of OOP become significant.  If the object orientation of this
   module seems odd at first glance, don't despair, it's worth learning.
 
-2.3 Written in Python
+2.4 Written in Python
 ---------------------
   U{Python <http://www.python.org>} is a general purpose, high-level scripting
   language.  It is an interpreted language (as opposed to compiled languages
@@ -116,7 +123,7 @@ A few notes on the general architecture of the C{SatStress} package.
   <http://www.gnu.org/philosophy/free-sw.html>}.  If you are a scientist and
   you write code, Python is a great choice.
 
-2.4 Open Source
+2.5 Open Source
 ---------------
   Because science today is intimately intertwined with computation, it is
   important for researchers to share the code that their scientific results are
