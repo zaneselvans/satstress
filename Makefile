@@ -2,12 +2,13 @@
 SHELL = /bin/sh
 VERSION = 0.1.1
 RELEASE = SatStress-$(VERSION)
+SSDIR = SatStress
 
 # Python modules for which we are making documentation:
-DOC_MODS = SatStress.py GridCalc.py __init__.py
+DOC_MODS = $(SSDIR)/SatStress.py $(SSDIR)/GridCalc.py $(SSDIR)/__init__.py
 
 # Python modules that are included in the current release:
-PUB_MODS = $(DOC_MODS) physcon.py
+PUB_MODS = $(DOC_MODS) $(SSDIR)/physcon.py
 
 # The modules which are not yet being released to the public:
 PRIVATE_MODS = CrossCutGraph.py Lineament.py
@@ -50,7 +51,7 @@ realclean : distclean docclean
 
 # See if SatStress is working:
 check : love $(PUB_MODS)
-	python SatStress.py input/Europa.satellite test/SS_test_calc.pkl
+	python $(SSDIR)/test.py input/Europa.satellite test/SS_test_calc.pkl
 
 # Just another alias for check:
 test : check
