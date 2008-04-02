@@ -17,19 +17,20 @@ import sys
 import os
 import pickle
 import scipy
-import SatStress as SS
+from SatStress import *
 
 def main():
-    package_dir    = os.path.dirname(os.path.abspath(__file__))
-    test_outfile   = os.path.join(package_dir, "test", "test_nsr_diurnal.pkl")
-    test_satellite = os.path.join(package_dir, "input", "Europa.satellite")
+    satstress_pkg_dir  = os.path.dirname(os.path.abspath(SatStress.__file__))
+    satstress_test_dir = os.path.dirname(os.path.abspath(__file__))
+    test_outfile      = os.path.join(satstress_test_dir, "test_nsr_diurnal.pkl")
+    test_satellite    = os.path.join(satstress_pkg_dir, "input", "Europa.satellite")
 
     # Create a new satellite object, as defined by the input file:
-    the_sat = SS.Satellite(open(test_satellite,'r'))
+    the_sat = SatStress.Satellite(open(test_satellite,'r'))
 
     # Create a StressCalc object, that calculates both the NSR and Diurnal
     # stresses on the Satellite just instantiated:
-    the_stresses = SS.StressCalc([SS.Diurnal(the_sat), SS.NSR(the_sat)])
+    the_stresses = SatStress.StressCalc([SatStress.Diurnal(the_sat), SatStress.NSR(the_sat)])
 
     # do a series of calculations, varying all the inputs at each iteration
     theta = 0.0
@@ -51,7 +52,7 @@ def main():
         # changing the forcing period, so that we can have the NSR stresses
         # vary with each iteration too.
         the_sat.nsr_period = the_sat.nsr_period / 1.5
-        the_stresses = SS.StressCalc([SS.Diurnal(the_sat), SS.NSR(the_sat)])
+        the_stresses = SatStress.StressCalc([SatStress.Diurnal(the_sat), SatStress.NSR(the_sat)])
 
     # Now we want to compare this against reference output, just to make sure
     # that we're getting the right numbers...
