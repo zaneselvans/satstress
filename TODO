@@ -2,15 +2,12 @@ Python SatStress Tasks:
 =======================
   - Add generic release files:
     - README
-    - INSTALL
-    - COPYING (GPL v3)
 
   - documentation for non-python module stuff:
     - sample input files:
       - input/Europa.satellite
       - input/NSR_Diurnal_exhaustive.grid
 
-  - Try and do a more standard 'python setup.py install' installation
   - Fix permissions on released files to be consistent with GNU standards
 
 SatStress:
