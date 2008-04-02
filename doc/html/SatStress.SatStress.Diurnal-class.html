@@ -50,8 +50,6 @@
     <td>
       <table cellpadding="0" cellspacing="0">
         <!-- hide/show private -->
-        <tr><td align="right"><span class="options">[<a href="javascript:void(0);" class="privatelink"
-    onclick="toggle_private();">hide&nbsp;private</a>]</span></td></tr>
         <tr><td align="right"><span class="options"
             >[<a href="frames.html" target="_top">frames</a
             >]&nbsp;|&nbsp;<a href="SatStress.SatStress.Diurnal-class.html"
@@ -83,17 +81,8 @@ object --+
 <table class="summary" border="1" cellpadding="3"
        cellspacing="0" width="100%" bgcolor="white">
 <tr bgcolor="#70b0f0" class="table-header">
-  <td colspan="2" class="table-header">
-    <table border="0" cellpadding="0" cellspacing="0" width="100%">
-      <tr valign="top">
-        <td align="left"><span class="table-header">Instance Methods</span></td>
-        <td align="right" valign="top"
-         ><span class="options">[<a href="#section-InstanceMethods"
-         class="privatelink" onclick="toggle_private();"
-         >hide private</a>]</span></td>
-      </tr>
-    </table>
-  </td>
+  <td align="left" colspan="2" class="table-header">
+    <span class="table-header">Instance Methods</span></td>
 </tr>
 <tr>
     <td width="15%" align="right" valign="top" class="summary">
@@ -179,21 +168,6 @@ object --+
   </tr>
   <tr>
     <td colspan="2" class="summary">
-    <p class="indent-wrapped-lines"><b>Inherited from <code><a href="SatStress.SatStress.StressDef-class.html">StressDef</a></code></b>:
-      <code><a href="SatStress.SatStress.StressDef-class.html#Delta">Delta</a></code>,
-      <code><a href="SatStress.SatStress.StressDef-class.html#Gamma">Gamma</a></code>,
-      <code><a href="SatStress.SatStress.StressDef-class.html#Z">Z</a></code>,
-      <code><a href="SatStress.SatStress.StressDef-class.html#alpha">alpha</a></code>,
-      <code><a href="SatStress.SatStress.StressDef-class.html#b1">b1</a></code>,
-      <code><a href="SatStress.SatStress.StressDef-class.html#b2">b2</a></code>,
-      <code><a href="SatStress.SatStress.StressDef-class.html#calcLove">calcLove</a></code>,
-      <code><a href="SatStress.SatStress.StressDef-class.html#calcLoveInfinitePeriod">calcLoveInfinitePeriod</a></code>,
-      <code><a href="SatStress.SatStress.StressDef-class.html#calcLoveWahr4LayerExternal">calcLoveWahr4LayerExternal</a></code>,
-      <code><a href="SatStress.SatStress.StressDef-class.html#g1">g1</a></code>,
-      <code><a href="SatStress.SatStress.StressDef-class.html#g2">g2</a></code>,
-      <code><a href="SatStress.SatStress.StressDef-class.html#lambda_twiddle">lambda_twiddle</a></code>,
-      <code><a href="SatStress.SatStress.StressDef-class.html#mu_twiddle">mu_twiddle</a></code>
-      </p>
     <p class="indent-wrapped-lines"><b>Inherited from <code>object</code></b>:
       <code>__delattr__</code>,
       <code>__getattribute__</code>,
@@ -207,31 +181,279 @@ object --+
       </p>
     </td>
   </tr>
+<tr bgcolor="#e8f0f8" >
+  <th colspan="2" class="group-header"
+    >&nbsp;&nbsp;&nbsp;&nbsp;Inherited from <a href="SatStress.SatStress.StressDef-class.html">StressDef</a></th></tr>
+<tr>
+    <td width="15%" align="right" valign="top" class="summary">
+      <span class="summary-type">float</span>
+    </td><td class="summary">
+      <table width="100%" cellpadding="0" cellspacing="0" border="0">
+        <tr>
+          <td><span class="summary-sig"><a href="SatStress.SatStress.StressDef-class.html#Delta" class="summary-sig-name">Delta</a>(<span class="summary-sig-arg">self</span>,
+        <span class="summary-sig-arg">layer_n</span>=<span class="summary-sig-default">-1</span>)</span><br />
+      Calculate &Delta;, a measure of how viscous the layer's response is.</td>
+          <td align="right" valign="top">
+            <span class="codelink"><a href="SatStress.SatStress-pysrc.html#StressDef.Delta">source&nbsp;code</a></span>
+            
+          </td>
+        </tr>
+      </table>
+      
+    </td>
+  </tr>
+<tr>
+    <td width="15%" align="right" valign="top" class="summary">
+      <span class="summary-type">complex</span>
+    </td><td class="summary">
+      <table width="100%" cellpadding="0" cellspacing="0" border="0">
+        <tr>
+          <td><span class="summary-sig"><a href="SatStress.SatStress.StressDef-class.html#Gamma" class="summary-sig-name">Gamma</a>(<span class="summary-sig-arg">self</span>)</span><br />
+      Calculate the coefficient capital Gamma twiddle for the surface layer
+      (see Wahr et al.</td>
+          <td align="right" valign="top">
+            <span class="codelink"><a href="SatStress.SatStress-pysrc.html#StressDef.Gamma">source&nbsp;code</a></span>
+            
+          </td>
+        </tr>
+      </table>
+      
+    </td>
+  </tr>
+<tr>
+    <td width="15%" align="right" valign="top" class="summary">
+      <span class="summary-type">float</span>
+    </td><td class="summary">
+      <table width="100%" cellpadding="0" cellspacing="0" border="0">
+        <tr>
+          <td><span class="summary-sig"><a href="SatStress.SatStress.StressDef-class.html#Z" class="summary-sig-name">Z</a>(<span class="summary-sig-arg">self</span>)</span><br />
+      Calculate the value of Z, a constant that sits in front of many terms
+      in the potential defined by Wahr et al.</td>
+          <td align="right" valign="top">
+            <span class="codelink"><a href="SatStress.SatStress-pysrc.html#StressDef.Z">source&nbsp;code</a></span>
+            
+          </td>
+        </tr>
+      </table>
+      
+    </td>
+  </tr>
+<tr>
+    <td width="15%" align="right" valign="top" class="summary">
+      <span class="summary-type">complex</span>
+    </td><td class="summary">
+      <table width="100%" cellpadding="0" cellspacing="0" border="0">
+        <tr>
+          <td><span class="summary-sig"><a href="SatStress.SatStress.StressDef-class.html#alpha" class="summary-sig-name">alpha</a>(<span class="summary-sig-arg">self</span>)</span><br />
+      Calculate the coefficient alpha twiddle for the surface layer (see 
+      Wahr et al.</td>
+          <td align="right" valign="top">
+            <span class="codelink"><a href="SatStress.SatStress-pysrc.html#StressDef.alpha">source&nbsp;code</a></span>
+            
+          </td>
+        </tr>
+      </table>
+      
+    </td>
+  </tr>
+<tr>
+    <td width="15%" align="right" valign="top" class="summary">
+      <span class="summary-type">complex</span>
+    </td><td class="summary">
+      <table width="100%" cellpadding="0" cellspacing="0" border="0">
+        <tr>
+          <td><span class="summary-sig"><a href="SatStress.SatStress.StressDef-class.html#b1" class="summary-sig-name">b1</a>(<span class="summary-sig-arg">self</span>)</span><br />
+      Calculate the coefficient beta one twiddle for the surface layer (see
+      Wahr et al.</td>
+          <td align="right" valign="top">
+            <span class="codelink"><a href="SatStress.SatStress-pysrc.html#StressDef.b1">source&nbsp;code</a></span>
+            
+          </td>
+        </tr>
+      </table>
+      
+    </td>
+  </tr>
+<tr>
+    <td width="15%" align="right" valign="top" class="summary">
+      <span class="summary-type">complex</span>
+    </td><td class="summary">
+      <table width="100%" cellpadding="0" cellspacing="0" border="0">
+        <tr>
+          <td><span class="summary-sig"><a href="SatStress.SatStress.StressDef-class.html#b2" class="summary-sig-name">b2</a>(<span class="summary-sig-arg">self</span>)</span><br />
+      Calculate the coefficient beta two twiddle for the surface layer (see
+      Wahr et al.</td>
+          <td align="right" valign="top">
+            <span class="codelink"><a href="SatStress.SatStress-pysrc.html#StressDef.b2">source&nbsp;code</a></span>
+            
+          </td>
+        </tr>
+      </table>
+      
+    </td>
+  </tr>
+<tr>
+    <td width="15%" align="right" valign="top" class="summary">
+      <span class="summary-type">&nbsp;</span>
+    </td><td class="summary">
+      <table width="100%" cellpadding="0" cellspacing="0" border="0">
+        <tr>
+          <td><span class="summary-sig"><a href="SatStress.SatStress.StressDef-class.html#calcLove" class="summary-sig-name">calcLove</a>(<span class="summary-sig-arg">self</span>)</span><br />
+      Calculate the Love numbers for the satellite and the given forcing.</td>
+          <td align="right" valign="top">
+            <span class="codelink"><a href="SatStress.SatStress-pysrc.html#StressDef.calcLove">source&nbsp;code</a></span>
+            
+          </td>
+        </tr>
+      </table>
+      
+    </td>
+  </tr>
+<tr>
+    <td width="15%" align="right" valign="top" class="summary">
+      <span class="summary-type">&nbsp;</span>
+    </td><td class="summary">
+      <table width="100%" cellpadding="0" cellspacing="0" border="0">
+        <tr>
+          <td><span class="summary-sig"><a href="SatStress.SatStress.StressDef-class.html#calcLoveInfinitePeriod" class="summary-sig-name">calcLoveInfinitePeriod</a>(<span class="summary-sig-arg">self</span>)</span><br />
+      Return a set of zero Love numbers constructed statically.</td>
+          <td align="right" valign="top">
+            <span class="codelink"><a href="SatStress.SatStress-pysrc.html#StressDef.calcLoveInfinitePeriod">source&nbsp;code</a></span>
+            
+          </td>
+        </tr>
+      </table>
+      
+    </td>
+  </tr>
+<tr>
+    <td width="15%" align="right" valign="top" class="summary">
+      <span class="summary-type">&nbsp;</span>
+    </td><td class="summary">
+      <table width="100%" cellpadding="0" cellspacing="0" border="0">
+        <tr>
+          <td><span class="summary-sig"><a href="SatStress.SatStress.StressDef-class.html#calcLoveWahr4LayerExternal" class="summary-sig-name">calcLoveWahr4LayerExternal</a>(<span class="summary-sig-arg">self</span>)</span><br />
+      Use John Wahr's Love number code to calculate h, k, and l.</td>
+          <td align="right" valign="top">
+            <span class="codelink"><a href="SatStress.SatStress-pysrc.html#StressDef.calcLoveWahr4LayerExternal">source&nbsp;code</a></span>
+            
+          </td>
+        </tr>
+      </table>
+      
+    </td>
+  </tr>
+<tr>
+    <td width="15%" align="right" valign="top" class="summary">
+      <span class="summary-type">complex</span>
+    </td><td class="summary">
+      <table width="100%" cellpadding="0" cellspacing="0" border="0">
+        <tr>
+          <td><span class="summary-sig"><a href="SatStress.SatStress.StressDef-class.html#g1" class="summary-sig-name">g1</a>(<span class="summary-sig-arg">self</span>)</span><br />
+      Calculate the coefficient gamma one twiddle for the surface layer 
+      (see Wahr et al.</td>
+          <td align="right" valign="top">
+            <span class="codelink"><a href="SatStress.SatStress-pysrc.html#StressDef.g1">source&nbsp;code</a></span>
+            
+          </td>
+        </tr>
+      </table>
+      
+    </td>
+  </tr>
+<tr>
+    <td width="15%" align="right" valign="top" class="summary">
+      <span class="summary-type">complex</span>
+    </td><td class="summary">
+      <table width="100%" cellpadding="0" cellspacing="0" border="0">
+        <tr>
+          <td><span class="summary-sig"><a href="SatStress.SatStress.StressDef-class.html#g2" class="summary-sig-name">g2</a>(<span class="summary-sig-arg">self</span>)</span><br />
+      Calculate the coefficient gamma two twiddle for the surface layer 
+      (see Wahr et al.</td>
+          <td align="right" valign="top">
+            <span class="codelink"><a href="SatStress.SatStress-pysrc.html#StressDef.g2">source&nbsp;code</a></span>
+            
+          </td>
+        </tr>
+      </table>
+      
+    </td>
+  </tr>
+<tr>
+    <td width="15%" align="right" valign="top" class="summary">
+      <span class="summary-type">complex</span>
+    </td><td class="summary">
+      <table width="100%" cellpadding="0" cellspacing="0" border="0">
+        <tr>
+          <td><span class="summary-sig"><a href="SatStress.SatStress.StressDef-class.html#lambda_twiddle" class="summary-sig-name">lambda_twiddle</a>(<span class="summary-sig-arg">self</span>,
+        <span class="summary-sig-arg">layer_n</span>=<span class="summary-sig-default">-1</span>)</span><br />
+      Calculate the frequency-dependent Lame parameter &lambda; for a 
+      Maxwell rheology.</td>
+          <td align="right" valign="top">
+            <span class="codelink"><a href="SatStress.SatStress-pysrc.html#StressDef.lambda_twiddle">source&nbsp;code</a></span>
+            
+          </td>
+        </tr>
+      </table>
+      
+    </td>
+  </tr>
+<tr>
+    <td width="15%" align="right" valign="top" class="summary">
+      <span class="summary-type">complex</span>
+    </td><td class="summary">
+      <table width="100%" cellpadding="0" cellspacing="0" border="0">
+        <tr>
+          <td><span class="summary-sig"><a href="SatStress.SatStress.StressDef-class.html#mu_twiddle" class="summary-sig-name">mu_twiddle</a>(<span class="summary-sig-arg">self</span>,
+        <span class="summary-sig-arg">layer_n</span>=<span class="summary-sig-default">-1</span>)</span><br />
+      Calculate the frequency-dependent Lame parameter &mu; for a Maxwell 
+      rheology.</td>
+          <td align="right" valign="top">
+            <span class="codelink"><a href="SatStress.SatStress-pysrc.html#StressDef.mu_twiddle">source&nbsp;code</a></span>
+            
+          </td>
+        </tr>
+      </table>
+      
+    </td>
+  </tr>
 </table>
 <!-- ==================== CLASS VARIABLES ==================== -->
 <a name="section-ClassVariables"></a>
 <table class="summary" border="1" cellpadding="3"
        cellspacing="0" width="100%" bgcolor="white">
 <tr bgcolor="#70b0f0" class="table-header">
-  <td colspan="2" class="table-header">
-    <table border="0" cellpadding="0" cellspacing="0" width="100%">
-      <tr valign="top">
-        <td align="left"><span class="table-header">Class Variables</span></td>
-        <td align="right" valign="top"
-         ><span class="options">[<a href="#section-ClassVariables"
-         class="privatelink" onclick="toggle_private();"
-         >hide private</a>]</span></td>
-      </tr>
-    </table>
-  </td>
+  <td align="left" colspan="2" class="table-header">
+    <span class="table-header">Class Variables</span></td>
 </tr>
-  <tr>
-    <td colspan="2" class="summary">
-    <p class="indent-wrapped-lines"><b>Inherited from <code><a href="SatStress.SatStress.StressDef-class.html">StressDef</a></code></b>:
-      <code><a href="SatStress.SatStress.StressDef-class.html#love">love</a></code>,
-      <code><a href="SatStress.SatStress.StressDef-class.html#omega">omega</a></code>,
-      <code><a href="SatStress.SatStress.StressDef-class.html#satellite">satellite</a></code>
-      </p>
+<tr bgcolor="#e8f0f8" >
+  <th colspan="2" class="group-header"
+    >&nbsp;&nbsp;&nbsp;&nbsp;Inherited from <a href="SatStress.SatStress.StressDef-class.html">StressDef</a></th></tr>
+<tr>
+    <td width="15%" align="right" valign="top" class="summary">
+      <span class="summary-type"><a href="SatStress.SatStress.LoveNum-class.html" 
+      class="link">LoveNum</a></span>
+    </td><td class="summary">
+        <a name="love"></a><span class="summary-name">love</span> = <code title="LoveNum(0, 0, 0, 0, 0, 0)">LoveNum(0, 0, 0, 0, 0, 0)</code><br />
+      the Love numbers which result from the given forcing frequency and 
+      the specified satellite structure.
+    </td>
+  </tr>
+<tr>
+    <td width="15%" align="right" valign="top" class="summary">
+      <span class="summary-type">float</span>
+    </td><td class="summary">
+        <a name="omega"></a><span class="summary-name">omega</span> = <code title="0.0">0.0</code><br />
+      the forcing frequency associated with the stress.
+    </td>
+  </tr>
+<tr>
+    <td width="15%" align="right" valign="top" class="summary">
+      <span class="summary-type"><a href="SatStress.SatStress.Satellite-class.html" 
+      class="link">Satellite</a></span>
+    </td><td class="summary">
+        <a name="satellite"></a><span class="summary-name">satellite</span> = <code title="None">None</code><br />
+      the satellite which the stress is being applied to.
     </td>
   </tr>
 </table>
@@ -240,17 +462,8 @@ object --+
 <table class="summary" border="1" cellpadding="3"
        cellspacing="0" width="100%" bgcolor="white">
 <tr bgcolor="#70b0f0" class="table-header">
-  <td colspan="2" class="table-header">
-    <table border="0" cellpadding="0" cellspacing="0" width="100%">
-      <tr valign="top">
-        <td align="left"><span class="table-header">Properties</span></td>
-        <td align="right" valign="top"
-         ><span class="options">[<a href="#section-Properties"
-         class="privatelink" onclick="toggle_private();"
-         >hide private</a>]</span></td>
-      </tr>
-    </table>
-  </td>
+  <td align="left" colspan="2" class="table-header">
+    <span class="table-header">Properties</span></td>
 </tr>
   <tr>
     <td colspan="2" class="summary">
@@ -265,17 +478,8 @@ object --+
 <table class="details" border="1" cellpadding="3"
        cellspacing="0" width="100%" bgcolor="white">
 <tr bgcolor="#70b0f0" class="table-header">
-  <td colspan="2" class="table-header">
-    <table border="0" cellpadding="0" cellspacing="0" width="100%">
-      <tr valign="top">
-        <td align="left"><span class="table-header">Method Details</span></td>
-        <td align="right" valign="top"
-         ><span class="options">[<a href="#section-MethodDetails"
-         class="privatelink" onclick="toggle_private();"
-         >hide private</a>]</span></td>
-      </tr>
-    </table>
-  </td>
+  <td align="left" colspan="2" class="table-header">
+    <span class="table-header">Method Details</span></td>
 </tr>
 </table>
 <a name="__init__"></a>
@@ -455,7 +659,7 @@ object --+
 <table border="0" cellpadding="0" cellspacing="0" width="100%%">
   <tr>
     <td align="left" class="footer">
-    Generated by Epydoc 3.0.1 on Tue Apr  1 14:43:39 2008
+    Generated by Epydoc 3.0.1 on Tue Apr  1 21:42:33 2008
     </td>
     <td align="right" class="footer">
       <a target="mainFrame" href="http://epydoc.sourceforge.net"

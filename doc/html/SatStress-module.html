@@ -48,8 +48,6 @@
     <td>
       <table cellpadding="0" cellspacing="0">
         <!-- hide/show private -->
-        <tr><td align="right"><span class="options">[<a href="javascript:void(0);" class="privatelink"
-    onclick="toggle_private();">hide&nbsp;private</a>]</span></td></tr>
         <tr><td align="right"><span class="options"
             >[<a href="frames.html" target="_top">frames</a
             >]&nbsp;|&nbsp;<a href="SatStress-module.html"
@@ -118,15 +116,15 @@
         <li>
           <b>netCDF</b> (<a 
           href="http://www.unidata.ucar.edu/software/netcdf/" 
-          target="_top">http://www.unidata.ucar.edu/software/netcdf/</a>, a
-          library of routines for storing, retrieving, and annotating 
+          target="_top">http://www.unidata.ucar.edu/software/netcdf/</a>), 
+          a library of routines for storing, retrieving, and annotating 
           regularly gridded multi-dimensional datasets.  Developed by <a 
           href="http://www.unidata.ucar.edu" target="_top">Unidata</a>
         </li>
         <li>
           <b>netcdf4-python</b> (<a 
           href="http://code.google.com/p/netcdf4-python/" 
-          target="_top">http://code.google.com/p/netcdf4-python/</a>, a 
+          target="_top">http://code.google.com/p/netcdf4-python/</a>), a 
           Python interface to the netCDF library.
         </li>
       </ul>
@@ -134,10 +132,11 @@
       href="SatStress.GridCalc-module.html" class="link">GridCalc</a> 
       output, you'll need a netCDF file viewing program.  Many commercial 
       software packages can read netCDF files, such as ESRI ArcGIS and 
-      Matlab (from the Mathworks).  A simple and free reader for OS X is <a
+      Matlab.  A simple and free reader for OS X is <a 
       href="http://www.giss.nasa.gov/tools/panoply/" 
       target="_top">Panoply</a>, from NASA.  If you want to really be able 
-      to interact with the outputs from this model, you should install:</p>
+      to interact with the outputs from this model, you should install and 
+      get familiar with:</p>
       <ul>
         <li>
           <b>Matplotlib/Pylab</b> (<a 
@@ -148,21 +147,36 @@
         </li>
       </ul>
     <h2 class="heading">1.2 Building and Installing SatStress</h2>
-      <p>Once you have the required software prerequisites installed, you 
-      should be able to <code>cd</code> into the directory containing the 
-      <a href="SatStress.SatStress-module.html" class="link">SatStress</a> 
-      module, and simply type <code>make all</code> at the command line.  
-      This will compile the Love number code and run the small <a 
-      href="SatStress.SatStress-module.html#test" 
-      class="link">SatStress.test</a> program embedded within <a 
-      href="SatStress.SatStress-module.html" class="link">SatStress</a>, 
-      just to make sure that everything is in working order (or not).  If 
-      you're not using the GNU Fortran 77 compiler <code>g77</code>, you'll
-      need to edit the <code>Makefile</code> for the Love number code:</p>
+      <p>Once you have the required software prerequisites installed, 
+      uncompress and unarchive the SatStress distribution:</p>
 <pre class="literalblock">
- ./Love/JohnWahr/Makefile
+   tar -xvzf SatStress-X.Y.Z.tar.gz
+</pre>
+      <p>then go into the distribution directory created:</p>
+<pre class="literalblock">
+   cd SatStress-X.Y.Z
+</pre>
+      <p>To build and test the package, run:</p>
+<pre class="literalblock">
+   make test
+</pre>
+      <p>If the test cases pass, go ahead and install with:</p>
+<pre class="literalblock">
+   make install
+</pre>
+      <p>And you'll be able to write your own Python programs using the 
+      <code>SatStress</code> library.</p>
+      <p>If you're not using the GNU Fortran 77 compiler <code>g77</code>, 
+      you'll need to edit the <code>Makefile</code> for the Love number 
+      code:</p>
+<pre class="literalblock">
+   SatStress/Love/JohnWahr/Makefile
 </pre>
       <p>and tell it what Fortran compiler it ought to be using.</p>
+      <p>If you have any trouble getting <code>SatStress</code> working, 
+      feel free to post to the SatStress discussion board: <a 
+      href="http://groups.google.com/group/satstress" 
+      target="_top">http://groups.google.com/group/satstress</a></p>
   <h1 class="heading">2 Design Overview</h1>
     <p>A few notes on the general architecture of the 
     <code>SatStress</code> package.</p>
@@ -245,22 +259,32 @@
       major product of that funding.  It is unethical to make it 
       proprietary.</p>
 
-<!-- ==================== SUBMODULES ==================== -->
+<hr />
+<div class="fields">      <p><strong>Version:</strong>
+        0.1.1
+      </p>
+      <p><strong>Date:</strong>
+        Wed Apr  2 04:42:31 2008
+      </p>
+      <p><strong>Author:</strong>
+        Zane Selvans
+      </p>
+      <p><strong>Contact:</strong>
+        zane.selvans@colorado.edu
+      </p>
+      <p><strong>Copyright:</strong>
+        2007-2008 Zane Selvans
+      </p>
+      <p><strong>License:</strong>
+        GNU General Public License version 3 (GPL v3)
+      </p>
+</div><!-- ==================== SUBMODULES ==================== -->
 <a name="section-Submodules"></a>
 <table class="summary" border="1" cellpadding="3"
        cellspacing="0" width="100%" bgcolor="white">
 <tr bgcolor="#70b0f0" class="table-header">
-  <td colspan="2" class="table-header">
-    <table border="0" cellpadding="0" cellspacing="0" width="100%">
-      <tr valign="top">
-        <td align="left"><span class="table-header">Submodules</span></td>
-        <td align="right" valign="top"
-         ><span class="options">[<a href="#section-Submodules"
-         class="privatelink" onclick="toggle_private();"
-         >hide private</a>]</span></td>
-      </tr>
-    </table>
-  </td>
+  <td align="left" colspan="2" class="table-header">
+    <span class="table-header">Submodules</span></td>
 </tr>
   <tr><td class="summary">
   <ul class="nomargin">
@@ -269,7 +293,6 @@
     <li> <strong class="uidlink"><a href="SatStress.SatStress-module.html">SatStress.SatStress</a></strong>: <em class="summary">A framework for calculating the surface stresses at a particular 
         place and time on a satellite resulting from one or more tidal 
         potentials.</em>    </li>
-    <li> <strong class="uidlink"><a href="SatStress.physcon-module.html">SatStress.physcon</a></strong>: <em class="summary">A Python dictionary of physical constants in SI units.</em>    </li>
   </ul></td></tr>
 </table>
 
@@ -305,7 +328,7 @@
 <table border="0" cellpadding="0" cellspacing="0" width="100%%">
   <tr>
     <td align="left" class="footer">
-    Generated by Epydoc 3.0.1 on Tue Apr  1 14:43:39 2008
+    Generated by Epydoc 3.0.1 on Tue Apr  1 21:42:33 2008
     </td>
     <td align="right" class="footer">
       <a target="mainFrame" href="http://epydoc.sourceforge.net"

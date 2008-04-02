@@ -50,8 +50,6 @@
     <td>
       <table cellpadding="0" cellspacing="0">
         <!-- hide/show private -->
-        <tr><td align="right"><span class="options">[<a href="javascript:void(0);" class="privatelink"
-    onclick="toggle_private();">hide&nbsp;private</a>]</span></td></tr>
         <tr><td align="right"><span class="options"
             >[<a href="frames.html" target="_top">frames</a
             >]&nbsp;|&nbsp;<a href="SatStress.SatStress.Satellite-class.html"
@@ -79,17 +77,8 @@ object --+
 <table class="summary" border="1" cellpadding="3"
        cellspacing="0" width="100%" bgcolor="white">
 <tr bgcolor="#70b0f0" class="table-header">
-  <td colspan="2" class="table-header">
-    <table border="0" cellpadding="0" cellspacing="0" width="100%">
-      <tr valign="top">
-        <td align="left"><span class="table-header">Instance Methods</span></td>
-        <td align="right" valign="top"
-         ><span class="options">[<a href="#section-InstanceMethods"
-         class="privatelink" onclick="toggle_private();"
-         >hide private</a>]</span></td>
-      </tr>
-    </table>
-  </td>
+  <td align="left" colspan="2" class="table-header">
+    <span class="table-header">Instance Methods</span></td>
 </tr>
 <tr>
     <td width="15%" align="right" valign="top" class="summary">
@@ -251,17 +240,8 @@ object --+
 <table class="summary" border="1" cellpadding="3"
        cellspacing="0" width="100%" bgcolor="white">
 <tr bgcolor="#70b0f0" class="table-header">
-  <td colspan="2" class="table-header">
-    <table border="0" cellpadding="0" cellspacing="0" width="100%">
-      <tr valign="top">
-        <td align="left"><span class="table-header">Instance Variables</span></td>
-        <td align="right" valign="top"
-         ><span class="options">[<a href="#section-InstanceVariables"
-         class="privatelink" onclick="toggle_private();"
-         >hide private</a>]</span></td>
-      </tr>
-    </table>
-  </td>
+  <td align="left" colspan="2" class="table-header">
+    <span class="table-header">Instance Variables</span></td>
 </tr>
 <tr>
     <td width="15%" align="right" valign="top" class="summary">
@@ -271,15 +251,6 @@ object --+
       a list of <a href="SatStress.SatStress.SatLayer-class.html" 
       class="link">SatLayer</a> objects, describing the layers making up 
       the satellite.
-    </td>
-  </tr>
-<tr>
-    <td width="15%" align="right" valign="top" class="summary">
-      <span class="summary-type">str</span>
-    </td><td class="summary">
-        <a href="SatStress.SatStress.Satellite-class.html#love_path" class="summary-name">love_path</a><br />
-      the path to the program which will be used to calculate the degree-2,
-      complex, frequency dependent Love numbers h2, and k2.
     </td>
   </tr>
 <tr>
@@ -363,17 +334,8 @@ object --+
 <table class="summary" border="1" cellpadding="3"
        cellspacing="0" width="100%" bgcolor="white">
 <tr bgcolor="#70b0f0" class="table-header">
-  <td colspan="2" class="table-header">
-    <table border="0" cellpadding="0" cellspacing="0" width="100%">
-      <tr valign="top">
-        <td align="left"><span class="table-header">Properties</span></td>
-        <td align="right" valign="top"
-         ><span class="options">[<a href="#section-Properties"
-         class="privatelink" onclick="toggle_private();"
-         >hide private</a>]</span></td>
-      </tr>
-    </table>
-  </td>
+  <td align="left" colspan="2" class="table-header">
+    <span class="table-header">Properties</span></td>
 </tr>
   <tr>
     <td colspan="2" class="summary">
@@ -388,17 +350,8 @@ object --+
 <table class="details" border="1" cellpadding="3"
        cellspacing="0" width="100%" bgcolor="white">
 <tr bgcolor="#70b0f0" class="table-header">
-  <td colspan="2" class="table-header">
-    <table border="0" cellpadding="0" cellspacing="0" width="100%">
-      <tr valign="top">
-        <td align="left"><span class="table-header">Method Details</span></td>
-        <td align="right" valign="top"
-         ><span class="options">[<a href="#section-MethodDetails"
-         class="privatelink" onclick="toggle_private();"
-         >hide private</a>]</span></td>
-      </tr>
-    </table>
-  </td>
+  <td align="left" colspan="2" class="table-header">
+    <span class="table-header">Method Details</span></td>
 </tr>
 </table>
 <a name="__init__"></a>
@@ -445,11 +398,6 @@ object --+
         satellite's icy shell to undergo one full rotation [s].  If you 
         don't want to have any NSR stresses, just put INFINITY here.
       </li>
-      <li>
-        <b><code>LOVE_PATH</code></b>:  The path to the program used to 
-        calculate the frequency-dependent degree-2 Love numbers.  Currently
-        this code is one provided by John Wahr.
-      </li>
     </ul>
   <dl class="fields">
     <dt>Parameters:</dt>
@@ -474,7 +422,6 @@ object --+
         times larger than the mass of the satellite.</li>
         <li><code><strong class='fraise'><a href="SatStress.SatStress.LargeEccentricityError-class.html">LargeEccentricityError</a></strong></code> - if the satellite's orbital eccentricity is greater than 0.25</li>
         <li><code><strong class='fraise'><a href="SatStress.SatStress.NegativeNSRPeriodError-class.html">NegativeNSRPeriodError</a></strong></code> - if the NSR period of the satellite is less than zero.</li>
-        <li><code><strong class='fraise'>IOError</strong></code> - if the file specified in <code>LOVE_PATH</code> is not openable.</li>
     </ul></dd>
     <dt>Overrides:
         object.__init__
@@ -530,17 +477,8 @@ object --+
 <table class="details" border="1" cellpadding="3"
        cellspacing="0" width="100%" bgcolor="white">
 <tr bgcolor="#70b0f0" class="table-header">
-  <td colspan="2" class="table-header">
-    <table border="0" cellpadding="0" cellspacing="0" width="100%">
-      <tr valign="top">
-        <td align="left"><span class="table-header">Instance Variable Details</span></td>
-        <td align="right" valign="top"
-         ><span class="options">[<a href="#section-InstanceVariableDetails"
-         class="privatelink" onclick="toggle_private();"
-         >hide private</a>]</span></td>
-      </tr>
-    </table>
-  </td>
+  <td align="left" colspan="2" class="table-header">
+    <span class="table-header">Instance Variable Details</span></td>
 </tr>
 </table>
 <a name="layers"></a>
@@ -556,22 +494,6 @@ object --+
   <dl class="fields">
     <dt>Type:</dt>
       <dd>list</dd>
-  </dl>
-</td></tr></table>
-</div>
-<a name="love_path"></a>
-<div>
-<table class="details" border="1" cellpadding="3"
-       cellspacing="0" width="100%" bgcolor="white">
-<tr><td>
-  <h3 class="epydoc">love_path</h3>
-  the path to the program which will be used to calculate the degree-2, 
-  complex, frequency dependent Love numbers h2, and k2.  Path is relative 
-  to the directory in which the program is running.  Corresponds to 
-  <code>LOVE_PATH</code> in the input file.
-  <dl class="fields">
-    <dt>Type:</dt>
-      <dd>str</dd>
   </dl>
 </td></tr></table>
 </div>
@@ -637,7 +559,7 @@ object --+
 <table border="0" cellpadding="0" cellspacing="0" width="100%%">
   <tr>
     <td align="left" class="footer">
-    Generated by Epydoc 3.0.1 on Tue Apr  1 14:43:40 2008
+    Generated by Epydoc 3.0.1 on Tue Apr  1 21:42:33 2008
     </td>
     <td align="right" class="footer">
       <a target="mainFrame" href="http://epydoc.sourceforge.net"

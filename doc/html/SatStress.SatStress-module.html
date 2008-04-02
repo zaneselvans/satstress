@@ -49,8 +49,6 @@
     <td>
       <table cellpadding="0" cellspacing="0">
         <!-- hide/show private -->
-        <tr><td align="right"><span class="options">[<a href="javascript:void(0);" class="privatelink"
-    onclick="toggle_private();">hide&nbsp;private</a>]</span></td></tr>
         <tr><td align="right"><span class="options"
             >[<a href="frames.html" target="_top">frames</a
             >]&nbsp;|&nbsp;<a href="SatStress.SatStress-module.html"
@@ -241,10 +239,9 @@
 <span class="py-prompt">&gt;&gt;&gt; </span>the_stresses = StressCalc([Diurnal(the_sat), NSR(the_sat)])
 <span class="py-prompt">&gt;&gt;&gt; </span>Tau = the_stresses.tensor(theta=pi/4.0, phi=pi/3.0, t=10000)
 <span class="py-prompt">&gt;&gt;&gt; </span><span class="py-keyword">print</span>(Tau)</pre>
-      <p>The <a href="SatStress.SatStress-module.html#test" 
-      class="link">SatStress.test</a> function shows a slightly more 
-      complex example, which should be enough to get you started using the 
-      package.</p>
+      <p>The <code>test</code> program included in the SatStress 
+      distribution shows a slightly more complex example, which should be 
+      enough to get you started using the package.</p>
     <h2 class="heading">3.3 Extending the Model</h2>
       <p>Other stress fields can (and hopefully will!), be added easily, so
       long as they use the same mathematical definition of the membrane 
@@ -260,41 +257,13 @@
       class="math">s</i></b>) fields, or to calculate the stresses at any 
       point within the satellite.</p>
 
-<hr />
-<div class="fields">      <p><strong>Version:</strong>
-        0.1.1
-      </p>
-      <p><strong>Date:</strong>
-        Tue Apr  1 21:43:35 2008
-      </p>
-      <p><strong>Author:</strong>
-        Zane Selvans
-      </p>
-      <p><strong>Contact:</strong>
-        zane.selvans@colorado.edu
-      </p>
-      <p><strong>Copyright:</strong>
-        2008 Zane Selvans
-      </p>
-      <p><strong>License:</strong>
-        GNU General Public License version 3 (GPL v3)
-      </p>
-</div><!-- ==================== CLASSES ==================== -->
+<!-- ==================== CLASSES ==================== -->
 <a name="section-Classes"></a>
 <table class="summary" border="1" cellpadding="3"
        cellspacing="0" width="100%" bgcolor="white">
 <tr bgcolor="#70b0f0" class="table-header">
-  <td colspan="2" class="table-header">
-    <table border="0" cellpadding="0" cellspacing="0" width="100%">
-      <tr valign="top">
-        <td align="left"><span class="table-header">Classes</span></td>
-        <td align="right" valign="top"
-         ><span class="options">[<a href="#section-Classes"
-         class="privatelink" onclick="toggle_private();"
-         >hide private</a>]</span></td>
-      </tr>
-    </table>
-  </td>
+  <td align="left" colspan="2" class="table-header">
+    <span class="table-header">Classes</span></td>
 </tr>
 <tr>
     <td width="15%" align="right" valign="top" class="summary">
@@ -518,17 +487,8 @@
 <table class="summary" border="1" cellpadding="3"
        cellspacing="0" width="100%" bgcolor="white">
 <tr bgcolor="#70b0f0" class="table-header">
-  <td colspan="2" class="table-header">
-    <table border="0" cellpadding="0" cellspacing="0" width="100%">
-      <tr valign="top">
-        <td align="left"><span class="table-header">Functions</span></td>
-        <td align="right" valign="top"
-         ><span class="options">[<a href="#section-Functions"
-         class="privatelink" onclick="toggle_private();"
-         >hide private</a>]</span></td>
-      </tr>
-    </table>
-  </td>
+  <td align="left" colspan="2" class="table-header">
+    <span class="table-header">Functions</span></td>
 </tr>
 <tr>
     <td width="15%" align="right" valign="top" class="summary">
@@ -549,41 +509,14 @@
       
     </td>
   </tr>
-<tr>
-    <td width="15%" align="right" valign="top" class="summary">
-      <span class="summary-type">bool</span>
-    </td><td class="summary">
-      <table width="100%" cellpadding="0" cellspacing="0" border="0">
-        <tr>
-          <td><span class="summary-sig"><a href="SatStress.SatStress-module.html#test" class="summary-sig-name">test</a>(<span class="summary-sig-arg">argv</span>=<span class="summary-sig-default"><code class="variable-group">[</code><code class="variable-quote">'</code><code class="variable-string">(imported)</code><code class="variable-quote">'</code><code class="variable-group">]</code></span>)</span><br />
-      Check to see that SatStress gives the expected output from a series 
-      of known calculations.</td>
-          <td align="right" valign="top">
-            <span class="codelink"><a href="SatStress.SatStress-pysrc.html#test">source&nbsp;code</a></span>
-            
-          </td>
-        </tr>
-      </table>
-      
-    </td>
-  </tr>
 </table>
 <!-- ==================== FUNCTION DETAILS ==================== -->
 <a name="section-FunctionDetails"></a>
 <table class="details" border="1" cellpadding="3"
        cellspacing="0" width="100%" bgcolor="white">
 <tr bgcolor="#70b0f0" class="table-header">
-  <td colspan="2" class="table-header">
-    <table border="0" cellpadding="0" cellspacing="0" width="100%">
-      <tr valign="top">
-        <td align="left"><span class="table-header">Function Details</span></td>
-        <td align="right" valign="top"
-         ><span class="options">[<a href="#section-FunctionDetails"
-         class="privatelink" onclick="toggle_private();"
-         >hide private</a>]</span></td>
-      </tr>
-    </table>
-  </td>
+  <td align="left" colspan="2" class="table-header">
+    <span class="table-header">Function Details</span></td>
 </tr>
 </table>
 <a name="nvf2dict"></a>
@@ -634,46 +567,6 @@
   </dl>
 </td></tr></table>
 </div>
-<a name="test"></a>
-<div>
-<table class="details" border="1" cellpadding="3"
-       cellspacing="0" width="100%" bgcolor="white">
-<tr><td>
-  <table width="100%" cellpadding="0" cellspacing="0" border="0">
-  <tr valign="top"><td>
-  <h3 class="epydoc"><span class="sig"><span class="sig-name">test</span>(<span class="sig-arg">argv</span>=<span class="sig-default"><code class="variable-group">[</code><code class="variable-quote">'</code><code class="variable-string">(imported)</code><code class="variable-quote">'</code><code class="variable-group">]</code></span>)</span>
-  </h3>
-  </td><td align="right" valign="top"
-    ><span class="codelink"><a href="SatStress.SatStress-pysrc.html#test">source&nbsp;code</a></span>&nbsp;
-    </td>
-  </tr></table>
-  
-  <p>Check to see that SatStress gives the expected output from a series of
-  known calculations.</p>
-  <p>Calculates the stresses due to the <a 
-  href="SatStress.SatStress.NSR-class.html" class="link">NSR</a> and <a 
-  href="SatStress.SatStress.Diurnal-class.html" class="link">Diurnal</a> 
-  forcings at a series of lat lon points on Europa, over the course of most
-  of an orbit, and also at a variety of different amounts of viscous 
-  relaxation.  Compares the calculated values to those listed in the 
-  <code>pickle</code> file passed in via the command line.</p>
-  <p><code>test</code> is called from the <code>SatStress Makefile</code>, 
-  when one does <code>make test</code>, with the appropriate 
-  <code>pickle</code>d input to compare against (it is provided with the 
-  source code).</p>
-  <p>This function also acts as a short demonstration of how to use the 
-  SatStress module.</p>
-  <dl class="fields">
-    <dt>Parameters:</dt>
-    <dd><ul class="nomargin-top">
-        <li><strong class="pname"><code>argv</code></strong> (list) - a list of command line arguments</li>
-    </ul></dd>
-    <dt>Returns: bool</dt>
-        <dd><code>True</code> if the test fails. <code>False</code> if the 
-          test passes.</dd>
-  </dl>
-</td></tr></table>
-</div>
 <br />
 <!-- ==================== NAVIGATION BAR ==================== -->
 <table class="navbar" border="0" width="100%" cellpadding="0"
@@ -706,7 +599,7 @@
 <table border="0" cellpadding="0" cellspacing="0" width="100%%">
   <tr>
     <td align="left" class="footer">
-    Generated by Epydoc 3.0.1 on Tue Apr  1 14:43:39 2008
+    Generated by Epydoc 3.0.1 on Tue Apr  1 21:42:33 2008
     </td>
     <td align="right" class="footer">
       <a target="mainFrame" href="http://epydoc.sourceforge.net"
