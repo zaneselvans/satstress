@@ -1,5 +1,5 @@
 graft SatStress/Love/
-recursive-include SatStress/input/ *.satellite *.grid
+recursive-include input/ *.satellite *.grid
 recursive-include test/  *.pkl
 graft doc/
 prune doc/pdf/
