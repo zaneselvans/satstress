@@ -1,0 +1,80 @@
+Hopefully getting SatStress to work on your system is a relatively painless
+process, however, the software does assume you have basic experience with the
+Unix shell and programming within a Unix environment (though it should in
+theory work on Windows too).  In particular, this installation information
+assumes you already have and are able to use:
+
+  - compilers for both C and Fortran.  Development has been done on Mac OS X
+    (10.5) using the GNU compilers gcc and g77, so those should definitely
+    work.  On other systems, with other compilers, your mileage may vary.
+
+  - the make utility, which manages dependencies between files.
+
+=================================
+Required and Recommended Software
+=================================
+
+To get the SatStress package working, you'll need to install some other (free)
+software first:
+
+  - Python 2.5 or later (http://www.python.org).  If you're running a recent
+    install of Linux, or Apple's Leopard operating system (OS X 10.5.x), you
+    already have this.  Python is also available for Microsoft Windows, and
+    just about any other platform you can think of.
+
+  - SciPy (http://www.scipy.org), a collection of scientific libraries that
+    extend the capabilities of the Python language.
+
+In addition, if you want to use the GridCalc module, you'll need:
+
+  - netCDF (http://www.unidata.ucar.edu/software/netcdf/), a library of
+    routines for storing, retrieving, and annotating regularly gridded
+    multi-dimensional datasets.  Developed by Unidata
+    (http://www.unidata.ucar.edu)
+
+  - netcdf4-python (http://code.google.com/p/netcdf4-python/), a Python
+    interface to the netCDF library.
+
+If you want to actually view GridCalc module output, you'll need a netCDF file
+viewing program.  Many commercial software packages can read netCDF files, such
+as ESRI ArcGIS and Matlab.  A simple and free reader for OS X is Panoply
+(http://www.giss.nasa.gov/tools/panoply/), from NASA.  If you want to really be
+able to interact with the outputs from this model, you should install and get
+familiar with:
+
+  - Matplotlib/Pylab (http://matplotlib.sourceforge.net/), a Matlab-like
+    interactive plotting and analysis package, which uses Python as its
+    "shell".
+
+=================================
+Building and Installing SatStress
+=================================
+
+Once you have the required software installed, uncompress and unarchive the
+SatStress distribution you downloaded:
+
+    tar -xvzf SatStress-X.Y.Z.tar.gz
+
+then go into the distribution directory that created:
+
+    cd SatStress-X.Y.Z
+
+To build and test the package run:
+
+    make test
+
+If the test cases pass, go ahead and install with:
+
+    make install
+
+If you're not using the GNU Fortran 77 compiler (g77), you'll need to edit the
+Makefile for the Love number code, found in:
+
+    SatStress/Love/JohnWahr/Makefile
+
+and tell it what Fortran compiler it ought to be using.
+
+If you have trouble getting SatStress working, feel free to post to the
+SatStress discussion board:
+
+    http://groups.google.com/group/satstress
