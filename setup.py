@@ -9,5 +9,9 @@ setup(name         = 'SatStress',
       author       = SatStress.__author__,
       author_email = SatStress.__contact__,
       url          = SatStress.__projecturl__,
-      packages=['SatStress',],
+      packages     = ['SatStress',],
+      package_dir  = {'SatStress': 'SatStress'},
+      scripts      = ['SatStress/Love/JohnWahr/calcLoveWahr4Layer',]
      )
+      #package_data ={'SatStress': ['Love/JohnWahr/love']},
+      #data_files   = [('SatStress/Love/JohnWahr',['love',]),]

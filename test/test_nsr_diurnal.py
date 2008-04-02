@@ -21,8 +21,8 @@ from SatStress import *
 
 def main():
     satstress_test_dir = os.path.dirname(os.path.abspath(__file__))
-    test_outfile      = os.path.join(satstress_test_dir, "test_nsr_diurnal.pkl")
-    test_satellite    = os.path.join("input", "Europa.satellite")
+    test_outfile       = os.path.join(satstress_test_dir, "test_nsr_diurnal.pkl")
+    test_satellite     = os.path.join("input", "Europa.satellite")
 
     # Create a new satellite object, as defined by the input file:
     the_sat = SatStress.Satellite(open(test_satellite,'r'))

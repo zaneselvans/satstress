@@ -272,7 +272,6 @@ class Satellite(object):
     complete one full rotation [s], corresponds to C{NSR_PERIOD} in the input
     file.  May also be set to infinity (inf, infinity, INF, INFINITY).
     @type nsr_period: float
-    @type love_path: str
     @ivar num_layers: the number of layers making up the satellite, as
     indicated by the number of keys within the satParams dictionary contain
     the string 'LAYER_ID'.  Currently this must equal 4.
@@ -475,8 +474,7 @@ NSR_PERIOD = %g # seconds (== %g yr)
        self.orbit_eccentricity,\
        self.orbit_semimajor_axis,\
        self.nsr_period,\
-       self.nsr_period/(31556926),\
-       self.love_path)
+       self.nsr_period/(31556926))
 
         n = 0
         while (n < self.num_layers):
@@ -948,20 +946,9 @@ class StressDef(object): #
 
             love_infile.close()
 
-            # Now we run the Love number code.  This is a little bit of a mess
-            # because we need to make sure we're calling the code from wherever
-            # it got installed along with the SatStress python package:
-
-            # first find out what directory SatStress is installed in:
-            package_dir = os.path.dirname(os.path.abspath(__file__))
-
-            # Now append the known location of the love number code relative to
-            # the package_dir:
-            love_path = os.path.join(package_dir, "Love", "JohnWahr", "love")
-
             # Actually call the code (it looks at in.love and writes to out.love
             # in our current working directory)
-            os.popen(love_path)
+            os.popen('calcLoveWahr4Layer')
 
             # read in the output file that it creates
             # take the last line and strip() off the newline at the end

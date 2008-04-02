@@ -24,7 +24,8 @@ EPYDOC_OPTS = --verbose\
               --no-private
 
 # love is built down in this directory, which has its own Makefile:
-love : SatStress/Love/JohnWahr/love
+love : SatStress/Love/JohnWahr/love.f
+	(cd SatStress/Love/JohnWahr; make love)
 
 # Generate all of the HTML documentation based on the Python __doc__ strings:
 htmldoc : $(EPYDOC_MODS) doc/css/SatStress.css
@@ -45,11 +46,6 @@ docclean :
 # Make all forms of documentation, and check it:
 doc : htmldoc pdfdoc doccheck
 
-# Get rid of random junk:
-clean :
-	rm -rf *~ *.pyc lovetmp-*
-	(cd $(SSDIR); rm -rf *~ *.pyc lovetmp-*)
-
 # See if SatStress is working:
 check : love $(PUB_SRC)
 	python test/test_nsr_diurnal.py
@@ -57,16 +53,23 @@ check : love $(PUB_SRC)
 # An alias for check:
 test : check
 
-# Get the package back to its pristene condition:
-distclean : htmldoc clean
-	rm -rf $(SSDIR)/Love/*/love
+# Get rid of random junk:
+clean :
+	rm -rf *~ *.pyc lovetmp-*
+	(cd $(SSDIR); rm -rf *~ *.pyc lovetmp-*)
 	rm -rf dist
+	rm -rf build
+	rm -f MANIFEST
+
+# Get rid of all non-source files
+realclean : clean docclean
+	rm -rf $(SSDIR)/Love/*/calcLove*
+
+# Restore the package to pristene condition:
+distclean : realclean htmldoc
 
 dist : distclean $(PUB_SRC)
 	python setup.py sdist
-
-# Get rid of all non-source files:
-realclean : distclean docclean
 
 install : love $(PUB_SRC)
 	python setup.py install
