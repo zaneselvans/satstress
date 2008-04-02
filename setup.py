@@ -1,12 +1,13 @@
 #!/usr/bin/env python
 
 from distutils.core import setup
+import SatStress
 
-setup(name='SatStress',
-      version='0.1.1',
-      description='Tools for modeling tidal stresses on icy satellites',
-      author='Zane Selvans',
-      author_email='zane.selvans@colorado.edu',
-      url='http://code.google.com/p/satstress',
+setup(name         = 'SatStress',
+      version      = SatStress.__version__,
+      description  = 'Tools for modeling tidal stresses on icy satellites',
+      author       = SatStress.__author__,
+      author_email = SatStress.__contact__,
+      url          = SatStress.__projecturl__,
       packages=['SatStress',],
      )

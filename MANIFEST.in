@@ -1,13 +1,14 @@
 graft SatStress/Love/
 recursive-include SatStress/input/ *.satellite *.grid
-recursive-include SatStress/test/  *.pkl
+recursive-include test/  *.pkl
 graft doc/
 prune doc/pdf/
 prune doc/old/
 exclude SatStress/CrossCutGraph.py
 exclude SatStress/Lineament.py
-exclude TODO
-global-exclude *.tmp lovetmp-*
+include INSTALL
+include COPYING
+include Makefile
 
 # Command  	                            Description
 # ===================================   =================================================================================
