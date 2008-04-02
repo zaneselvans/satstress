@@ -41,20 +41,20 @@ To get the L{SatStress} package working, you'll need to install some other
 
 In addition, if you want to use L{GridCalc}, you'll need:
 
-  - B{netCDF} (U{http://www.unidata.ucar.edu/software/netcdf/}, a library of
+  - B{netCDF} (U{http://www.unidata.ucar.edu/software/netcdf/}), a library of
     routines for storing, retrieving, and annotating regularly gridded
     multi-dimensional datasets.  Developed by U{Unidata
     <http://www.unidata.ucar.edu>}
 
-  - B{netcdf4-python} (U{http://code.google.com/p/netcdf4-python/}, a Python
+  - B{netcdf4-python} (U{http://code.google.com/p/netcdf4-python/}), a Python
     interface to the netCDF library.
 
 If you want to actually view L{GridCalc} output, you'll need a netCDF file
 viewing program.  Many commercial software packages can read netCDF files, such
-as ESRI ArcGIS and Matlab (from the Mathworks).  A simple and free reader for
-OS X is U{Panoply <http://www.giss.nasa.gov/tools/panoply/>}, from NASA.  If
-you want to really be able to interact with the outputs from this model, you
-should install:
+as ESRI ArcGIS and Matlab.  A simple and free reader for OS X is U{Panoply
+<http://www.giss.nasa.gov/tools/panoply/>}, from NASA.  If you want to really
+be able to interact with the outputs from this model, you should install and
+get familiar with:
 
   - B{Matplotlib/Pylab} (U{http://matplotlib.sourceforge.net/}), a Matlab-like
     interactive plotting and analysis package, which uses Python as its
@@ -62,17 +62,35 @@ should install:
 
 1.2 Building and Installing SatStress
 -------------------------------------
-Once you have the required software prerequisites installed, you should be able
-to C{cd} into the directory containing the L{SatStress} module, and simply type
-C{make all} at the command line.  This will compile the Love number code and
-run the small L{SatStress.test} program embedded within L{SatStress}, just to
-make sure that everything is in working order (or not).  If you're not using
-the GNU Fortran 77 compiler C{g77}, you'll need to edit the C{Makefile} for the
-Love number code::
+Once you have the required software prerequisites installed, uncompress and
+unarchive the SatStress distribution::
 
-  ./Love/JohnWahr/Makefile
+    tar -xvzf SatStress-X.Y.Z.tar.gz
+
+then go into the distribution directory created::
+
+    cd SatStress-X.Y.Z
+
+To build and test the package, run::
+
+    make test
+
+If the test cases pass, go ahead and install with::
+
+    make install
+
+And you'll be able to write your own Python programs using the C{SatStress}
+library.
+
+If you're not using the GNU Fortran 77 compiler C{g77}, you'll need to edit the
+C{Makefile} for the Love number code::
+
+    SatStress/Love/JohnWahr/Makefile
 
 and tell it what Fortran compiler it ought to be using.
+
+If you have any trouble getting C{SatStress} working, feel free to post to the
+SatStress discussion board: U{http://groups.google.com/group/satstress}
 
 2 Design Overview
 =================
@@ -148,4 +166,14 @@ A few notes on the general architecture of the C{SatStress} package.
   of science is funded by the public, and our code is a major product of that
   funding.  It is unethical to make it proprietary.
 """
-__all__ = ["SatStress", "physcon", "GridCalc"]
+__all__        = ["SatStress", "GridCalc",]
+__author__     = "Zane Selvans"
+__contact__    = "zane.selvans@colorado.edu"
+__license__    = "GNU General Public License version 3 (GPL v3)"
+__docformat__  = 'epytext en'
+__version__    = '0.1.1'
+__projecturl__ = 'http://code.google.com/p/satstress'
+
+import datetime
+__date__       = datetime.datetime.utcnow().ctime()
+__copyright__  = "2007-%d %s" % (datetime.datetime.utcnow().year,__author__)

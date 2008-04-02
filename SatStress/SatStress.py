@@ -134,8 +134,9 @@ Gravitational Potential Theory" (U{preprint, 15MB PDF
   >>> Tau = the_stresses.tensor(theta=pi/4.0, phi=pi/3.0, t=10000)
   >>> print(Tau)
 
-  The L{SatStress.test} function shows a slightly more complex example, which
-  should be enough to get you started using the package.
+  The C{test} program included in the SatStress distribution shows a slightly
+  more complex example, which should be enough to get you started using the
+  package.
 
 3.3 Extending the Model  
 -----------------------
@@ -153,14 +154,6 @@ Gravitational Potential Theory" (U{preprint, 15MB PDF
 
   @group Exceptions (error handling classes): *Error
 """
-__author__  = "Zane Selvans"
-__contact__ = "zane.selvans@colorado.edu"
-__license__ = "GNU General Public License version 3 (GPL v3)"
-__copyright__ = "2008 %s" % __author__
-__docformat__ = 'epytext en'
-__version__ = '0.1.1'
-import datetime
-__date__   = datetime.datetime.utcnow().ctime()
 
 # regular expressions
 import re
@@ -279,10 +272,6 @@ class Satellite(object):
     complete one full rotation [s], corresponds to C{NSR_PERIOD} in the input
     file.  May also be set to infinity (inf, infinity, INF, INFINITY).
     @type nsr_period: float
-    @ivar love_path: the path to the program which will be used to
-    calculate the degree-2, complex, frequency dependent Love numbers h2,
-    and k2.  Path is relative to the directory in which the program is
-    running.  Corresponds to C{LOVE_PATH} in the input file.
     @type love_path: str
     @ivar num_layers: the number of layers making up the satellite, as
     indicated by the number of keys within the satParams dictionary contain
@@ -320,10 +309,6 @@ class Satellite(object):
             to undergo one full rotation [s].  If you don't want to have any
             NSR stresses, just put INFINITY here.
 
-          - B{C{LOVE_PATH}}:  The path to the program used to calculate the
-            frequency-dependent degree-2 Love numbers.  Currently this code is
-            one provided by John Wahr.
-
         @param satFile: Open file object containing name value pairs specifying
         the satellite's internal structure and orbital context, and the tidal
         forcings to which the satellite is subjected.
@@ -347,7 +332,6 @@ class Satellite(object):
         greater than 0.25
         @raise NegativeNSRPeriodError: if the NSR period of the satellite is less
         than zero.
-        @raise IOError: if the file specified in C{LOVE_PATH} is not openable.
         """
 
         # Make a note of the input file defining this satellite:
@@ -396,11 +380,6 @@ class Satellite(object):
         except ValueError:
             raise NonNumberSatelliteParamError(self, 'NSR_PERIOD')
 
-        try:
-            self.love_path = self.satParams['LOVE_PATH']
-        except KeyError:
-            raise MissingSatelliteParamError(self, 'LOVE_PATH')
-
         # Figure out how many layers are listed in the input file, and give the
         # user an error if it's not exactly 4 (the current Love number code can
         # only deal with 4):
@@ -435,12 +414,6 @@ class Satellite(object):
         if self.nsr_period < 0:
             raise NegativeNSRPeriodError(self)
 
-    # Make sure that the file specified by LOVE_PATH exists:
-        try:
-            testlove = open(self.love_path)
-            testlove.close()
-        except IOError:
-            raise
     # end __init__
 
     # Methods defining derived quantities: 
@@ -496,9 +469,6 @@ ORBIT_SEMIMAJOR_AXIS = %g
 
 # Additional parameters required to calculate Love numbers:
 NSR_PERIOD = %g # seconds (== %g yr)
-
-# Path to the code for calculating Love Numbers:
-LOVE_PATH = %s
 
 """ % (self.system_id,\
        self.planet_mass,\
@@ -883,11 +853,8 @@ class StressDef(object): #
     def calcLoveWahr4LayerExternal(self): #
         """Use John Wahr's Love number code to calculate h, k, and l.
         
-        This is done by an external program, written in Fortran by John Wahr
-        (and others), and called elsewhere on the system.  The path to this
-        external program is specified in the satellite definition file as the
-        parameter C{LOVE_PATH}.  At the moment, the code is fairly limited in
-        the kind of input it can take.  The specified satellite must:
+        At the moment, the code is fairly limited in the kind of input it can
+        take.  The specified satellite must:
 
           - use a Maxwell rheology
 
@@ -907,7 +874,7 @@ class StressDef(object): #
         @raise LoveExcessiveDeltaError: if L{StressDef.Delta}() > 10^9 for
         either of the ice layers.
         """
-        # random number generator
+        # random number generator for creating random temporary filenames:
         import random
         # methods for interfacing with the operating system:
         import os
@@ -935,7 +902,7 @@ class StressDef(object): #
         # we do this inside a try/except structure... and do our best to
         # clean up after ourselves.
         try:
-            lovetmp = "./lovetmp-%s/" % hex(int(random.random()*2**32))[2:-1]
+            lovetmp = "lovetmp-%s" % hex(int(random.random()*2**32))[2:-1]
             os.mkdir(lovetmp)
             os.chdir(lovetmp)
             love_infile = open("in.love", 'w')
@@ -981,8 +948,20 @@ class StressDef(object): #
 
             love_infile.close()
 
-            # run the Love number code
-            os.popen("../%s" % self.satellite.love_path)
+            # Now we run the Love number code.  This is a little bit of a mess
+            # because we need to make sure we're calling the code from wherever
+            # it got installed along with the SatStress python package:
+
+            # first find out what directory SatStress is installed in:
+            package_dir = os.path.dirname(os.path.abspath(__file__))
+
+            # Now append the known location of the love number code relative to
+            # the package_dir:
+            love_path = os.path.join(package_dir, "Love", "JohnWahr", "love")
+
+            # Actually call the code (it looks at in.love and writes to out.love
+            # in our current working directory)
+            os.popen(love_path)
 
             # read in the output file that it creates
             # take the last line and strip() off the newline at the end
@@ -1004,9 +983,9 @@ class StressDef(object): #
             # calculation failed somehow...
             os.chdir(orig_dir)
             try:
-                os.remove(lovetmp+"in.love")
-                os.remove(lovetmp+"out.love")
-                os.remove(lovetmp+"out.model")
+                os.remove(os.path.join(lovetmp, "in.love"))
+                os.remove(os.path.join(lovetmp, "out.love"))
+                os.remove(os.path.join(lovetmp, "out.model"))
                 os.rmdir(lovetmp)
             except OSError:
                 # If the Love number calculation DID fail, then the
