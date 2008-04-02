@@ -1,0 +1,189 @@
+<?xml version="1.0" encoding="ascii"?>
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+          "DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en" lang="en">
+<head>
+  <title>SatStress.test</title>
+  <link rel="stylesheet" href="epydoc.css" type="text/css" />
+  <script type="text/javascript" src="epydoc.js"></script>
+</head>
+
+<body bgcolor="white" text="black" link="blue" vlink="#204080"
+      alink="#204080">
+<!-- ==================== NAVIGATION BAR ==================== -->
+<table class="navbar" border="0" width="100%" cellpadding="0"
+       bgcolor="#a0c0ff" cellspacing="0">
+  <tr valign="middle">
+  <!-- Home link -->
+      <th>&nbsp;&nbsp;&nbsp;<a
+        href="SatStress-module.html">Home</a>&nbsp;&nbsp;&nbsp;</th>
+
+  <!-- Tree link -->
+      <th>&nbsp;&nbsp;&nbsp;<a
+        href="module-tree.html">Trees</a>&nbsp;&nbsp;&nbsp;</th>
+
+  <!-- Index link -->
+      <th>&nbsp;&nbsp;&nbsp;<a
+        href="identifier-index.html">Indices</a>&nbsp;&nbsp;&nbsp;</th>
+
+  <!-- Help link -->
+      <th>&nbsp;&nbsp;&nbsp;<a
+        href="help.html">Help</a>&nbsp;&nbsp;&nbsp;</th>
+
+  <!-- Project homepage -->
+      <th class="navbar" align="right" width="100%">
+        <table border="0" cellpadding="0" cellspacing="0">
+          <tr><th class="navbar" align="center"
+            ><a class="navbar" target="_top" href="http://code.google.com/p/satstress">SatStress</a></th>
+          </tr></table></th>
+  </tr>
+</table>
+<table width="100%" cellpadding="0" cellspacing="0">
+  <tr valign="top">
+    <td width="100%">
+      <span class="breadcrumbs">
+        <a href="SatStress-module.html">Package&nbsp;SatStress</a> ::
+        Module&nbsp;test
+      </span>
+    </td>
+    <td>
+      <table cellpadding="0" cellspacing="0">
+        <!-- hide/show private -->
+        <tr><td align="right"><span class="options">[<a href="javascript:void(0);" class="privatelink"
+    onclick="toggle_private();">hide&nbsp;private</a>]</span></td></tr>
+        <tr><td align="right"><span class="options"
+            >[<a href="frames.html" target="_top">frames</a
+            >]&nbsp;|&nbsp;<a href="SatStress.test-pysrc.html"
+            target="_top">no&nbsp;frames</a>]</span></td></tr>
+      </table>
+    </td>
+  </tr>
+</table>
+<h1 class="epydoc">Source Code for <a href="SatStress.test-module.html">Module SatStress.test</a></h1>
+<pre class="py-src">
+<a name="L1"></a><tt class="py-lineno"> 1</tt>  <tt class="py-line"><tt class="py-comment">#!python</tt> </tt>
+<a name="L2"></a><tt class="py-lineno"> 2</tt>  <tt class="py-line"><tt class="py-comment"></tt><tt class="py-docstring">"""Check to see that SatStress gives the expected output from a series</tt> </tt>
+<a name="L3"></a><tt class="py-lineno"> 3</tt>  <tt class="py-line"><tt class="py-docstring">of known calculations.</tt> </tt>
+<a name="L4"></a><tt class="py-lineno"> 4</tt>  <tt class="py-line"><tt class="py-docstring"></tt> </tt>
+<a name="L5"></a><tt class="py-lineno"> 5</tt>  <tt class="py-line"><tt class="py-docstring">Calculates the stresses due to the L{NSR} and L{Diurnal} forcings at a series</tt> </tt>
+<a name="L6"></a><tt class="py-lineno"> 6</tt>  <tt class="py-line"><tt class="py-docstring">of lat lon points on Europa, over the course of most of an orbit, and also at a</tt> </tt>
+<a name="L7"></a><tt class="py-lineno"> 7</tt>  <tt class="py-line"><tt class="py-docstring">variety of different amounts of viscous relaxation.  Compares the calculated</tt> </tt>
+<a name="L8"></a><tt class="py-lineno"> 8</tt>  <tt class="py-line"><tt class="py-docstring">values to those listed in the the test ouput file distributed with SatStress</tt> </tt>
+<a name="L9"></a><tt class="py-lineno"> 9</tt>  <tt class="py-line"><tt class="py-docstring">(test/SS_test_calc.pkl).</tt> </tt>
+<a name="L10"></a><tt class="py-lineno">10</tt>  <tt class="py-line"><tt class="py-docstring"></tt> </tt>
+<a name="L11"></a><tt class="py-lineno">11</tt>  <tt class="py-line"><tt class="py-docstring">C{test.py} is called from the C{SatStress Makefile}, when one does C{make</tt> </tt>
+<a name="L12"></a><tt class="py-lineno">12</tt>  <tt class="py-line"><tt class="py-docstring">test}.  It also acts as a short demonstration of how to use the SatStress</tt> </tt>
+<a name="L13"></a><tt class="py-lineno">13</tt>  <tt class="py-line"><tt class="py-docstring">package.</tt> </tt>
+<a name="L14"></a><tt class="py-lineno">14</tt>  <tt class="py-line"><tt class="py-docstring"></tt> </tt>
+<a name="L15"></a><tt class="py-lineno">15</tt>  <tt class="py-line"><tt class="py-docstring">"""</tt> </tt>
+<a name="L16"></a><tt class="py-lineno">16</tt>  <tt class="py-line"><tt class="py-keyword">import</tt> <tt class="py-name">sys</tt> </tt>
+<a name="L17"></a><tt class="py-lineno">17</tt>  <tt class="py-line"><tt class="py-keyword">import</tt> <tt class="py-name">os</tt> </tt>
+<a name="L18"></a><tt class="py-lineno">18</tt>  <tt class="py-line"><tt class="py-keyword">import</tt> <tt class="py-name">pickle</tt> </tt>
+<a name="L19"></a><tt class="py-lineno">19</tt>  <tt class="py-line"><tt class="py-keyword">import</tt> <tt class="py-name">scipy</tt> </tt>
+<a name="L20"></a><tt class="py-lineno">20</tt>  <tt class="py-line"><tt class="py-keyword">import</tt> <tt id="link-0" class="py-name" targets="Package SatStress=SatStress-module.html,Module SatStress.SatStress=SatStress.SatStress-module.html"><a title="SatStress
+SatStress.SatStress" class="py-name" href="#" onclick="return doclink('link-0', 'SatStress', 'link-0');">SatStress</a></tt> <tt class="py-keyword">as</tt> <tt class="py-name">SS</tt> </tt>
+<a name="L21"></a><tt class="py-lineno">21</tt>  <tt class="py-line"> </tt>
+<a name="main"></a><div id="main-def"><a name="L22"></a><tt class="py-lineno">22</tt> <a class="py-toggle" href="#" id="main-toggle" onclick="return toggle('main');">-</a><tt class="py-line"><tt class="py-keyword">def</tt> <a class="py-def-name" href="SatStress.test-module.html#main">main</a><tt class="py-op">(</tt><tt class="py-op">)</tt><tt class="py-op">:</tt> </tt>
+</div><div id="main-collapsed" style="display:none;" pad="++" indent="++++"></div><div id="main-expanded"><a name="L23"></a><tt class="py-lineno">23</tt>  <tt class="py-line">    <tt class="py-name">package_dir</tt> <tt class="py-op">=</tt> <tt class="py-name">os</tt><tt class="py-op">.</tt><tt class="py-name">path</tt><tt class="py-op">.</tt><tt class="py-name">dirname</tt><tt class="py-op">(</tt><tt class="py-name">os</tt><tt class="py-op">.</tt><tt class="py-name">path</tt><tt class="py-op">.</tt><tt class="py-name">abspath</tt><tt class="py-op">(</tt><tt class="py-name">__file__</tt><tt class="py-op">)</tt><tt class="py-op">)</tt> </tt>
+<a name="L24"></a><tt class="py-lineno">24</tt>  <tt class="py-line">     </tt>
+<a name="L25"></a><tt class="py-lineno">25</tt>  <tt class="py-line">    <tt class="py-comment"># Create a new satellite object, as defined by the input file:</tt> </tt>
+<a name="L26"></a><tt class="py-lineno">26</tt>  <tt class="py-line"><tt class="py-comment"></tt>    <tt class="py-name">the_sat</tt> <tt class="py-op">=</tt> <tt class="py-name">SS</tt><tt class="py-op">.</tt><tt id="link-1" class="py-name" targets="Class SatStress.SatStress.Satellite=SatStress.SatStress.Satellite-class.html"><a title="SatStress.SatStress.Satellite" class="py-name" href="#" onclick="return doclink('link-1', 'Satellite', 'link-1');">Satellite</a></tt><tt class="py-op">(</tt><tt class="py-name">open</tt><tt class="py-op">(</tt><tt class="py-string">'input/Europa.satellite'</tt><tt class="py-op">,</tt><tt class="py-string">'r'</tt><tt class="py-op">)</tt><tt class="py-op">)</tt> </tt>
+<a name="L27"></a><tt class="py-lineno">27</tt>  <tt class="py-line"> </tt>
+<a name="L28"></a><tt class="py-lineno">28</tt>  <tt class="py-line">    <tt class="py-comment"># Create a StressCalc object, that calculates both the NSR and Diurnal</tt> </tt>
+<a name="L29"></a><tt class="py-lineno">29</tt>  <tt class="py-line"><tt class="py-comment"></tt>    <tt class="py-comment"># stresses on the Satellite just instantiated:</tt> </tt>
+<a name="L30"></a><tt class="py-lineno">30</tt>  <tt class="py-line"><tt class="py-comment"></tt>    <tt class="py-name">the_stresses</tt> <tt class="py-op">=</tt> <tt class="py-name">SS</tt><tt class="py-op">.</tt><tt id="link-2" class="py-name" targets="Class SatStress.SatStress.StressCalc=SatStress.SatStress.StressCalc-class.html"><a title="SatStress.SatStress.StressCalc" class="py-name" href="#" onclick="return doclink('link-2', 'StressCalc', 'link-2');">StressCalc</a></tt><tt class="py-op">(</tt><tt class="py-op">[</tt><tt class="py-name">SS</tt><tt class="py-op">.</tt><tt id="link-3" class="py-name" targets="Class SatStress.SatStress.Diurnal=SatStress.SatStress.Diurnal-class.html"><a title="SatStress.SatStress.Diurnal" class="py-name" href="#" onclick="return doclink('link-3', 'Diurnal', 'link-3');">Diurnal</a></tt><tt class="py-op">(</tt><tt class="py-name">the_sat</tt><tt class="py-op">)</tt><tt class="py-op">,</tt> <tt class="py-name">SS</tt><tt class="py-op">.</tt><tt id="link-4" class="py-name" targets="Class SatStress.SatStress.NSR=SatStress.SatStress.NSR-class.html"><a title="SatStress.SatStress.NSR" class="py-name" href="#" onclick="return doclink('link-4', 'NSR', 'link-4');">NSR</a></tt><tt class="py-op">(</tt><tt class="py-name">the_sat</tt><tt class="py-op">)</tt><tt class="py-op">]</tt><tt class="py-op">)</tt> </tt>
+<a name="L31"></a><tt class="py-lineno">31</tt>  <tt class="py-line"> </tt>
+<a name="L32"></a><tt class="py-lineno">32</tt>  <tt class="py-line">    <tt class="py-comment"># do a series of calculations, varying all the inputs at each iteration</tt> </tt>
+<a name="L33"></a><tt class="py-lineno">33</tt>  <tt class="py-line"><tt class="py-comment"></tt>    <tt class="py-name">theta</tt> <tt class="py-op">=</tt> <tt class="py-number">0.0</tt> </tt>
+<a name="L34"></a><tt class="py-lineno">34</tt>  <tt class="py-line">    <tt class="py-name">phi</tt>   <tt class="py-op">=</tt> <tt class="py-number">0.0</tt> </tt>
+<a name="L35"></a><tt class="py-lineno">35</tt>  <tt class="py-line">    <tt class="py-name">t</tt>     <tt class="py-op">=</tt> <tt class="py-number">0.0</tt> </tt>
+<a name="L36"></a><tt class="py-lineno">36</tt>  <tt class="py-line"> </tt>
+<a name="L37"></a><tt class="py-lineno">37</tt>  <tt class="py-line">    <tt class="py-name">Taulist</tt> <tt class="py-op">=</tt> <tt class="py-op">[</tt><tt class="py-op">]</tt> </tt>
+<a name="L38"></a><tt class="py-lineno">38</tt>  <tt class="py-line"> </tt>
+<a name="L39"></a><tt class="py-lineno">39</tt>  <tt class="py-line">    <tt class="py-keyword">while</tt> <tt class="py-name">the_stresses</tt><tt class="py-op">.</tt><tt class="py-name">stresses</tt><tt class="py-op">[</tt><tt class="py-number">1</tt><tt class="py-op">]</tt><tt class="py-op">.</tt><tt id="link-5" class="py-name" targets="Method SatStress.SatStress.StressDef.Delta()=SatStress.SatStress.StressDef-class.html#Delta"><a title="SatStress.SatStress.StressDef.Delta" class="py-name" href="#" onclick="return doclink('link-5', 'Delta', 'link-5');">Delta</a></tt><tt class="py-op">(</tt><tt class="py-op">)</tt> <tt class="py-op">&gt;</tt> <tt class="py-number">0.01</tt> <tt class="py-keyword">and</tt> <tt class="py-name">t</tt> <tt class="py-op">&lt;</tt> <tt class="py-number">2.0</tt><tt class="py-op">*</tt><tt class="py-name">scipy</tt><tt class="py-op">.</tt><tt id="link-6" class="py-name" targets="Variable SatStress.physcon.pi=SatStress.physcon-module.html#pi"><a title="SatStress.physcon.pi" class="py-name" href="#" onclick="return doclink('link-6', 'pi', 'link-6');">pi</a></tt><tt class="py-op">/</tt><tt class="py-name">the_sat</tt><tt class="py-op">.</tt><tt id="link-7" class="py-name" targets="Method SatStress.SatStress.Satellite.mean_motion()=SatStress.SatStress.Satellite-class.html#mean_motion"><a title="SatStress.SatStress.Satellite.mean_motion" class="py-name" href="#" onclick="return doclink('link-7', 'mean_motion', 'link-7');">mean_motion</a></tt><tt class="py-op">(</tt><tt class="py-op">)</tt><tt class="py-op">:</tt> </tt>
+<a name="L40"></a><tt class="py-lineno">40</tt>  <tt class="py-line">        <tt class="py-keyword">print</tt><tt class="py-op">(</tt><tt class="py-string">"""Tau(theta = %g, phi = %g, time = %g, Delta = %g) = """</tt> <tt class="py-op">%</tt> <tt class="py-op">(</tt><tt class="py-name">scipy</tt><tt class="py-op">.</tt><tt class="py-name">degrees</tt><tt class="py-op">(</tt><tt class="py-name">theta</tt><tt class="py-op">)</tt><tt class="py-op">,</tt> <tt class="py-name">scipy</tt><tt class="py-op">.</tt><tt class="py-name">degrees</tt><tt class="py-op">(</tt><tt class="py-name">phi</tt><tt class="py-op">)</tt><tt class="py-op">,</tt> <tt class="py-name">t</tt><tt class="py-op">,</tt> <tt class="py-name">the_stresses</tt><tt class="py-op">.</tt><tt class="py-name">stresses</tt><tt class="py-op">[</tt><tt class="py-number">1</tt><tt class="py-op">]</tt><tt class="py-op">.</tt><tt id="link-8" class="py-name"><a title="SatStress.SatStress.StressDef.Delta" class="py-name" href="#" onclick="return doclink('link-8', 'Delta', 'link-5');">Delta</a></tt><tt class="py-op">(</tt><tt class="py-op">)</tt><tt class="py-op">)</tt><tt class="py-op">)</tt> </tt>
+<a name="L41"></a><tt class="py-lineno">41</tt>  <tt class="py-line">        <tt class="py-name">Taulist</tt><tt class="py-op">.</tt><tt class="py-name">append</tt><tt class="py-op">(</tt><tt class="py-name">the_stresses</tt><tt class="py-op">.</tt><tt id="link-9" class="py-name" targets="Method SatStress.SatStress.StressCalc.tensor()=SatStress.SatStress.StressCalc-class.html#tensor"><a title="SatStress.SatStress.StressCalc.tensor" class="py-name" href="#" onclick="return doclink('link-9', 'tensor', 'link-9');">tensor</a></tt><tt class="py-op">(</tt><tt class="py-name">theta</tt><tt class="py-op">=</tt><tt class="py-name">theta</tt><tt class="py-op">,</tt> <tt class="py-name">phi</tt><tt class="py-op">=</tt><tt class="py-name">phi</tt><tt class="py-op">,</tt> <tt class="py-name">t</tt><tt class="py-op">=</tt><tt class="py-number">0</tt><tt class="py-op">)</tt><tt class="py-op">)</tt> </tt>
+<a name="L42"></a><tt class="py-lineno">42</tt>  <tt class="py-line">        <tt class="py-keyword">print</tt> <tt class="py-name">Taulist</tt><tt class="py-op">[</tt><tt class="py-op">-</tt><tt class="py-number">1</tt><tt class="py-op">]</tt><tt class="py-op">,</tt> <tt class="py-string">"\n"</tt> </tt>
+<a name="L43"></a><tt class="py-lineno">43</tt>  <tt class="py-line">        <tt class="py-name">theta</tt> <tt class="py-op">=</tt> <tt class="py-name">theta</tt> <tt class="py-op">+</tt> <tt class="py-name">scipy</tt><tt class="py-op">.</tt><tt id="link-10" class="py-name"><a title="SatStress.physcon.pi" class="py-name" href="#" onclick="return doclink('link-10', 'pi', 'link-6');">pi</a></tt><tt class="py-op">/</tt><tt class="py-number">23.0</tt> </tt>
+<a name="L44"></a><tt class="py-lineno">44</tt>  <tt class="py-line">        <tt class="py-name">phi</tt>   <tt class="py-op">=</tt> <tt class="py-name">phi</tt>   <tt class="py-op">+</tt> <tt class="py-name">scipy</tt><tt class="py-op">.</tt><tt id="link-11" class="py-name"><a title="SatStress.physcon.pi" class="py-name" href="#" onclick="return doclink('link-11', 'pi', 'link-6');">pi</a></tt><tt class="py-op">/</tt><tt class="py-number">11.0</tt> </tt>
+<a name="L45"></a><tt class="py-lineno">45</tt>  <tt class="py-line">        <tt class="py-name">t</tt>     <tt class="py-op">=</tt> <tt class="py-name">t</tt>     <tt class="py-op">+</tt> <tt class="py-op">(</tt><tt class="py-name">scipy</tt><tt class="py-op">.</tt><tt id="link-12" class="py-name"><a title="SatStress.physcon.pi" class="py-name" href="#" onclick="return doclink('link-12', 'pi', 'link-6');">pi</a></tt><tt class="py-op">/</tt><tt class="py-number">11.0</tt><tt class="py-op">)</tt><tt class="py-op">/</tt><tt class="py-name">the_sat</tt><tt class="py-op">.</tt><tt id="link-13" class="py-name"><a title="SatStress.SatStress.Satellite.mean_motion" class="py-name" href="#" onclick="return doclink('link-13', 'mean_motion', 'link-7');">mean_motion</a></tt><tt class="py-op">(</tt><tt class="py-op">)</tt> </tt>
+<a name="L46"></a><tt class="py-lineno">46</tt>  <tt class="py-line"> </tt>
+<a name="L47"></a><tt class="py-lineno">47</tt>  <tt class="py-line">        <tt class="py-comment"># Re-construct the NSR stress (and the_stresses StressCalc object)</tt> </tt>
+<a name="L48"></a><tt class="py-lineno">48</tt>  <tt class="py-line"><tt class="py-comment"></tt>        <tt class="py-comment"># changing the forcing period, so that we can have the NSR stresses</tt> </tt>
+<a name="L49"></a><tt class="py-lineno">49</tt>  <tt class="py-line"><tt class="py-comment"></tt>        <tt class="py-comment"># vary with each iteration too.</tt> </tt>
+<a name="L50"></a><tt class="py-lineno">50</tt>  <tt class="py-line"><tt class="py-comment"></tt>        <tt class="py-name">the_sat</tt><tt class="py-op">.</tt><tt class="py-name">nsr_period</tt> <tt class="py-op">=</tt> <tt class="py-name">the_sat</tt><tt class="py-op">.</tt><tt class="py-name">nsr_period</tt> <tt class="py-op">/</tt> <tt class="py-number">1.5</tt> </tt>
+<a name="L51"></a><tt class="py-lineno">51</tt>  <tt class="py-line">        <tt class="py-name">the_stresses</tt> <tt class="py-op">=</tt> <tt class="py-name">SS</tt><tt class="py-op">.</tt><tt id="link-14" class="py-name"><a title="SatStress.SatStress.StressCalc" class="py-name" href="#" onclick="return doclink('link-14', 'StressCalc', 'link-2');">StressCalc</a></tt><tt class="py-op">(</tt><tt class="py-op">[</tt><tt class="py-name">SS</tt><tt class="py-op">.</tt><tt id="link-15" class="py-name"><a title="SatStress.SatStress.Diurnal" class="py-name" href="#" onclick="return doclink('link-15', 'Diurnal', 'link-3');">Diurnal</a></tt><tt class="py-op">(</tt><tt class="py-name">the_sat</tt><tt class="py-op">)</tt><tt class="py-op">,</tt> <tt class="py-name">SS</tt><tt class="py-op">.</tt><tt id="link-16" class="py-name"><a title="SatStress.SatStress.NSR" class="py-name" href="#" onclick="return doclink('link-16', 'NSR', 'link-4');">NSR</a></tt><tt class="py-op">(</tt><tt class="py-name">the_sat</tt><tt class="py-op">)</tt><tt class="py-op">]</tt><tt class="py-op">)</tt> </tt>
+<a name="L52"></a><tt class="py-lineno">52</tt>  <tt class="py-line"> </tt>
+<a name="L53"></a><tt class="py-lineno">53</tt>  <tt class="py-line">    <tt class="py-comment"># Now we want to compare this against reference output, just to make sure</tt> </tt>
+<a name="L54"></a><tt class="py-lineno">54</tt>  <tt class="py-line"><tt class="py-comment"></tt>    <tt class="py-comment"># that we're getting the right numbers...</tt> </tt>
+<a name="L55"></a><tt class="py-lineno">55</tt>  <tt class="py-line"><tt class="py-comment"></tt> </tt>
+<a name="L56"></a><tt class="py-lineno">56</tt>  <tt class="py-line">    <tt class="py-name">pickledTau</tt> <tt class="py-op">=</tt> <tt class="py-name">pickle</tt><tt class="py-op">.</tt><tt class="py-name">load</tt><tt class="py-op">(</tt><tt class="py-name">open</tt><tt class="py-op">(</tt><tt class="py-string">'test/SS_test_calc.pkl'</tt><tt class="py-op">,</tt> <tt class="py-string">'r'</tt><tt class="py-op">)</tt><tt class="py-op">)</tt> </tt>
+<a name="L57"></a><tt class="py-lineno">57</tt>  <tt class="py-line">    <tt class="py-keyword">for</tt> <tt class="py-op">(</tt><tt class="py-name">tau1</tt><tt class="py-op">,</tt> <tt class="py-name">tau2</tt><tt class="py-op">)</tt> <tt class="py-keyword">in</tt> <tt class="py-name">zip</tt><tt class="py-op">(</tt><tt class="py-name">Taulist</tt><tt class="py-op">,</tt> <tt class="py-name">pickledTau</tt><tt class="py-op">)</tt><tt class="py-op">:</tt> </tt>
+<a name="L58"></a><tt class="py-lineno">58</tt>  <tt class="py-line">        <tt class="py-keyword">if</tt> <tt class="py-name">tau1</tt><tt class="py-op">.</tt><tt id="link-17" class="py-name" targets="Variable SatStress.physcon.all=SatStress.physcon-module.html#all"><a title="SatStress.physcon.all" class="py-name" href="#" onclick="return doclink('link-17', 'all', 'link-17');">all</a></tt><tt class="py-op">(</tt><tt class="py-op">)</tt> <tt class="py-op">!=</tt> <tt class="py-name">tau2</tt><tt class="py-op">.</tt><tt id="link-18" class="py-name"><a title="SatStress.physcon.all" class="py-name" href="#" onclick="return doclink('link-18', 'all', 'link-17');">all</a></tt><tt class="py-op">(</tt><tt class="py-op">)</tt><tt class="py-op">:</tt> </tt>
+<a name="L59"></a><tt class="py-lineno">59</tt>  <tt class="py-line">            <tt class="py-keyword">print</tt><tt class="py-op">(</tt><tt class="py-string">"\nTest failed.  :(\n"</tt><tt class="py-op">)</tt> </tt>
+<a name="L60"></a><tt class="py-lineno">60</tt>  <tt class="py-line">            <tt class="py-name">sys</tt><tt class="py-op">.</tt><tt class="py-name">exit</tt><tt class="py-op">(</tt><tt class="py-number">1</tt><tt class="py-op">)</tt> </tt>
+<a name="L61"></a><tt class="py-lineno">61</tt>  <tt class="py-line"> </tt>
+<a name="L62"></a><tt class="py-lineno">62</tt>  <tt class="py-line">    <tt class="py-keyword">print</tt><tt class="py-op">(</tt><tt class="py-string">"\nTest passed! :)\n"</tt><tt class="py-op">)</tt> </tt>
+<a name="L63"></a><tt class="py-lineno">63</tt>  <tt class="py-line">    <tt class="py-name">sys</tt><tt class="py-op">.</tt><tt class="py-name">exit</tt><tt class="py-op">(</tt><tt class="py-op">)</tt> </tt>
+</div><a name="L64"></a><tt class="py-lineno">64</tt>  <tt class="py-line"> </tt>
+<a name="L65"></a><tt class="py-lineno">65</tt>  <tt class="py-line"><tt class="py-keyword">if</tt> <tt class="py-name">__name__</tt> <tt class="py-op">==</tt> <tt class="py-string">"__main__"</tt><tt class="py-op">:</tt> </tt>
+<a name="L66"></a><tt class="py-lineno">66</tt>  <tt class="py-line">    <tt id="link-19" class="py-name" targets="Function SatStress.GridCalc.main()=SatStress.GridCalc-module.html#main,Function SatStress.test.main()=SatStress.test-module.html#main"><a title="SatStress.GridCalc.main
+SatStress.test.main" class="py-name" href="#" onclick="return doclink('link-19', 'main', 'link-19');">main</a></tt><tt class="py-op">(</tt><tt class="py-op">)</tt> </tt>
+<a name="L67"></a><tt class="py-lineno">67</tt>  <tt class="py-line"> </tt><script type="text/javascript">
+<!--
+expandto(location.href);
+// -->
+</script>
+</pre>
+<br />
+<!-- ==================== NAVIGATION BAR ==================== -->
+<table class="navbar" border="0" width="100%" cellpadding="0"
+       bgcolor="#a0c0ff" cellspacing="0">
+  <tr valign="middle">
+  <!-- Home link -->
+      <th>&nbsp;&nbsp;&nbsp;<a
+        href="SatStress-module.html">Home</a>&nbsp;&nbsp;&nbsp;</th>
+
+  <!-- Tree link -->
+      <th>&nbsp;&nbsp;&nbsp;<a
+        href="module-tree.html">Trees</a>&nbsp;&nbsp;&nbsp;</th>
+
+  <!-- Index link -->
+      <th>&nbsp;&nbsp;&nbsp;<a
+        href="identifier-index.html">Indices</a>&nbsp;&nbsp;&nbsp;</th>
+
+  <!-- Help link -->
+      <th>&nbsp;&nbsp;&nbsp;<a
+        href="help.html">Help</a>&nbsp;&nbsp;&nbsp;</th>
+
+  <!-- Project homepage -->
+      <th class="navbar" align="right" width="100%">
+        <table border="0" cellpadding="0" cellspacing="0">
+          <tr><th class="navbar" align="center"
+            ><a class="navbar" target="_top" href="http://code.google.com/p/satstress">SatStress</a></th>
+          </tr></table></th>
+  </tr>
+</table>
+<table border="0" cellpadding="0" cellspacing="0" width="100%%">
+  <tr>
+    <td align="left" class="footer">
+    Generated by Epydoc 3.0.1 on Tue Apr  1 17:11:27 2008
+    </td>
+    <td align="right" class="footer">
+      <a target="mainFrame" href="http://epydoc.sourceforge.net"
+        >http://epydoc.sourceforge.net</a>
+    </td>
+  </tr>
+</table>
+
+<script type="text/javascript">
+  <!--
+  // Private objects are initially displayed (because if
+  // javascript is turned off then we want them to be
+  // visible); but by default, we want to hide them.  So hide
+  // them unless we have a cookie that says to show them.
+  checkCookie();
+  // -->
+</script>
+</body>
+</html>
