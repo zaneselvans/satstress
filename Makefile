@@ -55,8 +55,8 @@ test : check
 
 # Get rid of random junk:
 clean :
-	rm -rf *~ *.pyc lovetmp-*
-	(cd $(SSDIR); rm -rf *~ *.pyc lovetmp-*)
+	rm -rf *~ *.pyc lovetmp-* *.nc
+	(cd $(SSDIR); rm -rf *~ *.pyc lovetmp-* *.nc)
 	rm -rf dist
 	rm -rf build
 	rm -f MANIFEST

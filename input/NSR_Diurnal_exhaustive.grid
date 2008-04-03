@@ -34,7 +34,7 @@ ORBIT_MIN =   0.0 # Start at periapse.
 ORBIT_MAX = 360.0 # End after one orbit.
 
 # How widely spaced in the orbit should subsequent calculations be?
-ORBIT_STEP = 370.0  # degrees of orbital motion between calculations.
+ORBIT_STEP = 15.0  # degrees of orbital motion between calculations.
 
 # If the NSR_DELTA grid is present, then instead of just taking the given
 # NSR_PERIOD from the satellite definition, we do several calculations, with
