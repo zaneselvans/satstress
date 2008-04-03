@@ -1,14 +1,16 @@
-SatStress-0.1.1 (2008-04-01):
+SatStress-0.1.1 (2008-04-03):
 ===============================================================================
-  - Re-organized the package to use the Python distutils
-  - Can now be installed in a relatively platform independent way, i.e.:
-      'python setup.py install'
+  - Re-organized the package to use the standard Python distutils (setup.py)
   - Added the standard human readable files:
     - README
     - INSTALL
     - COPYING
     - CHANGELOG
   - Automated package creation using setup.py/Makefile
+  - Added derived quantities to Satellite.__str__() output as comments
+  - Added derived quantities to SatLayer.__str__() output as comments
+  - Added string conversion method to StressDef class
+  - Fixed a bug in the calculation of StressDef.lambda_twiddle().
 
 SatStress-0.1.0 (2008-03-28):
 ===============================================================================

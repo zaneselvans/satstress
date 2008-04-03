@@ -11,7 +11,8 @@ setup(name         = 'SatStress',
       url          = SatStress.__projecturl__,
       packages     = ['SatStress',],
       package_dir  = {'SatStress': 'SatStress'},
-      scripts      = ['SatStress/Love/JohnWahr/calcLoveWahr4Layer',]
+      scripts      = ['SatStress/Love/JohnWahr/calcLoveWahr4Layer',],
+      package_data = {'SatStress': ['input/*.satellite', 'input/*.grid',]},
      )
       #package_data ={'SatStress': ['Love/JohnWahr/love']},
       #data_files   = [('SatStress/Love/JohnWahr',['love',]),]

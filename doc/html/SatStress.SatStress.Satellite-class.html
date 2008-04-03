@@ -82,8 +82,7 @@ object --+
 </tr>
 <tr>
     <td width="15%" align="right" valign="top" class="summary">
-      <span class="summary-type"><a href="SatStress.SatStress.Satellite-class.html" 
-      class="link">Satellite</a></span>
+      <span class="summary-type">&nbsp;</span>
     </td><td class="summary">
       <table width="100%" cellpadding="0" cellspacing="0" border="0">
         <tr>
@@ -370,59 +369,64 @@ object --+
     </td>
   </tr></table>
   
-  <p>Construct a Satellite object from a satFile</p>
-  <h1 class="heading">Required input file parameters:</h1>
-    <p>The Satellite is initialized from a name value file (as described 
-    under <a href="SatStress.SatStress-module.html#nvf2dict" 
-    class="link">nvf2dict</a>).  The file must define the following 
-    parameters, all of which are specified in SI (MKS) units.</p>
-    <ul>
-      <li>
-        <b><code>SYSTEM_ID</code></b>:  A string identifying the planetary 
-        system, e.g. JupiterEuropa.
-      </li>
-      <li>
-        <b><code>PLANET_MASS</code></b>:  The mass of the planet the 
-        satellite orbits [kg].
-      </li>
-      <li>
-        <b><code>ORBIT_ECCENTRICITY</code></b>:  The eccentricity of the 
-        satellite's orbit.  Must not exceed 0.25.
-      </li>
-      <li>
-        <b><code>ORBIT_SEMIMAJOR_AXIS</code></b>:  The semimajor axis of 
-        the satellite's orbit [m].
-      </li>
-      <li>
-        <b><code>NSR_PERIOD</code></b>:  The time it takes for the 
-        satellite's icy shell to undergo one full rotation [s].  If you 
-        don't want to have any NSR stresses, just put INFINITY here.
-      </li>
-    </ul>
+  <pre class="literalblock">
+
+Construct a Satellite object from a satFile
+
+Required input file parameters:
+===============================
+The Satellite is initialized from a name value file (as described under
+L{nvf2dict}).  The file must define the following parameters, all of which
+are specified in SI (MKS) units.
+
+  - B{C{SYSTEM_ID}}:  A string identifying the planetary system, e.g.
+    JupiterEuropa.
+
+  - B{C{PLANET_MASS}}:  The mass of the planet the satellite orbits
+    [kg].
+
+  - B{C{ORBIT_ECCENTRICITY}}:  The eccentricity of the satellite's
+    orbit.  Must not exceed 0.25.
+
+  - B{C{ORBIT_SEMIMAJOR_AXIS}}:  The semimajor axis of the satellite's
+    orbit [m].
+
+  - B{C{NSR_PERIOD}}:  The time it takes for the satellite's icy shell
+    to undergo one full rotation [s].  If you don't want to have any
+    NSR stresses, just put INFINITY here.
+
+An example satFile is included with the SatStress package:
+
+    SatStress-X.Y.Z/input/Europa.satellite
+
+Where X.Y.Z refers to the version numbers.
+
+@param satFile: Open file object containing name value pairs specifying
+the satellite's internal structure and orbital context, and the tidal
+forcings to which the satellite is subjected.
+@type satFile: file
+@return: a Satellite object corresponding to the proffered input file.
+@rtype: L{Satellite}
+
+@raise NameValueFileError: if parsing of the input file fails.
+@raise MissingSatelliteParamError: if a required input field is not
+found within the input file.
+@raise NonNumberSatelliteParamError: if a required input which is of
+a numeric type is found within the file, but its value is not
+convertable to a float.
+@raise LoveLayerNumberError: if the number of layers specified is not
+exactly 4.
+@raise GravitationallyUnstableSatelliteError: if the layers are found not
+to decrease in density from the core to the surface.
+@raise ExcessiveSatelliteMassError: if the mass of the satellite's parent
+planet is not at least 10 times larger than the mass of the satellite.
+@raise LargeEccentricityError: if the satellite's orbital eccentricity is
+greater than 0.25
+@raise NegativeNSRPeriodError: if the NSR period of the satellite is less
+than zero.
+
+</pre>
   <dl class="fields">
-    <dt>Parameters:</dt>
-    <dd><ul class="nomargin-top">
-        <li><strong class="pname"><code>satFile</code></strong> (file) - Open file object containing name value pairs specifying the 
-          satellite's internal structure and orbital context, and the tidal
-          forcings to which the satellite is subjected.</li>
-    </ul></dd>
-    <dt>Returns: <a href="SatStress.SatStress.Satellite-class.html" 
-      class="link">Satellite</a></dt>
-        <dd>a Satellite object corresponding to the proffered input file.</dd>
-    <dt>Raises:</dt>
-    <dd><ul class="nomargin-top">
-        <li><code><strong class='fraise'><a href="SatStress.SatStress.NameValueFileError-class.html">NameValueFileError</a></strong></code> - if parsing of the input file fails.</li>
-        <li><code><strong class='fraise'><a href="SatStress.SatStress.MissingSatelliteParamError-class.html">MissingSatelliteParamError</a></strong></code> - if a required input field is not found within the input file.</li>
-        <li><code><strong class='fraise'><a href="SatStress.SatStress.NonNumberSatelliteParamError-class.html">NonNumberSatelliteParamError</a></strong></code> - if a required input which is of a numeric type is found within the 
-        file, but its value is not convertable to a float.</li>
-        <li><code><strong class='fraise'><a href="SatStress.SatStress.LoveLayerNumberError-class.html">LoveLayerNumberError</a></strong></code> - if the number of layers specified is not exactly 4.</li>
-        <li><code><strong class='fraise'><a href="SatStress.SatStress.GravitationallyUnstableSatelliteError-class.html">GravitationallyUnstableSatelliteError</a></strong></code> - if the layers are found not to decrease in density from the core to
-        the surface.</li>
-        <li><code><strong class='fraise'><a href="SatStress.SatStress.ExcessiveSatelliteMassError-class.html">ExcessiveSatelliteMassError</a></strong></code> - if the mass of the satellite's parent planet is not at least 10 
-        times larger than the mass of the satellite.</li>
-        <li><code><strong class='fraise'><a href="SatStress.SatStress.LargeEccentricityError-class.html">LargeEccentricityError</a></strong></code> - if the satellite's orbital eccentricity is greater than 0.25</li>
-        <li><code><strong class='fraise'><a href="SatStress.SatStress.NegativeNSRPeriodError-class.html">NegativeNSRPeriodError</a></strong></code> - if the NSR period of the satellite is less than zero.</li>
-    </ul></dd>
     <dt>Overrides:
         object.__init__
     </dt>
@@ -559,7 +563,7 @@ object --+
 <table border="0" cellpadding="0" cellspacing="0" width="100%%">
   <tr>
     <td align="left" class="footer">
-    Generated by Epydoc 3.0.1 on Tue Apr  1 21:42:33 2008
+    Generated by Epydoc 3.0.1 on Thu Apr  3 16:28:48 2008
     </td>
     <td align="right" class="footer">
       <a target="mainFrame" href="http://epydoc.sourceforge.net"

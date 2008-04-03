@@ -67,10 +67,11 @@ If the test cases pass, go ahead and install with:
 
     make install
 
-If you're not using the GNU Fortran 77 compiler (g77), you'll need to edit the
-Makefile for the Love number code, found in:
+(you may need to be root in order to run that command).  If you're not using
+the GNU Fortran 77 compiler (g77), you'll need to edit the Makefile for the
+Love number code, found in:
 
-    SatStress/Love/JohnWahr/Makefile
+    SatStress-X.Y.Z/SatStress/Love/JohnWahr/Makefile
 
 and tell it what Fortran compiler it ought to be using.
 

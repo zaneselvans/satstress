@@ -1,0 +1,24 @@
+The SatStress package is a set of tools for analysing the relationship between
+tidal stresses and tectonics on icy satellites.  It was written by Zane Selvans
+(zane.selvans@colorado.edu) as part of his Ph.D. dissertation research.  It is
+released under the GNU GPL v3.  See the COPYING file for more information on
+the license.
+
+For HTML documentation of the package, point your browser at the docs
+directory, included with the package:
+
+  docs/html/index.html
+
+or visit the project website:
+
+  http://code.google.com/p/satstress
+
+For installation information, see the INSTALL file.
+
+To see what's new in this release see the CHANGELOG file.
+
+If you need help, visit the SatStress discussion group:
+
+  http://groups.google.com/group/satstress
+
+or feel free to e-mail Zane.

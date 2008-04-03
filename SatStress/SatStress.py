@@ -308,6 +308,12 @@ class Satellite(object):
             to undergo one full rotation [s].  If you don't want to have any
             NSR stresses, just put INFINITY here.
 
+        An example satFile is included with the SatStress package:
+
+            SatStress-X.Y.Z/input/Europa.satellite
+
+        Where X.Y.Z refers to the version numbers.
+
         @param satFile: Open file object containing name value pairs specifying
         the satellite's internal structure and orbital context, and the tidal
         forcings to which the satellite is subjected.
@@ -455,8 +461,14 @@ class Satellite(object):
 
         myStr = """#
 # Satellite system definition file for use with the Python SatStress package.
-# All quantities are in SI (meters, kilograms, seconds) units.  See
-# http://code.google.com/p/satstress for more information.
+# All quantities are in SI (meters, kilograms, seconds) units.  For more
+# information, see:
+#
+# http://code.google.com/p/satstress
+
+############################################################
+# Basic Satellite parameters:
+############################################################
 
 # Satellite system name
 SYSTEM_ID = %s
@@ -469,49 +481,38 @@ ORBIT_SEMIMAJOR_AXIS = %g
 # Additional parameters required to calculate Love numbers:
 NSR_PERIOD = %g # seconds (== %g yr)
 
-# Layering structure of the Satellite:
+############################################################
+# Derived properties of the Satellite:
+############################################################
 
-""" % (self.system_id,\
-       self.planet_mass,\
-       self.orbit_eccentricity,\
-       self.orbit_semimajor_axis,\
-       self.nsr_period,\
-       self.nsr_period/(31556926))
-
-        n = 0
-        while (n < self.num_layers):
-            myStr += """
-LAYER_ID_%d    = %s
-DENSITY_%d     = %g
-LAME_MU_%d     = %g
-LAME_LAMBDA_%d = %g
-THICKNESS_%d   = %g
-VISCOSITY_%d   = %s
-TENSILE_STR_%d = %s
-""" % (n, self.layers[n].layer_id,\
-       n, self.layers[n].density,\
-       n, self.layers[n].lame_mu,\
-       n, self.layers[n].lame_lambda,\
-       n, self.layers[n].thickness,\
-       n, self.layers[n].viscosity,\
-       n, self.layers[n].tensile_str)
-            n += 1
-
-        myStr += """
-# Derived quantities which depend on the above parameters, and which pertain
-# to the entire Satellite:
 # RADIUS          = %g
 # MASS            = %g
 # DENSITY         = %g
 # SURFACE_GRAVITY = %g
 # ORBIT_PERIOD    = %g
 # MEAN_MOTION     = %g
-""" % (self.radius(),\
+""" % (self.system_id,\
+       self.planet_mass,\
+       self.orbit_eccentricity,\
+       self.orbit_semimajor_axis,\
+       self.nsr_period,\
+       self.nsr_period/(31556926),\
+       self.radius(),\
        self.mass(),\
        self.density(),\
        self.surface_gravity(),\
        self.orbit_period(),\
        self.mean_motion())
+
+        myStr += """
+############################################################
+# Layering structure of the Satellite:
+############################################################
+"""
+        n = 0
+        while (n < self.num_layers):
+            myStr += self.layers[n].ordered_str(n)
+            n += 1
 
         return(myStr)
     # end __str__
@@ -684,31 +685,68 @@ class SatLayer(object): #
     
     # end __init__()
 
-    def __str__(self): # 
-        """Output a human and machine readable text description of the layer.
+    def __str__(self):
+        """
+        Output a human and machine readable text description of the layer.
         
         Note that because the layer object does not know explicitly where it is
-        within the stratified Satellite (that information is contained in the
-        ordering of Satellite.layers list), this method cannot be
-        used in the output of a Satellite object."""
+        within the stratified L{Satellite} (that information is contained in
+        the ordering of Satellite.layers list).  
+
+        Derived quantities are also output for clarity, but are preceeded by
+        the comment character '#' to avoid accidental use in re-constituting a
+        satellite.
+        
+        """
+
+        return(self.ordered_str())
+    # end __str__()
+
+    def ordered_str(self, layer_n=None):
+        """
+        Return a string representation of the L{SatLayer}, including information
+        about where in the L{Satellite} the layer lies.
+
+        When being output as part of a L{Satellite} object, the L{SatLayer} needs
+        to communicate which layer it is.
+
+        @param layer_n: Layer location within satellite.  Zero is the core.  Defaults
+        to None, in which case no ordering information is conveyed in output.
+        @type layer_n: int
+
+        """
+        if layer_n is not None:
+            order_str = "_"+str(layer_n)
+        else:
+            order_str = ""
 
         myStr = """
-LAYER_ID    = %s
-DENSITY     = %g
-LAME_MU     = %g
-LAME_LAMBDA = %g
-THICKNESS   = %g
-VISCOSITY   = %g
-TENSILE_STR = %s""" % (str(self.layer_id),\
-                       self.density,\
-                       self.lame_mu,\
-                       self.lame_lambda,\
-                       self.thickness,\
-                       self.viscosity,\
-                       str(self.tensile_str))
+LAYER_ID%s    = %s
+DENSITY%s     = %g
+LAME_MU%s     = %g
+LAME_LAMBDA%s = %g
+THICKNESS%s   = %g
+VISCOSITY%s   = %g
+TENSILE_STR%s = %g
+# MAXWELL_TIME%s    = %g
+# BULK_MODULUS%s    = %g
+# YOUNGS_MODULUS%s  = %g
+# POISSONS_RATIO%s  = %g
+# P_WAVE_VELOCITY%s = %g
+""" % (order_str, str(self.layer_id),\
+       order_str, self.density,\
+       order_str, self.lame_mu,\
+       order_str, self.lame_lambda,\
+       order_str, self.thickness,\
+       order_str, self.viscosity,\
+       order_str, self.tensile_str,\
+       order_str, self.maxwell_time(),\
+       order_str, self.bulk_modulus(),\
+       order_str, self.youngs_modulus(),\
+       order_str, self.poissons_ratio(),\
+       order_str, self.p_wave_velocity())
 
         return(myStr)
-    #  end __str__()
 
     # Methods for calculating quantities that depend on data attributes 
     def maxwell_time(self):
@@ -805,6 +843,38 @@ class StressDef(object): #
     love = LoveNum(0,0,0,0,0,0)
 
     # Common StressDef Methods: 
+    def __str__(self):
+        """
+        Output information about this stress field, including frequency
+        dependent parameters.
+        
+        """
+        myStr = """
+%s_SURFACE_DELTA  = %g
+%s_OMEGA          = %g
+%s_FORCING_PERIOD = %g
+%s_MU_TWIDDLE     = %g + %gj
+%s_LAMBDA_TWIDDLE = %g + %gj
+%s_LOVE_H2        = %s
+%s_LOVE_K2        = %s
+%s_LOVE_L2        = %s
+""" % (self.__name__, self.Delta(),\
+       self.__name__, self.omega,\
+       self.__name__, self.forcing_period(),\
+       self.__name__, self.mu_twiddle().real, self.mu_twiddle().imag,\
+       self.__name__, self.lambda_twiddle().real, self.lambda_twiddle().imag,\
+       self.__name__, self.love.h2,\
+       self.__name__, self.love.k2,\
+       self.__name__, self.love.l2)
+
+        return(myStr)
+
+    def forcing_period(self):
+        """
+        Calculate the forcing period based on the forcing frequency (omega).
+        """
+        return(2*scipy.pi/self.omega)
+
     def calcLove(self): #
         """
         Calculate the Love numbers for the satellite and the given forcing.
@@ -906,10 +976,6 @@ class StressDef(object): #
             if self.Delta(layer_n) > 1e9:
                 raise LoveExcessiveDeltaError(self, layer_n)
        
-        # Calculate the forcing period (which is what this code wants as input)
-        # from our known frequency:
-        forcing_period = 2*scipy.pi/self.omega
-
         orig_dir = os.getcwd()
 
         # write an input file that John's Love number code can read
@@ -920,6 +986,18 @@ class StressDef(object): #
         try:
             lovetmp = "lovetmp-%s" % hex(int(random.random()*2**32))[2:-1]
             os.mkdir(lovetmp)
+
+            # We need to be reasonably sure that the Love number code is
+            # actually in the current PATH.  If the package has been installed
+            # in the normal way, (using setup.py) then we're fine (the Love
+            # number code ought to have been installed elsewhere on the
+            # system), but if we're in the code repository, or if we're just
+            # doing the tests pre-installation, then the code is in a funny
+            # spot - so let's add that spot to our PATH explicitly here.
+            # Unfortunately, this will only work on Unix machines...
+            dirname = os.path.dirname(os.path.abspath(__file__))
+            os.environ['PATH'] += ":%s/Love/JohnWahr" % (dirname,)
+
             os.chdir(lovetmp)
             love_infile = open("in.love", 'w')
 
@@ -946,7 +1024,7 @@ class StressDef(object): #
 154		Node number of innermost boundary
 161		Node number of 2nd innermost boundary
 163		Node number of 3rd innermost boundary""" % (self.satellite.density()/1000.0,\
-                                                    forcing_period/86400,\
+                                                    self.forcing_period()/86400,\
                                                     self.satellite.layers[3].viscosity,\
                                                     self.satellite.layers[2].viscosity,\
                                                     self.satellite.layers[0].youngs_modulus(),\
@@ -1054,7 +1132,10 @@ class StressDef(object): #
 
         lame_lambda = self.satellite.layers[layer_n].lame_lambda
         lame_mu = self.satellite.layers[layer_n].lame_mu
-        return(lame_lambda*(1-1j*self.Delta(layer_n)*(2*lame_mu+3*lame_lambda)/3*lame_lambda)/(1-1j*self.Delta(layer_n)))
+
+        numerator   = (1.0 - 1j*self.Delta(layer_n)*((2.0*lame_mu+3.0*lame_lambda)/(3.0*lame_lambda)))
+        denominator = (1.0 - 1j*self.Delta(layer_n))
+        return(lame_lambda * (numerator/denominator))
 
     def alpha(self):
         """
