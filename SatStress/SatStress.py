@@ -469,6 +469,8 @@ ORBIT_SEMIMAJOR_AXIS = %g
 # Additional parameters required to calculate Love numbers:
 NSR_PERIOD = %g # seconds (== %g yr)
 
+# Layering structure of the Satellite:
+
 """ % (self.system_id,\
        self.planet_mass,\
        self.orbit_eccentricity,\
@@ -494,6 +496,22 @@ TENSILE_STR_%d = %s
        n, self.layers[n].viscosity,\
        n, self.layers[n].tensile_str)
             n += 1
+
+        myStr += """
+# Derived quantities which depend on the above parameters, and which pertain
+# to the entire Satellite:
+# RADIUS          = %g
+# MASS            = %g
+# DENSITY         = %g
+# SURFACE_GRAVITY = %g
+# ORBIT_PERIOD    = %g
+# MEAN_MOTION     = %g
+""" % (self.radius(),\
+       self.mass(),\
+       self.density(),\
+       self.surface_gravity(),\
+       self.orbit_period(),\
+       self.mean_motion())
 
         return(myStr)
     # end __str__
