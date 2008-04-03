@@ -88,7 +88,7 @@ C{SatStress} can calculate the following stress fields:
 The expressions defining these stress fields are derived in "Modeling Stresses
 on Satellites due to Non-Synchronous Rotation and Orbital Eccentricity Using
 Gravitational Potential Theory" (U{preprint, 15MB PDF
-<http://icymoons.com/Wahretal2008/stress.paper.pdf>}) by Wahr et al.
+<http://satstress.googlecode.com/files/Wahretal2008.pdf>}) by Wahr et al.
 (submitted to I{Icarus}, in March, 2008).
 
 3.1 Stress Fields Live in L{StressDef} Objects
@@ -308,7 +308,7 @@ class Satellite(object):
             to undergo one full rotation [s].  If you don't want to have any
             NSR stresses, just put INFINITY here.
 
-        An example satFile is included with the SatStress package:
+        An example satFile is included with the SatStress package::
 
             SatStress-X.Y.Z/input/Europa.satellite
 
