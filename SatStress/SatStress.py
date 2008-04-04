@@ -128,7 +128,7 @@ Gravitational Potential Theory" (U{preprint, 15MB PDF
   can construct a satellite, do a single calculation on its surface, and see
   what it looks like:
 
-  >>> from SatStress import *
+  >>> from SatStress.SatStress import *
   >>> the_sat = Satellite(open("input/Europa.satellite"))
   >>> the_stresses = StressCalc([Diurnal(the_sat), NSR(the_sat)])
   >>> Tau = the_stresses.tensor(theta=pi/4.0, phi=pi/3.0, t=10000)
