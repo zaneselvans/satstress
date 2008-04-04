@@ -73,3 +73,7 @@ dist : distclean $(PUB_SRC)
 
 install : love $(PUB_SRC)
 	python setup.py install
+
+uninstall :
+	rm -rf /usr/local/bin/calcLoveWahr4Layer
+	rm -rf /Library/Python/2.5/site-packages/SatStress*

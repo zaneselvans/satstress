@@ -1,4 +1,10 @@
 SatStress	SatStress-module.html
+SatStress.__downloadurl__	SatStress-module.html#__downloadurl__
+SatStress.__long_description__	SatStress-module.html#__long_description__
+SatStress.__maintainer__	SatStress-module.html#__maintainer__
+SatStress.__description__	SatStress-module.html#__description__
+SatStress.__pythonrequiredversion__	SatStress-module.html#__pythonrequiredversion__
+SatStress.__maintainer_email__	SatStress-module.html#__maintainer_email__
 SatStress.__projecturl__	SatStress-module.html#__projecturl__
 SatStress.GridCalc	SatStress.GridCalc-module.html
 SatStress.GridCalc.main	SatStress.GridCalc-module.html#main

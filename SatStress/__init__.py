@@ -166,13 +166,27 @@ A few notes on the general architecture of the C{SatStress} package.
   of science is funded by the public, and our code is a major product of that
   funding.  It is unethical to make it proprietary.
 """
-__all__        = ["SatStress", "GridCalc",]
-__author__     = "Zane Selvans"
-__contact__    = "zane.selvans@colorado.edu"
-__license__    = "GNU General Public License version 3 (GPL v3)"
-__docformat__  = 'epytext en'
-__version__    = '0.1.1'
+__all__ = ["SatStress", "GridCalc",]
+__author__ = "Zane Selvans"
+__contact__ = "zane.selvans@colorado.edu"
+__maintainer__ = "Zane Selvans"
+__maintainer_email__ = "zane.selvans@colorado.edu"
+__license__ = "http://www.gnu.org/licenses/gpl.html"
+__docformat__ = 'epytext en'
+__version__ = '0.1.2'
 __projecturl__ = 'http://code.google.com/p/satstress'
+__downloadurl__ = 'http://code.google.com/p/satstress/downloads/list'
+__description__ = 'Tools for modeling tidal stresses and tectonics on icy satellites.'
+__long_description__ = """
+SatStress is a collection of objects and scripts which are useful for modeling
+tidal stresses on icy satellites, and for comparing those stresses to mapped
+tectonic features.  It includes a Love number code which treats the satellite
+as a Maxwell viscoelastic material.  The tidal stresses currently modeled are
+the non-synchronous rotation of a decoupled icy shell (NSR) and the radial and
+librational tides that result from an eccentric orbit (Diurnal), as described
+in Wahr et al. (2008).
+"""
+__pythonrequiredversion__ = "2.5"
 
 import datetime
 __date__       = datetime.datetime.utcnow().ctime()
