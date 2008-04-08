@@ -1,34 +1,34 @@
-# Makefile for SatStress
+# Makefile for satstress
 SHELL = /bin/sh
-SSDIR = SatStress
+SSDIR = satstress
 
 # Python modules for which we are making documentation:
-EPYDOC_MODS = $(SSDIR)/SatStress.py\
-           $(SSDIR)/GridCalc.py\
+EPYDOC_MODS = $(SSDIR)/satstress.py\
+           $(SSDIR)/gridcalc.py\
            $(SSDIR)/__init__.py
 
 # Source files that are included in the current release:
 PUB_SRC = $(EPYDOC_MODS)\
            $(SSDIR)/physcon.py\
-           $(SSDIR)/Love/JohnWahr/love.f\
+           $(SSDIR)/love/JohnWahr/love.f\
            test/test_nsr_diurnal.py\
            test/test_nsr_diurnal.pkl\
            input/Europa.satellite\
            input/NSR_Diurnal_exhaustive.grid
 
 EPYDOC_OPTS = --verbose\
-              --css=doc/css/SatStress.css\
-              --name=SatStress\
+              --css=doc/css/satstress.css\
+              --name=satstress\
               --url=http://code.google.com/p/satstress\
               --inheritance=grouped\
               --no-private
 
 # love is built down in this directory, which has its own Makefile:
-love : SatStress/Love/JohnWahr/love.f
-	(cd SatStress/Love/JohnWahr; make love)
+love : satstress/love/JohnWahr/love.f
+	(cd satstress/love/JohnWahr; make love)
 
 # Generate all of the HTML documentation based on the Python __doc__ strings:
-htmldoc : $(EPYDOC_MODS) doc/css/SatStress.css
+htmldoc : $(EPYDOC_MODS) doc/css/satstress.css
 	epydoc --html --output=doc/html $(EPYDOC_OPTS) $(EPYDOC_MODS)
 
 # Make PDF documentation based on the Python __doc__ strings:
@@ -46,7 +46,7 @@ docclean :
 # Make all forms of documentation, and check it:
 doc : htmldoc pdfdoc doccheck
 
-# See if SatStress is working:
+# See if satstress is working:
 check : love $(PUB_SRC)
 	python test/test_nsr_diurnal.py
 
@@ -63,7 +63,7 @@ clean :
 
 # Get rid of all non-source files
 realclean : clean docclean
-	rm -rf $(SSDIR)/Love/*/calcLove*
+	rm -rf $(SSDIR)/love/*/calcLove*
 
 # Restore the package to pristene condition:
 distclean : realclean htmldoc
@@ -76,4 +76,4 @@ install : love $(PUB_SRC)
 
 uninstall :
 	rm -rf /usr/local/bin/calcLoveWahr4Layer
-	rm -rf /Library/Python/2.5/site-packages/SatStress*
+	rm -rf /Library/Python/2.5/site-packages/satstress*
