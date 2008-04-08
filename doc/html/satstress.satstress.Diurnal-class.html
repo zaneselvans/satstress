@@ -1,0 +1,715 @@
+<?xml version="1.0" encoding="ascii"?>
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+          "DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en" lang="en">
+<head>
+  <title>satstress.satstress.Diurnal</title>
+  <link rel="stylesheet" href="epydoc.css" type="text/css" />
+  <script type="text/javascript" src="epydoc.js"></script>
+</head>
+
+<body bgcolor="white" text="black" link="blue" vlink="#204080"
+      alink="#204080">
+<!-- ==================== NAVIGATION BAR ==================== -->
+<table class="navbar" border="0" width="100%" cellpadding="0"
+       bgcolor="#a0c0ff" cellspacing="0">
+  <tr valign="middle">
+  <!-- Home link -->
+      <th>&nbsp;&nbsp;&nbsp;<a
+        href="satstress-module.html">Home</a>&nbsp;&nbsp;&nbsp;</th>
+
+  <!-- Tree link -->
+      <th>&nbsp;&nbsp;&nbsp;<a
+        href="module-tree.html">Trees</a>&nbsp;&nbsp;&nbsp;</th>
+
+  <!-- Index link -->
+      <th>&nbsp;&nbsp;&nbsp;<a
+        href="identifier-index.html">Indices</a>&nbsp;&nbsp;&nbsp;</th>
+
+  <!-- Help link -->
+      <th>&nbsp;&nbsp;&nbsp;<a
+        href="help.html">Help</a>&nbsp;&nbsp;&nbsp;</th>
+
+  <!-- Project homepage -->
+      <th class="navbar" align="right" width="100%">
+        <table border="0" cellpadding="0" cellspacing="0">
+          <tr><th class="navbar" align="center"
+            ><a class="navbar" target="_top" href="http://code.google.com/p/satstress">satstress</a></th>
+          </tr></table></th>
+  </tr>
+</table>
+<table width="100%" cellpadding="0" cellspacing="0">
+  <tr valign="top">
+    <td width="100%">
+      <span class="breadcrumbs">
+        <a href="satstress-module.html">Package&nbsp;satstress</a> ::
+        <a href="satstress.satstress-module.html">Module&nbsp;satstress</a> ::
+        Class&nbsp;Diurnal
+      </span>
+    </td>
+    <td>
+      <table cellpadding="0" cellspacing="0">
+        <!-- hide/show private -->
+        <tr><td align="right"><span class="options"
+            >[<a href="frames.html" target="_top">frames</a
+            >]&nbsp;|&nbsp;<a href="satstress.satstress.Diurnal-class.html"
+            target="_top">no&nbsp;frames</a>]</span></td></tr>
+      </table>
+    </td>
+  </tr>
+</table>
+<!-- ==================== CLASS DESCRIPTION ==================== -->
+<h1 class="epydoc">Class Diurnal</h1><p class="nomargin-top"><span class="codelink"><a href="satstress.satstress-pysrc.html#Diurnal">source&nbsp;code</a></span></p>
+<pre class="base-tree">
+object --+    
+         |    
+ <a href="satstress.satstress.StressDef-class.html">StressDef</a> --+
+             |
+            <strong class="uidshort">Diurnal</strong>
+</pre>
+
+<hr />
+<p>An object defining the stress field that arises on a satellite due to 
+  an eccentric orbit.</p>
+  <p>Diurnal is a subclass of <a 
+  href="satstress.satstress.StressDef-class.html" 
+  class="link">StressDef</a>.  See the derivation and detailed discussion 
+  of this stress field in in Wahr et al. (2008).</p>
+
+<!-- ==================== INSTANCE METHODS ==================== -->
+<a name="section-InstanceMethods"></a>
+<table class="summary" border="1" cellpadding="3"
+       cellspacing="0" width="100%" bgcolor="white">
+<tr bgcolor="#70b0f0" class="table-header">
+  <td align="left" colspan="2" class="table-header">
+    <span class="table-header">Instance Methods</span></td>
+</tr>
+<tr>
+    <td width="15%" align="right" valign="top" class="summary">
+      <span class="summary-type"><a href="satstress.satstress.NSR-class.html" class="link">NSR</a></span>
+    </td><td class="summary">
+      <table width="100%" cellpadding="0" cellspacing="0" border="0">
+        <tr>
+          <td><span class="summary-sig"><a href="satstress.satstress.Diurnal-class.html#__init__" class="summary-sig-name">__init__</a>(<span class="summary-sig-arg">self</span>,
+        <span class="summary-sig-arg">satellite</span>)</span><br />
+      Sets the object's satellite and omega attributes; calculates Love 
+      numbers.</td>
+          <td align="right" valign="top">
+            <span class="codelink"><a href="satstress.satstress-pysrc.html#Diurnal.__init__">source&nbsp;code</a></span>
+            
+          </td>
+        </tr>
+      </table>
+      
+    </td>
+  </tr>
+<tr>
+    <td width="15%" align="right" valign="top" class="summary">
+      <span class="summary-type">float</span>
+    </td><td class="summary">
+      <table width="100%" cellpadding="0" cellspacing="0" border="0">
+        <tr>
+          <td><span class="summary-sig"><a href="satstress.satstress.Diurnal-class.html#Ttt" class="summary-sig-name">Ttt</a>(<span class="summary-sig-arg">self</span>,
+        <span class="summary-sig-arg">theta</span>,
+        <span class="summary-sig-arg">phi</span>,
+        <span class="summary-sig-arg">t</span>)</span><br />
+      Calculates the &tau;_&theta;&theta; (north-south) component of the 
+      stress tensor.</td>
+          <td align="right" valign="top">
+            <span class="codelink"><a href="satstress.satstress-pysrc.html#Diurnal.Ttt">source&nbsp;code</a></span>
+            
+          </td>
+        </tr>
+      </table>
+      
+    </td>
+  </tr>
+<tr>
+    <td width="15%" align="right" valign="top" class="summary">
+      <span class="summary-type">float</span>
+    </td><td class="summary">
+      <table width="100%" cellpadding="0" cellspacing="0" border="0">
+        <tr>
+          <td><span class="summary-sig"><a href="satstress.satstress.Diurnal-class.html#Tpp" class="summary-sig-name">Tpp</a>(<span class="summary-sig-arg">self</span>,
+        <span class="summary-sig-arg">theta</span>,
+        <span class="summary-sig-arg">phi</span>,
+        <span class="summary-sig-arg">t</span>)</span><br />
+      Calculates the &tau;_&phi;&phi; (east-west) component of the stress 
+      tensor.</td>
+          <td align="right" valign="top">
+            <span class="codelink"><a href="satstress.satstress-pysrc.html#Diurnal.Tpp">source&nbsp;code</a></span>
+            
+          </td>
+        </tr>
+      </table>
+      
+    </td>
+  </tr>
+<tr>
+    <td width="15%" align="right" valign="top" class="summary">
+      <span class="summary-type">float</span>
+    </td><td class="summary">
+      <table width="100%" cellpadding="0" cellspacing="0" border="0">
+        <tr>
+          <td><span class="summary-sig"><a href="satstress.satstress.Diurnal-class.html#Tpt" class="summary-sig-name">Tpt</a>(<span class="summary-sig-arg">self</span>,
+        <span class="summary-sig-arg">theta</span>,
+        <span class="summary-sig-arg">phi</span>,
+        <span class="summary-sig-arg">t</span>)</span><br />
+      Calculates the &tau;_&phi;&theta; (off-diagonal) component of the 
+      stress tensor.</td>
+          <td align="right" valign="top">
+            <span class="codelink"><a href="satstress.satstress-pysrc.html#Diurnal.Tpt">source&nbsp;code</a></span>
+            
+          </td>
+        </tr>
+      </table>
+      
+    </td>
+  </tr>
+  <tr>
+    <td colspan="2" class="summary">
+    <p class="indent-wrapped-lines"><b>Inherited from <code>object</code></b>:
+      <code>__delattr__</code>,
+      <code>__getattribute__</code>,
+      <code>__hash__</code>,
+      <code>__new__</code>,
+      <code>__reduce__</code>,
+      <code>__reduce_ex__</code>,
+      <code>__repr__</code>,
+      <code>__setattr__</code>
+      </p>
+    </td>
+  </tr>
+<tr bgcolor="#e8f0f8" >
+  <th colspan="2" class="group-header"
+    >&nbsp;&nbsp;&nbsp;&nbsp;Inherited from <a href="satstress.satstress.StressDef-class.html">StressDef</a></th></tr>
+<tr>
+    <td width="15%" align="right" valign="top" class="summary">
+      <span class="summary-type">float</span>
+    </td><td class="summary">
+      <table width="100%" cellpadding="0" cellspacing="0" border="0">
+        <tr>
+          <td><span class="summary-sig"><a href="satstress.satstress.StressDef-class.html#Delta" class="summary-sig-name">Delta</a>(<span class="summary-sig-arg">self</span>,
+        <span class="summary-sig-arg">layer_n</span>=<span class="summary-sig-default">-1</span>)</span><br />
+      Calculate &Delta;, a measure of how viscous the layer's response is.</td>
+          <td align="right" valign="top">
+            <span class="codelink"><a href="satstress.satstress-pysrc.html#StressDef.Delta">source&nbsp;code</a></span>
+            
+          </td>
+        </tr>
+      </table>
+      
+    </td>
+  </tr>
+<tr>
+    <td width="15%" align="right" valign="top" class="summary">
+      <span class="summary-type">complex</span>
+    </td><td class="summary">
+      <table width="100%" cellpadding="0" cellspacing="0" border="0">
+        <tr>
+          <td><span class="summary-sig"><a href="satstress.satstress.StressDef-class.html#Gamma" class="summary-sig-name">Gamma</a>(<span class="summary-sig-arg">self</span>)</span><br />
+      Calculate the coefficient capital Gamma twiddle for the surface layer
+      (see Wahr et al.</td>
+          <td align="right" valign="top">
+            <span class="codelink"><a href="satstress.satstress-pysrc.html#StressDef.Gamma">source&nbsp;code</a></span>
+            
+          </td>
+        </tr>
+      </table>
+      
+    </td>
+  </tr>
+<tr>
+    <td width="15%" align="right" valign="top" class="summary">
+      <span class="summary-type">float</span>
+    </td><td class="summary">
+      <table width="100%" cellpadding="0" cellspacing="0" border="0">
+        <tr>
+          <td><span class="summary-sig"><a href="satstress.satstress.StressDef-class.html#Z" class="summary-sig-name">Z</a>(<span class="summary-sig-arg">self</span>)</span><br />
+      Calculate the value of Z, a constant that sits in front of many terms
+      in the potential defined by Wahr et al.</td>
+          <td align="right" valign="top">
+            <span class="codelink"><a href="satstress.satstress-pysrc.html#StressDef.Z">source&nbsp;code</a></span>
+            
+          </td>
+        </tr>
+      </table>
+      
+    </td>
+  </tr>
+<tr>
+    <td width="15%" align="right" valign="top" class="summary">
+      <span class="summary-type">&nbsp;</span>
+    </td><td class="summary">
+      <table width="100%" cellpadding="0" cellspacing="0" border="0">
+        <tr>
+          <td><span class="summary-sig"><a href="satstress.satstress.StressDef-class.html#__str__" class="summary-sig-name">__str__</a>(<span class="summary-sig-arg">self</span>)</span><br />
+      Output information about this stress field, including frequency 
+      dependent parameters.</td>
+          <td align="right" valign="top">
+            <span class="codelink"><a href="satstress.satstress-pysrc.html#StressDef.__str__">source&nbsp;code</a></span>
+            
+          </td>
+        </tr>
+      </table>
+      
+    </td>
+  </tr>
+<tr>
+    <td width="15%" align="right" valign="top" class="summary">
+      <span class="summary-type">complex</span>
+    </td><td class="summary">
+      <table width="100%" cellpadding="0" cellspacing="0" border="0">
+        <tr>
+          <td><span class="summary-sig"><a href="satstress.satstress.StressDef-class.html#alpha" class="summary-sig-name">alpha</a>(<span class="summary-sig-arg">self</span>)</span><br />
+      Calculate the coefficient alpha twiddle for the surface layer (see 
+      Wahr et al.</td>
+          <td align="right" valign="top">
+            <span class="codelink"><a href="satstress.satstress-pysrc.html#StressDef.alpha">source&nbsp;code</a></span>
+            
+          </td>
+        </tr>
+      </table>
+      
+    </td>
+  </tr>
+<tr>
+    <td width="15%" align="right" valign="top" class="summary">
+      <span class="summary-type">complex</span>
+    </td><td class="summary">
+      <table width="100%" cellpadding="0" cellspacing="0" border="0">
+        <tr>
+          <td><span class="summary-sig"><a href="satstress.satstress.StressDef-class.html#b1" class="summary-sig-name">b1</a>(<span class="summary-sig-arg">self</span>)</span><br />
+      Calculate the coefficient beta one twiddle for the surface layer (see
+      Wahr et al.</td>
+          <td align="right" valign="top">
+            <span class="codelink"><a href="satstress.satstress-pysrc.html#StressDef.b1">source&nbsp;code</a></span>
+            
+          </td>
+        </tr>
+      </table>
+      
+    </td>
+  </tr>
+<tr>
+    <td width="15%" align="right" valign="top" class="summary">
+      <span class="summary-type">complex</span>
+    </td><td class="summary">
+      <table width="100%" cellpadding="0" cellspacing="0" border="0">
+        <tr>
+          <td><span class="summary-sig"><a href="satstress.satstress.StressDef-class.html#b2" class="summary-sig-name">b2</a>(<span class="summary-sig-arg">self</span>)</span><br />
+      Calculate the coefficient beta two twiddle for the surface layer (see
+      Wahr et al.</td>
+          <td align="right" valign="top">
+            <span class="codelink"><a href="satstress.satstress-pysrc.html#StressDef.b2">source&nbsp;code</a></span>
+            
+          </td>
+        </tr>
+      </table>
+      
+    </td>
+  </tr>
+<tr>
+    <td width="15%" align="right" valign="top" class="summary">
+      <span class="summary-type">&nbsp;</span>
+    </td><td class="summary">
+      <table width="100%" cellpadding="0" cellspacing="0" border="0">
+        <tr>
+          <td><span class="summary-sig"><a href="satstress.satstress.StressDef-class.html#calcLove" class="summary-sig-name">calcLove</a>(<span class="summary-sig-arg">self</span>)</span><br />
+      Calculate the Love numbers for the satellite and the given forcing.</td>
+          <td align="right" valign="top">
+            <span class="codelink"><a href="satstress.satstress-pysrc.html#StressDef.calcLove">source&nbsp;code</a></span>
+            
+          </td>
+        </tr>
+      </table>
+      
+    </td>
+  </tr>
+<tr>
+    <td width="15%" align="right" valign="top" class="summary">
+      <span class="summary-type">&nbsp;</span>
+    </td><td class="summary">
+      <table width="100%" cellpadding="0" cellspacing="0" border="0">
+        <tr>
+          <td><span class="summary-sig"><a href="satstress.satstress.StressDef-class.html#calcLoveInfinitePeriod" class="summary-sig-name">calcLoveInfinitePeriod</a>(<span class="summary-sig-arg">self</span>)</span><br />
+      Return a set of zero Love numbers constructed statically.</td>
+          <td align="right" valign="top">
+            <span class="codelink"><a href="satstress.satstress-pysrc.html#StressDef.calcLoveInfinitePeriod">source&nbsp;code</a></span>
+            
+          </td>
+        </tr>
+      </table>
+      
+    </td>
+  </tr>
+<tr>
+    <td width="15%" align="right" valign="top" class="summary">
+      <span class="summary-type">&nbsp;</span>
+    </td><td class="summary">
+      <table width="100%" cellpadding="0" cellspacing="0" border="0">
+        <tr>
+          <td><span class="summary-sig"><a href="satstress.satstress.StressDef-class.html#calcLoveWahr4LayerExternal" class="summary-sig-name">calcLoveWahr4LayerExternal</a>(<span class="summary-sig-arg">self</span>)</span><br />
+      Use John Wahr's Love number code to calculate h, k, and l.</td>
+          <td align="right" valign="top">
+            <span class="codelink"><a href="satstress.satstress-pysrc.html#StressDef.calcLoveWahr4LayerExternal">source&nbsp;code</a></span>
+            
+          </td>
+        </tr>
+      </table>
+      
+    </td>
+  </tr>
+<tr>
+    <td width="15%" align="right" valign="top" class="summary">
+      <span class="summary-type">&nbsp;</span>
+    </td><td class="summary">
+      <table width="100%" cellpadding="0" cellspacing="0" border="0">
+        <tr>
+          <td><span class="summary-sig"><a name="forcing_period"></a><span class="summary-sig-name">forcing_period</span>(<span class="summary-sig-arg">self</span>)</span><br />
+      Calculate the forcing period based on the forcing frequency (omega).</td>
+          <td align="right" valign="top">
+            <span class="codelink"><a href="satstress.satstress-pysrc.html#StressDef.forcing_period">source&nbsp;code</a></span>
+            
+          </td>
+        </tr>
+      </table>
+      
+    </td>
+  </tr>
+<tr>
+    <td width="15%" align="right" valign="top" class="summary">
+      <span class="summary-type">complex</span>
+    </td><td class="summary">
+      <table width="100%" cellpadding="0" cellspacing="0" border="0">
+        <tr>
+          <td><span class="summary-sig"><a href="satstress.satstress.StressDef-class.html#g1" class="summary-sig-name">g1</a>(<span class="summary-sig-arg">self</span>)</span><br />
+      Calculate the coefficient gamma one twiddle for the surface layer 
+      (see Wahr et al.</td>
+          <td align="right" valign="top">
+            <span class="codelink"><a href="satstress.satstress-pysrc.html#StressDef.g1">source&nbsp;code</a></span>
+            
+          </td>
+        </tr>
+      </table>
+      
+    </td>
+  </tr>
+<tr>
+    <td width="15%" align="right" valign="top" class="summary">
+      <span class="summary-type">complex</span>
+    </td><td class="summary">
+      <table width="100%" cellpadding="0" cellspacing="0" border="0">
+        <tr>
+          <td><span class="summary-sig"><a href="satstress.satstress.StressDef-class.html#g2" class="summary-sig-name">g2</a>(<span class="summary-sig-arg">self</span>)</span><br />
+      Calculate the coefficient gamma two twiddle for the surface layer 
+      (see Wahr et al.</td>
+          <td align="right" valign="top">
+            <span class="codelink"><a href="satstress.satstress-pysrc.html#StressDef.g2">source&nbsp;code</a></span>
+            
+          </td>
+        </tr>
+      </table>
+      
+    </td>
+  </tr>
+<tr>
+    <td width="15%" align="right" valign="top" class="summary">
+      <span class="summary-type">complex</span>
+    </td><td class="summary">
+      <table width="100%" cellpadding="0" cellspacing="0" border="0">
+        <tr>
+          <td><span class="summary-sig"><a href="satstress.satstress.StressDef-class.html#lambda_twiddle" class="summary-sig-name">lambda_twiddle</a>(<span class="summary-sig-arg">self</span>,
+        <span class="summary-sig-arg">layer_n</span>=<span class="summary-sig-default">-1</span>)</span><br />
+      Calculate the frequency-dependent Lame parameter &lambda; for a 
+      Maxwell rheology.</td>
+          <td align="right" valign="top">
+            <span class="codelink"><a href="satstress.satstress-pysrc.html#StressDef.lambda_twiddle">source&nbsp;code</a></span>
+            
+          </td>
+        </tr>
+      </table>
+      
+    </td>
+  </tr>
+<tr>
+    <td width="15%" align="right" valign="top" class="summary">
+      <span class="summary-type">complex</span>
+    </td><td class="summary">
+      <table width="100%" cellpadding="0" cellspacing="0" border="0">
+        <tr>
+          <td><span class="summary-sig"><a href="satstress.satstress.StressDef-class.html#mu_twiddle" class="summary-sig-name">mu_twiddle</a>(<span class="summary-sig-arg">self</span>,
+        <span class="summary-sig-arg">layer_n</span>=<span class="summary-sig-default">-1</span>)</span><br />
+      Calculate the frequency-dependent Lame parameter &mu; for a Maxwell 
+      rheology.</td>
+          <td align="right" valign="top">
+            <span class="codelink"><a href="satstress.satstress-pysrc.html#StressDef.mu_twiddle">source&nbsp;code</a></span>
+            
+          </td>
+        </tr>
+      </table>
+      
+    </td>
+  </tr>
+</table>
+<!-- ==================== CLASS VARIABLES ==================== -->
+<a name="section-ClassVariables"></a>
+<table class="summary" border="1" cellpadding="3"
+       cellspacing="0" width="100%" bgcolor="white">
+<tr bgcolor="#70b0f0" class="table-header">
+  <td align="left" colspan="2" class="table-header">
+    <span class="table-header">Class Variables</span></td>
+</tr>
+<tr bgcolor="#e8f0f8" >
+  <th colspan="2" class="group-header"
+    >&nbsp;&nbsp;&nbsp;&nbsp;Inherited from <a href="satstress.satstress.StressDef-class.html">StressDef</a></th></tr>
+<tr>
+    <td width="15%" align="right" valign="top" class="summary">
+      <span class="summary-type"><a href="satstress.satstress.LoveNum-class.html" 
+      class="link">LoveNum</a></span>
+    </td><td class="summary">
+        <a name="love"></a><span class="summary-name">love</span> = <code title="LoveNum(0, 0, 0, 0, 0, 0)">LoveNum(0, 0, 0, 0, 0, 0)</code><br />
+      the Love numbers which result from the given forcing frequency and 
+      the specified satellite structure.
+    </td>
+  </tr>
+<tr>
+    <td width="15%" align="right" valign="top" class="summary">
+      <span class="summary-type">float</span>
+    </td><td class="summary">
+        <a name="omega"></a><span class="summary-name">omega</span> = <code title="0.0">0.0</code><br />
+      the forcing frequency associated with the stress.
+    </td>
+  </tr>
+<tr>
+    <td width="15%" align="right" valign="top" class="summary">
+      <span class="summary-type"><a href="satstress.satstress.Satellite-class.html" 
+      class="link">Satellite</a></span>
+    </td><td class="summary">
+        <a name="satellite"></a><span class="summary-name">satellite</span> = <code title="None">None</code><br />
+      the satellite which the stress is being applied to.
+    </td>
+  </tr>
+</table>
+<!-- ==================== PROPERTIES ==================== -->
+<a name="section-Properties"></a>
+<table class="summary" border="1" cellpadding="3"
+       cellspacing="0" width="100%" bgcolor="white">
+<tr bgcolor="#70b0f0" class="table-header">
+  <td align="left" colspan="2" class="table-header">
+    <span class="table-header">Properties</span></td>
+</tr>
+  <tr>
+    <td colspan="2" class="summary">
+    <p class="indent-wrapped-lines"><b>Inherited from <code>object</code></b>:
+      <code>__class__</code>
+      </p>
+    </td>
+  </tr>
+</table>
+<!-- ==================== METHOD DETAILS ==================== -->
+<a name="section-MethodDetails"></a>
+<table class="details" border="1" cellpadding="3"
+       cellspacing="0" width="100%" bgcolor="white">
+<tr bgcolor="#70b0f0" class="table-header">
+  <td align="left" colspan="2" class="table-header">
+    <span class="table-header">Method Details</span></td>
+</tr>
+</table>
+<a name="__init__"></a>
+<div>
+<table class="details" border="1" cellpadding="3"
+       cellspacing="0" width="100%" bgcolor="white">
+<tr><td>
+  <table width="100%" cellpadding="0" cellspacing="0" border="0">
+  <tr valign="top"><td>
+  <h3 class="epydoc"><span class="sig"><span class="sig-name">__init__</span>(<span class="sig-arg">self</span>,
+        <span class="sig-arg">satellite</span>)</span>
+    <br /><em class="fname">(Constructor)</em>
+  </h3>
+  </td><td align="right" valign="top"
+    ><span class="codelink"><a href="satstress.satstress-pysrc.html#Diurnal.__init__">source&nbsp;code</a></span>&nbsp;
+    </td>
+  </tr></table>
+  
+  <p>Sets the object's satellite and omega attributes; calculates Love 
+  numbers.</p>
+  <dl class="fields">
+    <dt>Parameters:</dt>
+    <dd><ul class="nomargin-top">
+        <li><strong class="pname"><code>satellite</code></strong> (<a href="satstress.satstress.Satellite-class.html" 
+          class="link">Satellite</a>) - the satellite to which the stress is being applied.</li>
+    </ul></dd>
+    <dt>Returns: <a href="satstress.satstress.NSR-class.html" class="link">NSR</a></dt>
+        <dd>an object defining the NSR stresses for a particular satellite.</dd>
+    <dt>Overrides:
+        object.__init__
+    </dt>
+  </dl>
+</td></tr></table>
+</div>
+<a name="Ttt"></a>
+<div>
+<table class="details" border="1" cellpadding="3"
+       cellspacing="0" width="100%" bgcolor="white">
+<tr><td>
+  <table width="100%" cellpadding="0" cellspacing="0" border="0">
+  <tr valign="top"><td>
+  <h3 class="epydoc"><span class="sig"><span class="sig-name">Ttt</span>(<span class="sig-arg">self</span>,
+        <span class="sig-arg">theta</span>,
+        <span class="sig-arg">phi</span>,
+        <span class="sig-arg">t</span>)</span>
+  </h3>
+  </td><td align="right" valign="top"
+    ><span class="codelink"><a href="satstress.satstress-pysrc.html#Diurnal.Ttt">source&nbsp;code</a></span>&nbsp;
+    </td>
+  </tr></table>
+  
+  <p>Calculates the &tau;_&theta;&theta; (north-south) component of the 
+  stress tensor.</p>
+  <dl class="fields">
+    <dt>Parameters:</dt>
+    <dd><ul class="nomargin-top">
+        <li><strong class="pname"><code>theta</code></strong> - the co-latitude of the point at which to calculate the stress 
+          [rad].</li>
+        <li><strong class="pname"><code>phi</code></strong> - the east-positive longitude of the point at which to calculate 
+          the stress [rad].</li>
+        <li><strong class="pname"><code>t</code></strong> - the time, in seconds elapsed since pericenter, at which to 
+          perform the stress calculation [s].</li>
+    </ul></dd>
+    <dt>Returns: float</dt>
+        <dd>the &tau;_&theta;&theta; component of the 2x2 membrane stress 
+          tensor.</dd>
+    <dt>Overrides:
+        <a href="satstress.satstress.StressDef-class.html#Ttt">StressDef.Ttt</a>
+    </dt>
+  </dl>
+</td></tr></table>
+</div>
+<a name="Tpp"></a>
+<div>
+<table class="details" border="1" cellpadding="3"
+       cellspacing="0" width="100%" bgcolor="white">
+<tr><td>
+  <table width="100%" cellpadding="0" cellspacing="0" border="0">
+  <tr valign="top"><td>
+  <h3 class="epydoc"><span class="sig"><span class="sig-name">Tpp</span>(<span class="sig-arg">self</span>,
+        <span class="sig-arg">theta</span>,
+        <span class="sig-arg">phi</span>,
+        <span class="sig-arg">t</span>)</span>
+  </h3>
+  </td><td align="right" valign="top"
+    ><span class="codelink"><a href="satstress.satstress-pysrc.html#Diurnal.Tpp">source&nbsp;code</a></span>&nbsp;
+    </td>
+  </tr></table>
+  
+  <p>Calculates the &tau;_&phi;&phi; (east-west) component of the stress 
+  tensor.</p>
+  <dl class="fields">
+    <dt>Parameters:</dt>
+    <dd><ul class="nomargin-top">
+        <li><strong class="pname"><code>theta</code></strong> - the co-latitude of the point at which to calculate the stress 
+          [rad].</li>
+        <li><strong class="pname"><code>phi</code></strong> - the east-positive longitude of the point at which to calculate 
+          the stress [rad].</li>
+        <li><strong class="pname"><code>t</code></strong> - the time, in seconds elapsed since pericenter, at which to 
+          perform the stress calculation [s].</li>
+    </ul></dd>
+    <dt>Returns: float</dt>
+        <dd>the &tau;_&phi;&phi; component of the 2x2 membrane stress tensor.</dd>
+    <dt>Overrides:
+        <a href="satstress.satstress.StressDef-class.html#Tpp">StressDef.Tpp</a>
+    </dt>
+  </dl>
+</td></tr></table>
+</div>
+<a name="Tpt"></a>
+<div>
+<table class="details" border="1" cellpadding="3"
+       cellspacing="0" width="100%" bgcolor="white">
+<tr><td>
+  <table width="100%" cellpadding="0" cellspacing="0" border="0">
+  <tr valign="top"><td>
+  <h3 class="epydoc"><span class="sig"><span class="sig-name">Tpt</span>(<span class="sig-arg">self</span>,
+        <span class="sig-arg">theta</span>,
+        <span class="sig-arg">phi</span>,
+        <span class="sig-arg">t</span>)</span>
+  </h3>
+  </td><td align="right" valign="top"
+    ><span class="codelink"><a href="satstress.satstress-pysrc.html#Diurnal.Tpt">source&nbsp;code</a></span>&nbsp;
+    </td>
+  </tr></table>
+  
+  <p>Calculates the &tau;_&phi;&theta; (off-diagonal) component of the 
+  stress tensor.</p>
+  <dl class="fields">
+    <dt>Parameters:</dt>
+    <dd><ul class="nomargin-top">
+        <li><strong class="pname"><code>theta</code></strong> - the co-latitude of the point at which to calculate the stress 
+          [rad].</li>
+        <li><strong class="pname"><code>phi</code></strong> - the east-positive longitude of the point at which to calculate 
+          the stress [rad].</li>
+        <li><strong class="pname"><code>t</code></strong> - the time in seconds elapsed since pericenter, at which to perform
+          the stress calculation [s].</li>
+    </ul></dd>
+    <dt>Returns: float</dt>
+        <dd>the &tau;_&phi;&theta; component of the 2x2 membrane stress 
+          tensor.</dd>
+    <dt>Overrides:
+        <a href="satstress.satstress.StressDef-class.html#Tpt">StressDef.Tpt</a>
+    </dt>
+  </dl>
+</td></tr></table>
+</div>
+<br />
+<!-- ==================== NAVIGATION BAR ==================== -->
+<table class="navbar" border="0" width="100%" cellpadding="0"
+       bgcolor="#a0c0ff" cellspacing="0">
+  <tr valign="middle">
+  <!-- Home link -->
+      <th>&nbsp;&nbsp;&nbsp;<a
+        href="satstress-module.html">Home</a>&nbsp;&nbsp;&nbsp;</th>
+
+  <!-- Tree link -->
+      <th>&nbsp;&nbsp;&nbsp;<a
+        href="module-tree.html">Trees</a>&nbsp;&nbsp;&nbsp;</th>
+
+  <!-- Index link -->
+      <th>&nbsp;&nbsp;&nbsp;<a
+        href="identifier-index.html">Indices</a>&nbsp;&nbsp;&nbsp;</th>
+
+  <!-- Help link -->
+      <th>&nbsp;&nbsp;&nbsp;<a
+        href="help.html">Help</a>&nbsp;&nbsp;&nbsp;</th>
+
+  <!-- Project homepage -->
+      <th class="navbar" align="right" width="100%">
+        <table border="0" cellpadding="0" cellspacing="0">
+          <tr><th class="navbar" align="center"
+            ><a class="navbar" target="_top" href="http://code.google.com/p/satstress">satstress</a></th>
+          </tr></table></th>
+  </tr>
+</table>
+<table border="0" cellpadding="0" cellspacing="0" width="100%%">
+  <tr>
+    <td align="left" class="footer">
+    Generated by Epydoc 3.0.1 on Mon Apr  7 20:33:41 2008
+    </td>
+    <td align="right" class="footer">
+      <a target="mainFrame" href="http://epydoc.sourceforge.net"
+        >http://epydoc.sourceforge.net</a>
+    </td>
+  </tr>
+</table>
+
+<script type="text/javascript">
+  <!--
+  // Private objects are initially displayed (because if
+  // javascript is turned off then we want them to be
+  // visible); but by default, we want to hide them.  So hide
+  // them unless we have a cookie that says to show them.
+  checkCookie();
+  // -->
+</script>
+</body>
+</html>
