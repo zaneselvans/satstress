@@ -6,14 +6,14 @@ Written by U{Zane Selvans <http://zaneselvans.org>}
 (C{U{zane.selvans@colorado.edu <mailto:zane.selvans@colorado.edu>}}) as part of
 his Ph.D. dissertation research.
 
-C{SatStress} is released under GNU General Public License (GPL) version 3.  For
+C{satstress} is released under GNU General Public License (GPL) version 3.  For
 the full text of the license, see: U{http://www.gnu.org/}
 
 The project is hosted at Google Code: U{http://code.google.com/p/satstress}
 
 1 Installation
 ==============
-Hopefully getting C{SatStress} to work on your system is a relatively painless
+Hopefully getting C{satstress} to work on your system is a relatively painless
 process, however, the software does assume you have basic experience with the
 Unix shell and programming within a Unix environment (though it should work on
 Windows too).  In particular, this installation information assumes you already
@@ -28,7 +28,7 @@ have and are able to use:
 
 1.1 Other Required and Recommended Software
 -------------------------------------------
-To get the L{SatStress} package working, you'll need to install some other
+To get the L{satstress} package working, you'll need to install some other
 (free) software first:
 
   - B{Python 2.5} or later (U{http://www.python.org}).  If you're running a
@@ -39,7 +39,7 @@ To get the L{SatStress} package working, you'll need to install some other
   - B{SciPy} (U{http://www.scipy.org}), a collection of scientific libraries
     that extend the capabilities of the Python language.
 
-In addition, if you want to use L{GridCalc}, you'll need:
+In addition, if you want to use L{gridcalc}, you'll need:
 
   - B{netCDF} (U{http://www.unidata.ucar.edu/software/netcdf/}), a library of
     routines for storing, retrieving, and annotating regularly gridded
@@ -49,7 +49,7 @@ In addition, if you want to use L{GridCalc}, you'll need:
   - B{netcdf4-python} (U{http://code.google.com/p/netcdf4-python/}), a Python
     interface to the netCDF library.
 
-If you want to actually view L{GridCalc} output, you'll need a netCDF file
+If you want to actually view L{gridcalc} output, you'll need a netCDF file
 viewing program.  Many commercial software packages can read netCDF files, such
 as ESRI ArcGIS and Matlab.  A simple and free reader for OS X is U{Panoply
 <http://www.giss.nasa.gov/tools/panoply/>}, from NASA.  If you want to really
@@ -60,16 +60,16 @@ get familiar with:
     interactive plotting and analysis package, which uses Python as its
     "shell".
 
-1.2 Building and Installing SatStress
+1.2 Building and Installing satstress
 -------------------------------------
 Once you have the required software prerequisites installed, uncompress and
-unarchive the SatStress distribution::
+unarchive the satstress distribution::
 
-    tar -xvzf SatStress-X.Y.Z.tar.gz
+    tar -xvzf satstress-X.Y.Z.tar.gz
 
 then go into the distribution directory created::
 
-    cd SatStress-X.Y.Z
+    cd satstress-X.Y.Z
 
 To build and test the package, run::
 
@@ -79,22 +79,22 @@ If the test cases pass, go ahead and install with::
 
     make install
 
-And you'll be able to write your own Python programs using the C{SatStress}
+And you'll be able to write your own Python programs using the C{satstress}
 library.
 
 If you're not using the GNU Fortran 77 compiler C{g77}, you'll need to edit the
 C{Makefile} for the Love number code::
 
-    SatStress/Love/JohnWahr/Makefile
+    satstress/Love/JohnWahr/Makefile
 
 and tell it what Fortran compiler it ought to be using.
 
-If you have any trouble getting C{SatStress} working, feel free to post to the
-SatStress discussion board: U{http://groups.google.com/group/satstress}
+If you have any trouble getting C{satstress} working, feel free to post to the
+satstress discussion board: U{http://groups.google.com/group/satstress}
 
 2 Design Overview
 =================
-A few notes on the general architecture of the C{SatStress} package.
+A few notes on the general architecture of the C{satstress} package.
 
 2.1 Who is the Audience?
 ------------------------
@@ -107,7 +107,7 @@ A few notes on the general architecture of the C{SatStress} package.
 
 2.2 A Toolkit, not a Program
 ----------------------------
-  The C{SatStress} package is not itself a stand-alone program (or not much of
+  The C{satstress} package is not itself a stand-alone program (or not much of
   one anyway).  Instead it is a set of tools with which you can build programs
   that need to know about the stresses on the surface of a satellite, and how
   they compare to tectonic features, so you can do your own hypothesizing and
@@ -166,7 +166,7 @@ A few notes on the general architecture of the C{SatStress} package.
   of science is funded by the public, and our code is a major product of that
   funding.  It is unethical to make it proprietary.
 """
-__all__ = ["SatStress", "GridCalc",]
+__all__ = ["satstress", "gridcalc",]
 __author__ = "Zane Selvans"
 __contact__ = "zane.selvans@colorado.edu"
 __maintainer__ = "Zane Selvans"
@@ -178,7 +178,7 @@ __projecturl__ = 'http://code.google.com/p/satstress'
 __downloadurl__ = 'http://code.google.com/p/satstress/downloads/list'
 __description__ = 'Tools for modeling tidal stresses and tectonics on icy satellites.'
 __long_description__ = """
-SatStress is a collection of objects and scripts which are useful for modeling
+satstress is a collection of objects and scripts which are useful for modeling
 tidal stresses on icy satellites, and for comparing those stresses to mapped
 tectonic features.  It includes a Love number code which treats the satellite
 as a Maxwell viscoelastic material.  The tidal stresses currently modeled are
