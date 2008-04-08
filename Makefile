@@ -10,7 +10,7 @@ EPYDOC_MODS = $(SSDIR)/satstress.py\
 # Source files that are included in the current release:
 PUB_SRC = $(EPYDOC_MODS)\
            $(SSDIR)/physcon.py\
-           $(SSDIR)/love/JohnWahr/love.f\
+           $(SSDIR)/love/john_wahr/love.f\
            test/test_nsr_diurnal.py\
            test/test_nsr_diurnal.pkl\
            input/Europa.satellite\
@@ -24,8 +24,8 @@ EPYDOC_OPTS = --verbose\
               --no-private
 
 # love is built down in this directory, which has its own Makefile:
-love : satstress/love/JohnWahr/love.f
-	(cd satstress/love/JohnWahr; make love)
+love : satstress/love/john_wahr/love.f
+	(cd satstress/love/john_wahr; make love)
 
 # Generate all of the HTML documentation based on the Python __doc__ strings:
 htmldoc : $(EPYDOC_MODS) doc/css/satstress.css
