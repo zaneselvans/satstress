@@ -85,7 +85,7 @@ library.
 If you're not using the GNU Fortran 77 compiler C{g77}, you'll need to edit the
 C{Makefile} for the Love number code::
 
-    satstress/Love/JohnWahr/Makefile
+    satstress/love/john_wahr/Makefile
 
 and tell it what Fortran compiler it ought to be using.
 

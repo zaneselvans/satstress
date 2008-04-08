@@ -996,7 +996,7 @@ class StressDef(object): #
             # spot - so let's add that spot to our PATH explicitly here.
             # Unfortunately, this will only work on Unix machines...
             dirname = os.path.dirname(os.path.abspath(__file__))
-            os.environ['PATH'] += ":%s/Love/JohnWahr" % (dirname,)
+            os.environ['PATH'] += ":%s/love/john_wahr" % (dirname,)
 
             os.chdir(lovetmp)
             love_infile = open("in.love", 'w')

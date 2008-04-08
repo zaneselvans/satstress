@@ -14,7 +14,7 @@ You are currently using Python %s
 
 setup(packages     = ['satstress',],
       package_dir  = {'satstress': 'satstress'},
-      scripts      = ['satstress/Love/JohnWahr/calcLoveWahr4Layer',],
+      scripts      = ['satstress/love/john_wahr/calcLoveWahr4Layer',],
       package_data = {'satstress': ['input/*.satellite', 'input/*.grid',]},
       name             = satstress.__name__,
       version          = satstress.__version__,
