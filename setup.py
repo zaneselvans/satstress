@@ -37,7 +37,7 @@ setup(packages     = ['SatStress',],
           ],
 
       classifiers = [
-          'Development Status :: 3 - Alpha',
+          'Development Status :: 2 - Pre-Alpha',
           'Environment :: Console',
           'Intended Audience :: Science/Research',
           'License :: OSI Approved :: GNU General Public License (GPL)',
