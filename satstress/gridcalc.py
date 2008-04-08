@@ -8,7 +8,7 @@ which can be displayed using a wide variety of visualization software.
 
 """
 
-import SatStress as SS
+import satstress as SS
 import time
 import netCDF3
 import physcon as pc
@@ -62,9 +62,9 @@ def main():
 
     # Set the global data attributes of the netCDF file describing the run
     # This allows us to re-construct the entire model run if we want to, given
-    # the SatStress library and a netCDF output file.
-    nc_out.description = "Testing pySatStress on a regular grid"
-    nc_out.history     = "Created: %s using pySatStress" % ( time.ctime(time.time()) )
+    # the satstress library and a netCDF output file.
+    nc_out.description = "Testing satstress on a regular grid"
+    nc_out.history     = "Created: %s using satstress" % ( time.ctime(time.time()) )
     nc_out.Conventions = "COARDS"
 
     # Specify the size and shape of the output datacube  
@@ -136,7 +136,7 @@ def main():
     for t in range(n_times):
         # We need some kind of progress update, and we need to make sure that
         # we have a representation of the time coordinate in seconds, because
-        # that's what the SatStress library expects - even if we're ultimately
+        # that's what the satstress library expects - even if we're ultimately
         # communicating time to the user in terms of "degrees after periapse"
         if the_grid.orbit_min is None:
             time_sec = times[t]
@@ -206,7 +206,7 @@ class Grid(): #
     of the calculation.
 
     The parameters defining the calculation grid are read in from a name value
-    file, parsed into a Python dictionary using L{SatStress.nvf2dict}, and used
+    file, parsed into a Python dictionary using L{satstress.nvf2dict}, and used
     to set the data attributes of the L{Grid} object.
 
     The geographic extent of the calculation is specified by minimum and maximum

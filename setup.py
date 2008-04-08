@@ -1,30 +1,30 @@
 #!/usr/bin/env python
 
 from distutils.core import setup
-import SatStress
+import satstress
 
 # patch distutils if it can't cope with the "classifiers" or
 # "download_url" keywords
 from sys import version, exit
-if version < SatStress.__pythonrequiredversion__:
+if version < satstress.__pythonrequiredversion__:
     exit("""
-ERROR: SatStress requires Python %s or greater!
+ERROR: satstress requires Python %s or greater!
 You are currently using Python %s
-    """ % (SatStress.__pythonrequiredversion__, version,) )
+    """ % (satstress.__pythonrequiredversion__, version,) )
 
-setup(packages     = ['SatStress',],
-      package_dir  = {'SatStress': 'SatStress'},
-      scripts      = ['SatStress/Love/JohnWahr/calcLoveWahr4Layer',],
-      package_data = {'SatStress': ['input/*.satellite', 'input/*.grid',]},
-      name             = SatStress.__name__,
-      version          = SatStress.__version__,
-      description      = SatStress.__description__,
-      long_description = SatStress.__long_description__,
-      license          = SatStress.__license__,
-      url              = SatStress.__projecturl__,
-      download_url     = SatStress.__downloadurl__,
-      author           = SatStress.__author__,
-      author_email     = SatStress.__contact__,
+setup(packages     = ['satstress',],
+      package_dir  = {'satstress': 'satstress'},
+      scripts      = ['satstress/Love/JohnWahr/calcLoveWahr4Layer',],
+      package_data = {'satstress': ['input/*.satellite', 'input/*.grid',]},
+      name             = satstress.__name__,
+      version          = satstress.__version__,
+      description      = satstress.__description__,
+      long_description = satstress.__long_description__,
+      license          = satstress.__license__,
+      url              = satstress.__projecturl__,
+      download_url     = satstress.__downloadurl__,
+      author           = satstress.__author__,
+      author_email     = satstress.__contact__,
 
       requires    = [
           "scipy",
@@ -33,7 +33,7 @@ setup(packages     = ['SatStress',],
           ],
 
       obsoletes   = [
-          "%s (<%s)" % (SatStress.__name__, SatStress.__version__),
+          "%s (<%s)" % (satstress.__name__, satstress.__version__),
           ],
 
       classifiers = [

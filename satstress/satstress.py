@@ -4,7 +4,7 @@ on a satellite resulting from one or more tidal potentials.
 
 1 Input and Output
 ==================
-Because C{SatStress} is a "library" module, it doesn't do a lot of input and
+Because C{satstress} is a "library" module, it doesn't do a lot of input and
 output - it's mostly about doing calculations.  It does need to read in the
 specification of a L{Satellite} object though, and it can write the same kind
 of specification out.  To do this, it uses name-value files, and a function
@@ -52,7 +52,7 @@ we need to define the satellite, this is what the L{Satellite} object does.
 
 2.2 Internal Structure and Love Numbers
 ---------------------------------------
-  SatStress treats the solid portions of the satellite as U{viscoelastic
+  C{satstress} treats the solid portions of the satellite as U{viscoelastic
   Maxwell solids <http://en.wikipedia.org/wiki/Maxwell_material>}, that respond
   differently to forcings having different frequencies (S{omega}).  Given the a
   specification of the internal structure and material properties of a
@@ -76,7 +76,7 @@ we need to define the satellite, this is what the L{Satellite} object does.
 3 Stresses
 ==========
 
-C{SatStress} can calculate the following stress fields:
+C{satstress} can calculate the following stress fields:
 
   1. B{L{Diurnal}}: stresses arising from an eccentric orbit, having a
      forcing frequency equal to the orbital frequency.
@@ -128,13 +128,13 @@ Gravitational Potential Theory" (U{preprint, 15MB PDF
   can construct a satellite, do a single calculation on its surface, and see
   what it looks like:
 
-  >>> from SatStress.SatStress import *
+  >>> from satstress.satstress import *
   >>> the_sat = Satellite(open("input/Europa.satellite"))
   >>> the_stresses = StressCalc([Diurnal(the_sat), NSR(the_sat)])
   >>> Tau = the_stresses.tensor(theta=pi/4.0, phi=pi/3.0, t=10000)
   >>> print(Tau)
 
-  The C{test} program included in the SatStress distribution shows a slightly
+  The C{test} program included in the satstress distribution shows a slightly
   more complex example, which should be enough to get you started using the
   package.
 
@@ -308,9 +308,9 @@ class Satellite(object):
             to undergo one full rotation [s].  If you don't want to have any
             NSR stresses, just put INFINITY here.
 
-        An example satFile is included with the SatStress package::
+        An example satFile is included with the satstress package::
 
-            SatStress-X.Y.Z/input/Europa.satellite
+            satstress-X.Y.Z/input/Europa.satellite
 
         Where X.Y.Z refers to the version numbers.
 
@@ -460,7 +460,7 @@ class Satellite(object):
         """Output a satellite definition file equivalent to the object."""
 
         myStr = """#
-# Satellite system definition file for use with the Python SatStress package.
+# Satellite system definition file for use with the Python satstress package.
 # All quantities are in SI (meters, kilograms, seconds) units.  For more
 # information, see:
 #
@@ -1478,7 +1478,7 @@ class StressCalc(object): #
 
 
 class Error(Exception):
-    """Base class for errors within the SatStress module."""
+    """Base class for errors within the satstress module."""
     pass
 
 class NameValueFileError(Error): # 

@@ -1,15 +1,15 @@
 #!python
-"""Check to see that SatStress gives the expected output from a series
+"""Check to see that satstress gives the expected output from a series
 of known calculations.
 
 Calculates the stresses due to the L{NSR} and L{Diurnal} forcings at a series
 of lat lon points on Europa, over the course of most of an orbit, and also at a
 variety of different amounts of viscous relaxation.  Compares the calculated
-values to those listed in the the test ouput file distributed with SatStress
+values to those listed in the the test ouput file distributed with satstress
 (test/SS_test_calc.pkl).
 
-C{test.py} is called from the C{SatStress Makefile}, when one does C{make
-test}.  It also acts as a short demonstration of how to use the SatStress
+C{test.py} is called from the C{satstress Makefile}, when one does C{make
+test}.  It also acts as a short demonstration of how to use the satstress
 package.
 
 """
@@ -17,7 +17,7 @@ import sys
 import os
 import pickle
 import scipy
-from SatStress import *
+from satstress import *
 
 def main():
     satstress_test_dir = os.path.dirname(os.path.abspath(__file__))
@@ -25,11 +25,11 @@ def main():
     test_satellite     = os.path.join("input", "Europa.satellite")
 
     # Create a new satellite object, as defined by the input file:
-    the_sat = SatStress.Satellite(open(test_satellite,'r'))
+    the_sat = satstress.Satellite(open(test_satellite,'r'))
 
     # Create a StressCalc object, that calculates both the NSR and Diurnal
     # stresses on the Satellite just instantiated:
-    the_stresses = SatStress.StressCalc([SatStress.Diurnal(the_sat), SatStress.NSR(the_sat)])
+    the_stresses = satstress.StressCalc([satstress.Diurnal(the_sat), satstress.NSR(the_sat)])
 
     # do a series of calculations, varying all the inputs at each iteration
     theta = 0.0
@@ -51,7 +51,7 @@ def main():
         # changing the forcing period, so that we can have the NSR stresses
         # vary with each iteration too.
         the_sat.nsr_period = the_sat.nsr_period / 1.5
-        the_stresses = SatStress.StressCalc([SatStress.Diurnal(the_sat), SatStress.NSR(the_sat)])
+        the_stresses = satstress.StressCalc([satstress.Diurnal(the_sat), satstress.NSR(the_sat)])
 
     # Now we want to compare this against reference output, just to make sure
     # that we're getting the right numbers...
