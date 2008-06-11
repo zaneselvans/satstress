@@ -282,7 +282,7 @@ class Satellite(object):
     @type layers: list
     """
 
-    def __init__(self, satFile): #
+    def __init__(self, satFile=None): #
         """
         Construct a Satellite object from a satFile
 
@@ -391,7 +391,7 @@ class Satellite(object):
         self.num_layers = 0
         for key in self.satParams.keys():
             if re.match('LAYER_ID', key): self.num_layers += 1
-        
+    
         if self.num_layers != 4:
             raise LoveLayerNumberError(self)
 
@@ -833,6 +833,9 @@ class StressDef(object): #
     @cvar love: the Love numbers which result from the given forcing frequency
     and the specified satellite structure.
     @type love: L{LoveNum}
+    @cvar dependson: the set of input parameters (as represented by the strings
+    used to define them in input files) upon which the stress field depends.
+    @type dependson: set
     
     """
 
@@ -841,6 +844,11 @@ class StressDef(object): #
     omega = 0.0
     satellite = None
     love = LoveNum(0,0,0,0,0,0)
+    dependson = set(['DENSITY',\
+                     'LAME_MU',\
+                     'LAME_LAMBDA',\
+                     'THICKNESS',\
+                     'VISCOSITY'])
 
     # Common StressDef Methods: 
     def __str__(self):
@@ -965,13 +973,12 @@ class StressDef(object): #
         # methods for interfacing with the operating system:
         import os
 
-        # make sure that Delta isn't so big that the Love number code will fail.
-        # For John's Love number code, things work up to about Delta = 10^9
-        # Note that we need to check for both of the ice layers.
-        # look at the ice layers to see if they're too gooey for this Love number
-        # code to deal with.  Negative array indices mean count from the END of the
-        # list, so, the surface of the satellite is -1, the next-to-surface layer
-        # is -2, etc.
+        # make sure that Delta isn't so big that the Love number code will
+        # fail.  For John's Love number code, things work up to about Delta =
+        # 10^9 Note that we need to check for both of the ice layers.  Negative
+        # array indices count from the END of the list, so, the surface of the
+        # satellite is -1, the next-to-surface layer is -2, etc.
+
         for layer_n in (-1, -2):
             if self.Delta(layer_n) > 1e9:
                 raise LoveExcessiveDeltaError(self, layer_n)
@@ -1314,6 +1321,10 @@ class NSR(StressDef): #
         # Restore the satellite's core to normal...
         self.satellite.layers[0].lame_mu = self.satellite.layers[0].lame_mu*1000
 
+        self.dependson |= set(['PLANET_MASS',\
+                               'ORBIT_SEMIMAJOR_AXIS',\
+                               'NSR_PERIOD'])
+
     def Ttt(self, theta, phi, t):
         """
         Calculates the S{tau}_S{theta}S{theta} (north-south) component of the
@@ -1376,6 +1387,10 @@ class Diurnal(StressDef):
         self.satellite = satellite
         self.omega = self.satellite.mean_motion()
         self.calcLove()
+
+        self.dependson |= set(['ORBIT_ECCENTRICITY',\
+                               'ORBIT_SEMIMAJOR_AXIS',\
+                               'PLANET_MASS'])
 
     def Ttt(self, theta, phi, t):
         """
