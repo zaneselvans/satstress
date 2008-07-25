@@ -19,7 +19,7 @@ class Lineament(object): #{{{1
     May be read in from and output to the ESRI "generate" file format.
 
     """
-    def __init__(self, vertices): #{{{2
+    def __init__(self, vertices, fits=[]): #{{{2
         """
         Create a lineament from a given list of (lon,lat) points.
 
@@ -32,12 +32,8 @@ class Lineament(object): #{{{1
 
         """
 
-        # Copy in the list of vertices, fixing any lines that cross the
-        # longitude discontinuity (that part's still sketchy):
-
-        #self.vertices = [ fixlon(v, sign(vertices[0][0])) for v in radians(vertices) ]
         self.vertices = radians(vertices)
-        self.fits = []
+        self.fits = fits
 
     #}}}2
 
@@ -258,13 +254,13 @@ class Lineament(object): #{{{1
     # }}}2 end stresscomp
 
     def calc_fits(stress, nb): #{{{2
-    """
-    Given a stresscalc object (stress), calculate the fits between that stress
-    and the lineament, at a number of backrotations (nb)
+        """
+        Given a stresscalc object (stress), calculate the fits between that stress
+        and the lineament, at a number of backrotations (nb)
 
-    """
-    for b in linspace(0,pi,num=nb):
-        self.fits.append(lin.lonshift(b).stresscomp(stress))
+        """
+        for b in linspace(0,pi,num=nb):
+            self.fits.append(lin.lonshift(b).stresscomp(stress))
     #}}}2
 
     def best_fit(self): #{{{2
@@ -281,7 +277,7 @@ class Lineament(object): #{{{1
         Return the amount of backrotation at which the best fit occurs
 
         """
-        return(linspace(0,pi,num=len(self.fits))[self.fits.index(self.best_fit)])
+        return(linspace(0,pi,num=len(self.fits))[self.fits.index(self.best_fit())])
     # }}}2
 
     def fits_width(self): #{{{2
