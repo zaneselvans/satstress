@@ -166,7 +166,7 @@ A few notes on the general architecture of the C{satstress} package.
   of science is funded by the public, and our code is a major product of that
   funding.  It is unethical to make it proprietary.
 """
-__all__ = ["satstress", "gridcalc",]
+__all__ = ["satstress", "gridcalc", "lineament"]
 __author__ = "Zane Selvans"
 __contact__ = "zane.selvans@colorado.edu"
 __maintainer__ = "Zane Selvans"
