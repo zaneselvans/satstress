@@ -10,12 +10,11 @@ from pylab import *
 def calc_nsr_fits(satfile = "input/ConvectingEuropa_GlobalDiurnalNSR.ssrun",\
                   shapefile = "input/GlobalLineaments",\
                   nb = 180,\
-                  numlins = "all"): #{{{
+                  numlins = "all",\
+                  w_length = True,\
+                  w_anisotropy = False,\
+                  w_stressmag = False): #{{{
     
-    # By default do all the lineaments... but allow us to shorten for testing
-    if numlins != "all":
-        lins = lins[:numlins]
-
     # Define our satellite and stress field based on the input files:
     the_sat = satstress.Satellite(open(satfile,'r'))
     nsr = satstress.StressCalc([satstress.NSR(the_sat),])
@@ -25,6 +24,9 @@ def calc_nsr_fits(satfile = "input/ConvectingEuropa_GlobalDiurnalNSR.ssrun",\
 
     # Turn the shapefile into a list of lineaments:
     lins = lineament.shp2lins(shapefile)
+    # By default do all the lineaments... but allow us to shorten for testing
+    if numlins != "all":
+        lins = lins[:numlins]
 
     # Do the NSR-Lineament comparison and store the results in the Lineaments
     # This can be time consuming depending on how many lineaments we've got,
@@ -34,7 +36,7 @@ def calc_nsr_fits(satfile = "input/ConvectingEuropa_GlobalDiurnalNSR.ssrun",\
     linhist=[]
     for lin in lins:
         print "lineament %d (%d segments, %g km)" % (lin_num, len(lin.vertices), lin.length()*sat_radius_km)
-        lin.calc_fits(nsr, nb)
+        lin.calc_fits(nsr, nb, failuremode="tensilefracture", w_length=w_length, w_anisotropy=w_anisotropy, w_stressmag=w_stressmag)
         lin.sat_radius_km = sat_radius_km
         lin_num += 1
 
@@ -59,23 +61,24 @@ def draw_fit_hist(linhist, bins=18):
     show()
 # }}}
 
-def draw_fits(lins): #{{{
+def draw_fits(lins, satellite): #{{{
     lin_num=0
     for lin in lins:
         # Plot the lineament itself:
-        lons = [ v[0] for v in lin.vertices ]
-        lats = [ v[1] for v in lin.vertices ]
-        plot(mod(degrees(lons),180), abs(degrees(lats)), 'k-', linewidth=2)
-        plot(linspace(0,180,num=len(lin.fits)), degrees(lin.fits))
-        plot(linspace(0,180,10), 10*[degrees(lin.best_fit()),], 'r--')
-        plot(10*[degrees(lin.best_b()),], linspace(0,90,10), 'r--')
-        #grid(True)
-        axis([0,180,0,91])
+        mapped_lons = [ v[0] for v in lin.vertices ]
+        mapped_lats = [ v[1] for v in lin.vertices ]
+
+        plot(mod(degrees(mapped_lons),180), abs(degrees(mapped_lats)), 'k-', linewidth=2)
+        plot(linspace(0,180,num=len(lin.fits)), degrees(lin.fits), 'b-', linewidth=2)
+        plot(linspace(0,181,10), 10*[degrees(lin.best_fit()),], 'r--', linewidth=2)
+        plot(10*[degrees(lin.best_b()),], linspace(0,91,10), 'r--', linewidth=2)
+        grid(True)
+        axis([0,180,0,90])
         xticks( range(0,181,15) )
         yticks( range(0,91,15) )
         xlabel("degrees of backrotation")
         ylabel("average misfit (degrees)")
-        title("lin=%d, length=%gkm, best_fit=%g, best_b=%g, iqr=%g" % (lin_num, lin.sat_radius_km*lin.length(), degrees(lin.best_fit()), degrees(lin.best_b()), degrees(lin.fits_width()) ))
+        title("lin=%d, length=%gkm, best_fit=%g, best_b=%g, iqr=%g" % (lin_num, satellite.radius()*lin.length()/1000, degrees(lin.best_fit()), degrees(lin.best_b()), degrees(lin.fits_width()) ))
         show()
         x = raw_input("press return for next fit: ")
         clf()
