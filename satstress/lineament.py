@@ -2,6 +2,7 @@
 from numpy import *
 from numpy import linalg
 from numpy.ma.mstats import idealfourths
+from pylab import *
 
 # Open Source Geospatial libraries:
 from osgeo import ogr
@@ -82,6 +83,70 @@ class Lineament(object): #{{{1
         return(Lineament([(degrees(v[0]+b), degrees(v)[1]) for v in self.vertices]))
     #}}}2
 
+    def eastend(self): #{{{2
+        """
+        Return a tuple representing the easternmost endpoint of the L{Lineament}.
+
+        """
+
+        (lon1, lat1) = self.vertices[0]
+        (lon2, lat2) = self.vertices[-1]
+
+        if spherical_azimuth(lon1, lat1, lon2, lat2) < pi:
+            return(lon2, lat2)
+        else:
+            return(lon1, lat1)
+    # }}}2
+
+    def westend(self): #{{{2
+        """
+        Return a tuple representing the westernmost endpoint of the L{Lineament}.
+
+        """
+
+        (lon1, lat1) = self.vertices[0]
+        (lon2, lat2) = self.vertices[-1]
+
+        if spherical_azimuth(lon1, lat1, lon2, lat2) < pi:
+            return(lon1, lat1)
+        else:
+            return(lon2, lat2)
+    #}}}2
+
+    def doppelganger(self, stresscalc, time_sec=0.0, propagation="east", failuremode="tensilefracture", noise=None): #{{{2
+        """
+        Synthesize and return a new lineament consistent with the given
+        stresscalc object, of the same length, and having one of the same
+        endpoints as self (the same west endpoint if propagation is "east",
+        and the same east endpoint if propagation is "west")
+
+        """
+
+        if propagation=="east":
+            (init_lon, init_lat) = self.westend()
+        else:
+            assert (propagation=="west")
+            (init_lon, init_lat) = self.eastend()
+
+        return(lingen(init_lon, init_lat, stresscalc, max_length=self.length(), time_sec=time_sec, propagation=propagation, failuremode=failuremode, noise=None))
+
+    #}}}2
+
+    def draw(self): #{{{2
+        """
+        Use pylab to draw the lineament quick-and-dirty.
+
+        """
+        plot([ degrees(v[0]) for v in self.vertices ], [ degrees(v[1]) for v in self.vertices ])
+        grid(True)
+        axis([0,360,-90,90])
+        xticks( range(0,361,30) )
+        xlabel("longitude")
+        yticks( range(-90,91,30) )
+        ylabel("latitude")
+        show()
+    # }}}2
+
     def stresscomp(self, stresscalc, time_sec=0.0, failuremode = "tensilefracture", w_length = True, w_anisotropy = False, w_stressmag = False): # {{{2
         """
         Return a metric of how likely it is this lineament resulted from a
@@ -125,40 +190,8 @@ class Lineament(object): #{{{1
             stress_tensor = stresscalc.tensor(theta = (pi/2.0)-segment.midpoint()[1],\
                                                 phi = segment.midpoint()[0],\
                                                   t = time_sec )
-            (eigval_A, eigval_B), ((theta_A, phi_A), (theta_B, phi_B)) = linalg.eigh(stress_tensor)
 
-
-            # Translate the raw eigenvectors/values into magnitude-azimuth
-            # notation (where azimuth is an angle measured clockwise from
-            # north) recording which stress is more tensile, and which is
-            # more compressive.
-
-            # Recall that theta (co-latitude) is SOUTH positive, and phi
-            # (longitude) is EAST positive.
-
-            psi = tan(phi_A/theta_A)
-
-            if (theta_A > 0 and phi_A > 0) or (theta_A < 0 and phi_A < 0):
-                az_A = mod(pi - psi, pi)
-            else:
-                az_A = mod(psi, pi)
-
-            az_B = mod(az_A + pi/2, pi)
-
-            # tens_mag = magnitude of more tensile (less compressive) PC
-            #  tens_az = azimuth of more tensile (less compressive) PC
-            # comp_mag = magnitude of more compressive (less tensile) PC
-            #  comp_az = azimuth of more compressive (less tensile) PC
-            if (eigval_A > eigval_B):
-                tens_mag = eigval_A
-                tens_az  = az_A
-                comp_mag = eigval_B
-                comp_az  = az_B
-            else:
-                tens_mag = eigval_B
-                tens_az  = az_B
-                comp_mag = eigval_A
-                comp_az  = az_A
+            (tens_mag, tens_az, comp_mag, comp_az) = tensor2pc(stress_tensor)
 
             # Delta = angle between observed and expected fractures
             #   - this is the raw material for the fit-metric
@@ -241,7 +274,7 @@ class Lineament(object): #{{{1
             if segment.w_anisotropy:
                 segfit *= segment.w_anisotropy
             if segment.w_stressmag:
-                segfit *= segment.stressmag
+                segfit *= segment.w_stressmag
 
             linfit += segfit
             rmsfit += linfit**2
@@ -253,14 +286,15 @@ class Lineament(object): #{{{1
 
     # }}}2 end stresscomp
 
-    def calc_fits(stress, nb): #{{{2
+    def calc_fits(self, stress, nb, time_sec=0.0, failuremode="tensilefracture", w_length=True, w_anisotropy=False, w_stressmag=False): #{{{2
         """
         Given a stresscalc object (stress), calculate the fits between that stress
         and the lineament, at a number of backrotations (nb)
 
         """
+        self.fits=[]
         for b in linspace(0,pi,num=nb):
-            self.fits.append(lin.lonshift(b).stresscomp(stress))
+            self.fits.append(self.lonshift(b).stresscomp(stress, time_sec=time_sec, failuremode = "tensilefracture", w_length=w_length, w_anisotropy = w_anisotropy, w_stressmag = w_stressmag))
     #}}}2
 
     def best_fit(self): #{{{2
@@ -418,6 +452,8 @@ def spherical_azimuth(lon1, lat1, lon2, lat2): # {{{
     point 1 to point 2.
 
     """
+    lon1 = 2.0*pi - lon1
+    lon2 = 2.0*pi - lon2
 
     return(mod(arctan2(sin(lon1-lon2)*cos(lat2), cos(lat1)*sin(lat2)-sin(lat1)*cos(lat2)*cos(lon1-lon2)), 2.0*pi))
 
@@ -456,23 +492,130 @@ def spherical_midpoint(lon1, lat1, lon2, lat2): #{{{
 
 # }}}
 
-def stress_lin_delta(azimuth, stress_tensor, failuremode): #{{{
+def tensor2pc(stress_tensor): # {{{
     """
-    Compares a feature orientation to a stress tensor, given a failure mode.
+    Transform the stress tensor into principal components, and return them
+    in magnitude-azimuth form.
 
-    The orientation of the linear feature is defined by azimuth.  The stress
-    tensor passed in is a symmetric 2x2 array, such as is returned by
-    L{satstress.StressCalc.tensor}.  The failure mode indicates the expected
-    geometric relationship between the principal components of the stresses,
-    and the feature which results.
-
-    Returns the smallest possible angle (in radians) separating the feature
-    azimuth, and an expected failure orientation, given the stress tensor and
-    failure mode.
+    Always returns azimuths between 0 and pi.  The more tensile of the two
+    principal components is returned first.
 
     """
+#    (eigval_A, eigval_B), ((theta_A, phi_A), (theta_B, phi_B)) = linalg.eigh(stress_tensor)
+    (eigval_A, eigval_B), ((theta_A, phi_A), (theta_B, phi_B)) = eigen2(stress_tensor)
+    az_A = mod(arctan2(phi_A,-theta_A), pi)
+    az_B = mod(arctan2(phi_B,-theta_B), pi)
 
-#}}} end stress_lin_delta
+    if (eigval_A > eigval_B):
+        return(eigval_A, az_A, eigval_B, az_B)
+    else:
+        return(eigval_B, az_B, eigval_A, az_A)
+# }}}
+
+def eigen2(tensor): # {{{
+
+    a = tensor[0][0]
+    b = tensor[0][1]
+    c = tensor[1][1]
+    
+    sqrt_thing = sqrt(a*a + 4.0*b*b - 2.0*a*c + c*c)
+
+    lambda1   = (0.5)*(a + c - sqrt_thing)
+    eig1theta = (-a + c + sqrt_thing)/(-2.0*b)
+    eig1phi   = 1.0
+
+    lambda2   = (0.5)*(a + c + sqrt_thing)
+    eig2theta = (-a + c - sqrt_thing)/(-2.0*b)
+    eig2phi   = 1.0
+
+    mag1 = sqrt(eig1theta**2 + eig1phi**2)
+    mag2 = sqrt(eig2theta**2 + eig2phi**2)
+
+    eig1theta /= mag1
+    eig1phi   /= mag1
+    eig2theta /= mag2
+    eig2phi   /= mag2
+
+    return ((lambda1, lambda2), ((eig1theta, eig1phi), (eig2theta, eig2phi)))
+# }}}
+
+def lingen(stresscalc, init_lon="rand", init_lat="rand", max_length=2.0*pi, time_sec=0.0, propagation="both", failuremode="tensilefracture", noise=None, segment_length=0.01): # {{{
+    """
+    Generate a "perfect" lineament, given initial crack location, final length,
+    and the stress field and failure mode.
+
+    If noise is specified, add noise to the lineament, making it less than perfect.
+
+    """
+    lin_length = 0.0
+
+    # If we're choosing a random point on the surface... let's make sure that
+    # the points are evenly distributed all over the sphere:
+
+    if init_lon == "rand":
+        init_lon = 2*pi*rand()
+    if init_lat == "rand":
+        init_lat = arccos(2*rand()-1)-pi/2
+
+    vertices = [(init_lon, init_lat),]
+
+    ice_strength = stresscalc.stresses[0].satellite.layers[-1].tensile_str
+
+
+    # Calculate the stress tensor at the given time and initial location
+    stress_tensor = stresscalc.tensor(theta = (pi/2.0)-vertices[-1][1],\
+                                        phi = vertices[-1][0],\
+                                          t = time_sec )
+
+    # Convert the stress tensor into principal components:
+    (tens_mag, tens_az, comp_mag, comp_az) = tensor2pc(stress_tensor)
+
+    # Make a note of the fact that we've got to do the other half too
+    if propagation == "both":
+        done = False
+        propagation = "east"
+    else:
+        done = True
+
+    while lin_length < max_length and tens_mag > ice_strength:
+        # Convert the stress tensor into principal components:
+        (tens_mag, tens_az, comp_mag, comp_az) = tensor2pc(stress_tensor)
+
+        # Choose which direction to go based on "propagation", and which
+        # half of the lineament we are synthesizing
+        if propagation == "east":
+            prop_az = comp_az
+        else:
+            assert(propagation == "west")
+            prop_az = comp_az + pi
+
+        newlon, newlat = spherical_reckon(vertices[-1][0], vertices[-1][1], prop_az, segment_length)
+
+        while (abs(newlon - vertices[-1][0]) > abs((newlon - 2*pi) - vertices[-1][0])):
+            newlon = newlon - 2*pi
+
+        while (abs(newlon - vertices[-1][0]) > abs((newlon + 2*pi) - vertices[-1][0])):
+            newlon = newlon + 2*pi
+        
+        vertices.append((newlon, newlat))
+
+        lin_length += segment_length
+
+        # Calculate the stress tensor at the given time and initial location
+        stress_tensor = stresscalc.tensor(theta = (pi/2.0)-vertices[-1][1],\
+                                            phi = vertices[-1][0],\
+                                              t = time_sec )
+
+    if len(vertices) > 1:
+        if not done:
+            second_half = lingen(stresscalc, init_lon=init_lon, init_lat=init_lat, max_length=max_length, time_sec=time_sec, propagation="west", failuremode=failuremode, noise=noise)
+            second_half_reversed = second_half.vertices[:0:-1]
+            vertices = vstack([second_half_reversed, array(vertices)])
+        return Lineament(degrees(vertices))
+    else:
+        return None
+
+#}}} end lingen
 
 # Not yet implemented, or borken:
 def lins2shp(lins=[], shapefile=None): #{{{
@@ -486,17 +629,7 @@ def lins2shp(lins=[], shapefile=None): #{{{
     pass
 #}}}
 
-def lingen(init_lat, init_lon, length, failuremode, stress, noise=None): # {{{
-    """Generate a "perfect" lineament, given initial crack location, final length,
-    and the stress field and failure mode.
-
-    If noise is specified, add noise to the lineament, making it less than perfect.
-
-    """
-    pass
-#}}} end lingen
-
-def fixlon(lonlat, lonsign=1.0): #{{{
+def fixlon(lonlat, lonsign=1.0): # {{{
     """
     Removes longitude discontinuities within a single lineament.
 
