@@ -20,7 +20,7 @@ class Lineament(object): #{{{1
     May be read in from and output to the ESRI "generate" file format.
 
     """
-    def __init__(self, vertices, fits=[]): #{{{2
+    def __init__(self, vertices, fits=[], stresses_pc=[]): #{{{2
         """
         Create a lineament from a given list of (lon,lat) points.
 
@@ -128,7 +128,9 @@ class Lineament(object): #{{{1
             assert (propagation=="west")
             (init_lon, init_lat) = self.eastend()
 
-        return(lingen(init_lon, init_lat, stresscalc, max_length=self.length(), time_sec=time_sec, propagation=propagation, failuremode=failuremode, noise=None))
+        init_lon += self.best_b()
+
+        return(lingen(stresscalc, init_lon=init_lon, init_lat=init_lat, max_length=self.length(), time_sec=time_sec, propagation=propagation, failuremode=failuremode, noise=None))
 
     #}}}2
 
@@ -177,11 +179,7 @@ class Lineament(object): #{{{1
                are considering tensile fracture)
         """
 
-        # returns a list of line segments (non-poly-lines... each defined by
-        # only two endpoints on the surface of a sphere.
-        segments = self.segments()
-
-        for segment in segments:
+        for segment in self.segments():
             segment.delta = pi/2.0
             segment.w_length = w_length
             segment.w_anisotropy = w_anisotropy
@@ -190,6 +188,7 @@ class Lineament(object): #{{{1
             stress_tensor = stresscalc.tensor(theta = (pi/2.0)-segment.midpoint()[1],\
                                                 phi = segment.midpoint()[0],\
                                                   t = time_sec )
+
 
             (tens_mag, tens_az, comp_mag, comp_az) = tensor2pc(stress_tensor)
 
@@ -265,7 +264,7 @@ class Lineament(object): #{{{1
 
         linfit = 0
         rmsfit = 0
-        for segment in segments:
+        for segment in self.segments():
 
             segfit = segment.delta
 
@@ -560,7 +559,6 @@ def lingen(stresscalc, init_lon="rand", init_lat="rand", max_length=2.0*pi, time
     vertices = [(init_lon, init_lat),]
 
     ice_strength = stresscalc.stresses[0].satellite.layers[-1].tensile_str
-
 
     # Calculate the stress tensor at the given time and initial location
     stress_tensor = stresscalc.tensor(theta = (pi/2.0)-vertices[-1][1],\

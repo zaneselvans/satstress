@@ -61,26 +61,92 @@ def draw_fit_hist(linhist, bins=18):
     show()
 # }}}
 
-def draw_fits(lins, satellite): #{{{
+def draw_fits(lins, sat_radius_km, stresscalc, doppels_E=None, doppels_W=None): #{{{
     lin_num=0
+
+    # Make sure we got the same number of doppelganger lineaments as
+    # mapped lineaments, if we're not generating them on the fly
+    if doppels_E is not None:
+        assert len(doppels_E) == len(lins)
+    if doppels_W is not None:
+        assert len(doppels_W) == len(lins)
+
     for lin in lins:
         # Plot the lineament itself:
-        mapped_lons = [ v[0] for v in lin.vertices ]
-        mapped_lats = [ v[1] for v in lin.vertices ]
+        mapped_lons = degrees([ v[0] for v in lin.vertices ])
+        mapped_lats = degrees([ v[1] for v in lin.vertices ])
 
-        plot(mod(degrees(mapped_lons),180), abs(degrees(mapped_lats)), 'k-', linewidth=2)
+        subplot(211)
+        if doppels_E is None:
+            doppel_E = lin.doppelganger(stresscalc, propagation="east")
+
+        if doppel_E is not None:
+            doppel_E = doppel_E.lonshift(-lin.best_b())
+            doppel_E_lons = degrees( [ v[0] for v in doppel_E.vertices ] )
+            doppel_E_lats = degrees( [ v[1] for v in doppel_E.vertices ] )
+            plot(doppel_E_lons, doppel_E_lats, 'k--', linewidth=1)
+
+        doppel_W      = lin.doppelganger(stresscalc, propagation="west")
+        if doppel_W is not None:
+            doppel_W = doppel_W.lonshift(-lin.best_b())
+            doppel_W_lons = degrees( [ v[0] for v in doppel_W.vertices ] )
+            doppel_W_lats = degrees( [ v[1] for v in doppel_W.vertices ] )
+            plot(doppel_W_lons, doppel_W_lats, 'k--', linewidth=1)
+
+        plot(mapped_lons, mapped_lats, 'k-', linewidth=2)
+        title("lin=%d, length=%g km" % (lin_num, sat_radius_km*lin.length()))
+        xlabel("longitude")
+        ylabel("latitude")
+        grid(True)
+
+        subplot(212)
         plot(linspace(0,180,num=len(lin.fits)), degrees(lin.fits), 'b-', linewidth=2)
         plot(linspace(0,181,10), 10*[degrees(lin.best_fit()),], 'r--', linewidth=2)
         plot(10*[degrees(lin.best_b()),], linspace(0,91,10), 'r--', linewidth=2)
         grid(True)
+
         axis([0,180,0,90])
         xticks( range(0,181,15) )
         yticks( range(0,91,15) )
         xlabel("degrees of backrotation")
         ylabel("average misfit (degrees)")
-        title("lin=%d, length=%gkm, best_fit=%g, best_b=%g, iqr=%g" % (lin_num, satellite.radius()*lin.length()/1000, degrees(lin.best_fit()), degrees(lin.best_b()), degrees(lin.fits_width()) ))
+        title("best_fit=%g, best_b=%g, iqr=%g" % (degrees(lin.best_fit()), degrees(lin.best_b()), degrees(lin.fits_width()) ))
         show()
         x = raw_input("press return for next fit: ")
         clf()
         lin_num += 1
 # }}}
+
+def draw_nsr_fit_hist(fithist, bins=18, hist_title="Lineament formation vs. backrotation"):
+    clf()
+    hist(fithist, bins=bins, facecolor="green")
+    grid(True)
+    xlabel("degrees of backrotation")
+    ylabel("km of lineaments formed")
+    title(hist_title)
+    axis(xmin=0, xmax=180)
+
+
+# What do I want this tool to do, anyway?
+# - assume for the moment that storing all of the stresses for the entire set
+#   of backrotated fits isn't something I want to do... meaning that I can't
+#   store all of the possible fits and their associated weights.
+#
+# - Given (lineaments, stress field):
+#   - calculate fits to stress field over 180 degrees of backrotation
+#   - for the best fit backrotation, create both and east and a west doppelganger
+#   - calculate fits for the doppelgangers
+#   - display all three lineaments and their fit curves
+#     - use 2 panel plot (fits, lineaments)
+#     - use Basemap for the lineaments, so we can have all the mappy goodness.
+#   - save all the fit data for later reference
+#
+# TODO:
+# =====
+# - figure out what to do about weighting functions, play around with it
+# - devise measure of statistical significance:
+#   - monte carlo method
+#   - analysis of fit-curve (IQR, etc)
+# - Better binning of "best fits" in histogram
+#   - add lineament length to all bins in which fit is better than X?
+#   - or add length/N (where N is the # of bins in which it's better than X)
