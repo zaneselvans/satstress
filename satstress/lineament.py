@@ -3,6 +3,7 @@ from numpy import *
 from numpy import linalg
 from numpy.ma.mstats import idealfourths
 from pylab import *
+from mpl_toolkits.basemap import Basemap
 
 # Open Source Geospatial libraries:
 from osgeo import ogr
@@ -20,7 +21,7 @@ class Lineament(object): #{{{1
     May be read in from and output to the ESRI "generate" file format.
 
     """
-    def __init__(self, vertices, fits=[], stresses_pc=[]): #{{{2
+    def __init__(self, vertices, fits=[], stresscalc=None, doppel_E=None, doppel_W=None): #{{{2
         """
         Create a lineament from a given list of (lon,lat) points.
 
@@ -35,6 +36,9 @@ class Lineament(object): #{{{1
 
         self.vertices = radians(vertices)
         self.fits = fits
+        self.doppel_E = doppel_E
+        self.doppel_W = doppel_W
+        self.stresscalc = stresscalc
 
     #}}}2
 
@@ -45,6 +49,19 @@ class Lineament(object): #{{{1
         """
         return("\n".join([ str(degrees(v)) for v in self.vertices ]))
     #}}}2
+
+    def fixlon(self): # {{{
+        """
+        Ensures that the longitudes of all points making up the L{Lineament} lie
+        within the rage -pi < lon < pi, by shifting the lineament east or west in
+        increments of pi.  This is acceptable because, for stress comparisons, a
+        lineament's location only matters to modulo pi.
+        """
+
+        self.vertices = zip(self.fixed_longitudes(), self.latitudes())
+        return(self.vertices)
+
+# }}} end fixlon
 
     def length(self): #{{{2
         """
@@ -74,6 +91,40 @@ class Lineament(object): #{{{1
 
         return(seglist)
     #}}}2 end segments
+
+    def longitudes(self): # {{{2
+        """
+        Return a list of the latitude values from the lineament's vertices
+
+        """
+        return( [ v[0] for v in self.vertices ] )
+# }}}2
+
+    def fixed_longitudes(self): # {{{2
+        """
+        Return a list of the latitude values from the lineament's vertices,
+        but shifted so as to lie within -pi < lon < pi.
+
+        """
+        fixed_lons = self.longitudes()
+        while max(fixed_lons) > pi or min(fixed_lons) < -pi:
+            if max(fixed_lons) > pi:
+                pi_sign = -1
+            else:
+                pi_sign = +1
+
+            fixed_lons = [ lon+(pi_sign*pi) for lon in fixed_lons ]
+
+        return(fixed_lons)
+# }}}2
+
+    def latitudes(self): # {{{2
+        """
+        Return a list of the latitude values from the lineament's vertices"
+
+        """
+        return( [ v[1] for v in self.vertices ] )
+    #}}}2
 
     def lonshift(self, b): #{{{2
         """
@@ -134,21 +185,6 @@ class Lineament(object): #{{{1
 
     #}}}2
 
-    def draw(self): #{{{2
-        """
-        Use pylab to draw the lineament quick-and-dirty.
-
-        """
-        plot([ degrees(v[0]) for v in self.vertices ], [ degrees(v[1]) for v in self.vertices ])
-        grid(True)
-        axis([0,360,-90,90])
-        xticks( range(0,361,30) )
-        xlabel("longitude")
-        yticks( range(-90,91,30) )
-        ylabel("latitude")
-        show()
-    # }}}2
-
     def stresscomp(self, stresscalc, time_sec=0.0, failuremode = "tensilefracture", w_length = True, w_anisotropy = False, w_stressmag = False): # {{{2
         """
         Return a metric of how likely it is this lineament resulted from a
@@ -178,8 +214,9 @@ class Lineament(object): #{{{1
                considered (e.g. a compressive field is not applicable if we
                are considering tensile fracture)
         """
+        seglist = self.segments()
 
-        for segment in self.segments():
+        for segment in seglist:
             segment.delta = pi/2.0
             segment.w_length = w_length
             segment.w_anisotropy = w_anisotropy
@@ -264,7 +301,7 @@ class Lineament(object): #{{{1
 
         linfit = 0
         rmsfit = 0
-        for segment in self.segments():
+        for segment in seglist:
 
             segfit = segment.delta
 
@@ -367,7 +404,6 @@ class Segment(object): #{{{
         self.lat1 = lat1
         self.lon2 = lon2
         self.lat2 = lat2
-        self.parent_lin = parent_lin
 
     def length(self):
         return(spherical_distance(self.lon1, self.lat1, self.lon2, self.lat2))
@@ -392,6 +428,23 @@ class Segment(object): #{{{
     # }}} end segment
 
 # Helper functions that aren't part of any object class:
+
+def plotlinmap(lins, map=None, fixlon=False): #{{{
+    if map is None:
+        map = Basemap()
+
+    for lin in lins:
+        if lin is not None:
+            if fixlon:
+                map.plot(degrees(lin.fixed_longitudes()),degrees(lin.latitudes()))
+            else:
+                map.plot(degrees(lin.longitudes()),degrees(lin.latitudes()))
+
+    map.drawmeridians(range(-180,181,30), labels=[1,0,0,1])
+    map.drawparallels(range(-90,91,30), labels=[1,0,0,1])
+
+    return(map)
+#}}} end plotlinmap
 
 def shp2lins(shapefile): #{{{
     """
@@ -538,7 +591,7 @@ def eigen2(tensor): # {{{
     return ((lambda1, lambda2), ((eig1theta, eig1phi), (eig2theta, eig2phi)))
 # }}}
 
-def lingen(stresscalc, init_lon="rand", init_lat="rand", max_length=2.0*pi, time_sec=0.0, propagation="both", failuremode="tensilefracture", noise=None, segment_length=0.01): # {{{
+def lingen(stresscalc, init_lon="rand", init_lat="rand", max_length="rand", time_sec=0.0, propagation="rand", failuremode="tensilefracture", noise=None, segment_length=0.01, lonshift=0.0): # {{{
     """
     Generate a "perfect" lineament, given initial crack location, final length,
     and the stress field and failure mode.
@@ -555,6 +608,8 @@ def lingen(stresscalc, init_lon="rand", init_lat="rand", max_length=2.0*pi, time
         init_lon = 2*pi*rand()
     if init_lat == "rand":
         init_lat = arccos(2*rand()-1)-pi/2
+    if max_length == "rand":
+        max_length = pi*rand()
 
     vertices = [(init_lon, init_lat),]
 
@@ -567,6 +622,12 @@ def lingen(stresscalc, init_lon="rand", init_lat="rand", max_length=2.0*pi, time
 
     # Convert the stress tensor into principal components:
     (tens_mag, tens_az, comp_mag, comp_az) = tensor2pc(stress_tensor)
+
+    if propagation == "rand":
+        if rand() > 0.5:
+            propagation="east"
+        else:
+            propagation="west"
 
     # Make a note of the fact that we've got to do the other half too
     if propagation == "both":
@@ -609,13 +670,47 @@ def lingen(stresscalc, init_lon="rand", init_lat="rand", max_length=2.0*pi, time
             second_half = lingen(stresscalc, init_lon=init_lon, init_lat=init_lat, max_length=max_length, time_sec=time_sec, propagation="west", failuremode=failuremode, noise=noise)
             second_half_reversed = second_half.vertices[:0:-1]
             vertices = vstack([second_half_reversed, array(vertices)])
-        return Lineament(degrees(vertices))
+
+        newlin = Lineament(degrees(vertices))
+
+        if lonshift:
+            if lonshift == "rand":
+                lonshift = 2*pi*(rand()-0.5)
+
+            newlin = newlin.lonshift(lonshift)
+
+        return newlin
+
     else:
         return None
 
 #}}} end lingen
 
-# Not yet implemented, or borken:
+def update_lins(lins): # {{{
+    """
+    Just a quick and easy way to remember what all has to be done in order to
+    update a set of lineaments to include all the newest and bestest
+    functionality from the module.
+
+    """
+
+    newlins = []
+    for lin in lins:
+        if lin.doppel_E is not None:
+            new_de = Lineament(degrees(lin.doppel_E.vertices))
+        else:
+            new_de = None
+
+        if lin.doppel_W is not None:
+            new_dw = Lineament(degrees(lin.doppel_W.vertices))
+        else:
+            new_dw = None
+
+        newlins.append(Lineament(degrees(lin.vertices), fits=lin.fits, doppel_E = new_de, doppel_W = new_dw))
+    return(newlins)
+#}}} end update_lins
+
+# Not yet implemented:
 def lins2shp(lins=[], shapefile=None): #{{{
     """
     Create a shapefile from a list of L{Lineament} objects, including additions
@@ -627,18 +722,3 @@ def lins2shp(lins=[], shapefile=None): #{{{
     pass
 #}}}
 
-def fixlon(lonlat, lonsign=1.0): # {{{
-    """
-    Removes longitude discontinuities within a single lineament.
-
-    Currently BROKEN.
-
-    """
-    lon, lat = lonlat
-    if lonsign != 0:
-        while sign(lonsign) != sign(lon):
-            lon += sign(lonsign)*2*pi
-
-    return (lon, lat)
-
-# }}} end fixlon
