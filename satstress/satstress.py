@@ -240,6 +240,31 @@ def nvf2dict(nvf, comment='#'):
     return params
 # end nvf2dict()
 
+def eigen2(tensor):
+
+    a = tensor[0][0]
+    b = tensor[0][1]
+    c = tensor[1][1]
+    
+    sqrt_thing = numpy.sqrt(a*a + 4.0*b*b - 2.0*a*c + c*c)
+
+    lambda1   = (0.5)*(a + c - sqrt_thing)
+    eig1theta = (-a + c + sqrt_thing)/(-2.0*b)
+    eig1phi   = 1.0
+
+    lambda2   = (0.5)*(a + c + sqrt_thing)
+    eig2theta = (-a + c - sqrt_thing)/(-2.0*b)
+    eig2phi   = 1.0
+
+    mag1 = numpy.sqrt(eig1theta**2 + eig1phi**2)
+    mag2 = numpy.sqrt(eig2theta**2 + eig2phi**2)
+
+    eig1theta /= mag1
+    eig1phi   /= mag1
+    eig2theta /= mag2
+    eig2phi   /= mag2
+
+    return ((lambda1, lambda2), ((eig1theta, eig1phi), (eig2theta, eig2phi)))
 
 ##############################
 #          CLASSES           #
@@ -250,9 +275,9 @@ class Satellite(object):
     Defines a satellite's material properties, internal structure, orbital
     context, and the tidal forcings to which it is subjected.
 
-    @ivar sourcefile: the file object which was read in order to create
+    @ivar sourcefilename: the file object which was read in order to create
     the L{Satellite} instance.
-    @type sourcefile: file
+    @type sourcefilename: str
     @ivar satParams: dictionary containing the name value pairs read in from
     the input file.
     @type satParams: dict
@@ -340,11 +365,11 @@ class Satellite(object):
         """
 
         # Make a note of the input file defining this satellite:
-        self.sourcefile = satFile
+        self.sourcefilename = satFile.name
 
         # Slurp the proffered parameters into a dictionary:
         try:
-            self.satParams = nvf2dict(self.sourcefile, comment='#')
+            self.satParams = nvf2dict(satFile, comment='#')
         except NameValueFileError:
             raise
 
@@ -1484,6 +1509,35 @@ class StressCalc(object): #
         return(tau)
     #  end tensor
 
+    def principal_components(self, theta, phi, t):
+        """
+        Calculates the principal components of the surface stresses and returns
+        them as a tuple: (tens_mag, tens_az, comp_mag, comp_az), i.e. the
+        magnitudes and azimuths (orientation as an angle clockwise from north)
+        for the more tensile (more positive) and less tensile (more
+        compressive, more negative) stresses.  Azimuths are in radians, always
+        between 0 and pi, and are always separated by pi/2 radians.
+
+        """
+        (eigval_A, eigval_B), ((theta_A, phi_A), (theta_B, phi_B)) = eigen2(self.tensor(theta, phi, t))
+        az_A = numpy.mod(numpy.arctan2(phi_A,-theta_A), numpy.pi)
+        az_B = numpy.mod(numpy.arctan2(phi_B,-theta_B), numpy.pi)
+
+        if (eigval_A > eigval_B):
+            return( numpy.array([eigval_A, az_A, eigval_B, az_B]) )
+        else:
+            return( numpy.array([eigval_B, az_B, eigval_A, az_A]) )
+
+    def mean_global_stressmag(self, num_samples=1000, time_sec=0.0):
+        """
+        Calculate the stresses on the surface of the satellite at num_samples
+        randomly chosen locations, evenly distributed over the sphere, and
+        return the mean values of both the more and less tensile stresses.
+
+        """
+        pc = numpy.array([ self.principal_components(theta=numpy.arccos(2*numpy.random.rand()-1), phi=2*numpy.pi*numpy.random.rand(), t=time_sec) for N in range(num_samples) ])
+        return(pc[:,0].mean(),pc[:,2].mean())
+
 # end class StressCalc
 
 # Exception classes (for error handling):
@@ -1564,7 +1618,7 @@ class MissingSatelliteParamError(SatelliteParamError):
 The required parameter %s was not found in the satellite definition file:
 
 %s
-""" % (self.missingname, self.sat.sourcefile.name))
+""" % (self.missingname, self.sat.sourcefilename))
 
 class InvalidSatelliteParamError(SatelliteParamError):
     """Raised when a required parameter is not found in the input file."""
@@ -1589,7 +1643,7 @@ is too big.  The model implemented by this module, and described in Wahr et al.
 (2008) requires that orbital eccentricity be relatively small (< 0.25), for
 larger values of eccentricity, some of the mathematical approximations used
 break down.
-""" % (self.sat.orbit_eccentricity, self.sat.sourcefile.name))
+""" % (self.sat.orbit_eccentricity, self.sat.sourcefilename))
 
 class NegativeNSRPeriodError(InvalidSatelliteParamError):
     """Raised if the satellite's NSR period is less than zero"""
@@ -1604,7 +1658,7 @@ specifies an NSR_PERIOD < 0.0:
 NSR_PERIOD = %g
 
 but NSR_PERIOD can't be negative...
-""" % (self.sat.sourcefile.name, self.sat.nsr_period))
+""" % (self.sat.sourcefilename, self.sat.nsr_period))
 
 class ExcessiveSatelliteMassError(InvalidSatelliteParamError):
     """
@@ -1642,7 +1696,7 @@ Dahlen, 1976) can only deal with a 4 layer satellite (core, ocean, and a
 2-layer ice shell).  You can, however, set both of the ice layers to have
 identical properties, and vary the thicknesses of the layers significantly to
 minimize their effects if you want.
-""" % (self.sat.num_layers, self.sat.sourcefile.name))
+""" % (self.sat.num_layers, self.sat.sourcefilename))
 
 class InvalidLoveNumberError(InvalidSatelliteParamError):
     """Raised if the Love numbers are found to be suspicious."""
@@ -1661,7 +1715,7 @@ read in from the following file:
 
 %s
 
-""" % (stress.__name__, stress.love, stress.satellite.sourcefile.name))
+""" % (stress.__name__, stress.love, stress.satellite.sourcefilename))
 class LoveExcessiveDeltaError(InvalidSatelliteParamError):
     """Raised when S{Delta} > 10^9 for any of the ice layers, at which point
     the Love number code becomes unreliable."""
@@ -1692,7 +1746,7 @@ FORCING_PERIOD = infinity
        self.n,\
        self.stress.satellite.layers[self.n].layer_id,\
        self.stress.__name__,\
-       self.stress.satellite.sourcefile.name))
+       self.stress.satellite.sourcefilename))
 
 class GravitationallyUnstableSatelliteError(InvalidSatelliteParamError):
     """
@@ -1725,7 +1779,7 @@ layer number increases with increasing distance from the core (it's like the
 radial dimension in spherical coordinates, not like "depth").
 """ % (self.n, self.sat.layers[self.n].layer_id, self.sat.layers[self.n].density,\
        self.n-1, self.sat.layers[self.n-1].layer_id, self.sat.layers[self.n-1].density,\
-       self.sat.sourcefile.name))
+       self.sat.sourcefilename))
 
 class NonNumberSatelliteParamError(InvalidSatelliteParamError):
     """Indicates that a non-numeric value was found for a numerical parameter."""
@@ -1741,7 +1795,7 @@ Found a non-numeric value for a numeric parameter:
 in the input file:
 
 %s
-""" % (self.badname, self.sat.satParams[self.badname], self.sat.sourcefile.name))
+""" % (self.badname, self.sat.satParams[self.badname], self.sat.sourcefilename))
 
 class LowLayerDensityError(InvalidSatelliteParamError):
     """Indicates that a layer has been assigned an unrealistically low density."""
@@ -1761,7 +1815,7 @@ specified in the input file:
 
 Recall that all input parameters are in SI (meters, kilograms, seconds) units,
 and so, for example, water has a density of 1000 [kg m^-3], not 1.0 [g cm^-3].
-""" % (self.n, float(self.sat.satParams['DENSITY_'+str(self.n)]), self.sat.sourcefile.name))
+""" % (self.n, float(self.sat.satParams['DENSITY_'+str(self.n)]), self.sat.sourcefilename))
 
 class LowLayerThicknessError(InvalidSatelliteParamError):
     """Indicates that a layer has been given too small of a thickness"""
@@ -1780,7 +1834,7 @@ specified in the input file:
 %s
 
 Recall that all input parameters are in SI (meters, kilograms, seconds) units.
-""" % (self.n, float(self.sat.satParams['THICKENSS_'+str(self.n)]), self.sat.sourcefile.name))
+""" % (self.n, float(self.sat.satParams['THICKENSS_'+str(self.n)]), self.sat.sourcefilename))
 
 class NegativeLayerParamError(InvalidSatelliteParamError):
     """Indicates a layer has been given an unphysical material property."""
@@ -1797,4 +1851,4 @@ Found an unexpectedly negative value for %s:
 specified in the input file:
 
 %s
-""" % (self.badparam, self.badparam, float(self.sat.satParams[self.badparam]), self.sat.sourcefile.name))
+""" % (self.badparam, self.badparam, float(self.sat.satParams[self.badparam]), self.sat.sourcefilename))

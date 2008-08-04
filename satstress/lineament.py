@@ -1,6 +1,5 @@
 # Numeric Python routines, like arcsin2:
 from numpy import *
-from numpy import linalg
 from numpy.ma.mstats import idealfourths
 from pylab import *
 from mpl_toolkits.basemap import Basemap
@@ -21,7 +20,7 @@ class Lineament(object): #{{{1
     May be read in from and output to the ESRI "generate" file format.
 
     """
-    def __init__(self, vertices, fits=[], stresscalc=None, doppel_E=None, doppel_W=None): #{{{2
+    def __init__(self, vertices, fits=[], metric=None, stresscalc=None, doppel_E=None, doppel_W=None): #{{{2
         """
         Create a lineament from a given list of (lon,lat) points.
 
@@ -36,9 +35,10 @@ class Lineament(object): #{{{1
 
         self.vertices = radians(vertices)
         self.fits = fits
+        self.metric = metric
+        self.stresscalc = stresscalc
         self.doppel_E = doppel_E
         self.doppel_W = doppel_W
-        self.stresscalc = stresscalc
 
     #}}}2
 
@@ -185,7 +185,7 @@ class Lineament(object): #{{{1
 
     #}}}2
 
-    def stresscomp(self, stresscalc, time_sec=0.0, failuremode = "tensilefracture", w_length = True, w_anisotropy = False, w_stressmag = False): # {{{2
+    def stresscomp(self, stresscalc, metric="rms", time_sec=0.0, failuremode = "tensilefracture", w_length = True, w_stress = False): # {{{2
         """
         Return a metric of how likely it is this lineament resulted from a
         given failure mode and stress field.
@@ -215,19 +215,16 @@ class Lineament(object): #{{{1
                are considering tensile fracture)
         """
         seglist = self.segments()
+        mean_global_tens, mean_global_comp = stresscalc.mean_global_stressmag()
 
         for segment in seglist:
             segment.delta = pi/2.0
             segment.w_length = w_length
-            segment.w_anisotropy = w_anisotropy
-            segment.w_stressmag = w_stressmag
+            segment.w_stress = w_stress
 
-            stress_tensor = stresscalc.tensor(theta = (pi/2.0)-segment.midpoint()[1],\
-                                                phi = segment.midpoint()[0],\
-                                                  t = time_sec )
-
-
-            (tens_mag, tens_az, comp_mag, comp_az) = tensor2pc(stress_tensor)
+            (tens_mag, tens_az, comp_mag, comp_az) = stresscalc.principal_components(theta = (pi/2.0)-segment.midpoint()[1],\
+                                                                                       phi = segment.midpoint()[0],\
+                                                                                         t = time_sec )
 
             # Delta = angle between observed and expected fractures
             #   - this is the raw material for the fit-metric
@@ -264,7 +261,7 @@ class Lineament(object): #{{{1
             if segment.w_length:
                 segment.w_length = segment.length()/self.length()
         
-            # W_{anisotropy}:
+            # W_{stress}:
             #   - want to reduce the weight of segments experiencing nearly
             #     isotropic stresses, since small background perturbations can
             #     significantly re-orient the principal compoents
@@ -274,63 +271,67 @@ class Lineament(object): #{{{1
             #     between the magnitudes of the two principal components.
             #   - May want to saturate at some threshold stress - possibly the
             #     strength of the ice or some fraction thereof?
-            #   - for now, simply multiply by (sigma_1 - sigma_2)
-
-            if segment.w_anisotropy:
-                segment.w_anisotropy = (tens_mag - comp_mag)
-
-            # W_{stressmagnitude}:
             #   - should be linear with the magnitude of the stress relative to the
             #     strength of the ice.
             #   - Should possibly allow saturation at some threshold above the
             #     strength of the ice... say 1x, or 2x?  Dunno.
-            #   - for now, simply use ratio of stress to ice strength
+            #   - If we want to ignore the question of ice strength... since we
+            #     actually have no idea what it is, we can just use Francis'
+            #     suggestion:
+            #                      tens_mag(local) - comp_mag(local)
+            #     w_stress = ----------------------------------------------
+            #                tens_mag(global,mean) - comp_mag(global, mean)
 
-            if segment.w_stressmag:
-                segment.w_stressmag = abs(tens_mag/stresscalc.stresses[0].satellite.layers[-1].tensile_str)
+            if segment.w_stress:
+                segment.w_stress = (tens_mag - comp_mag)/(mean_global_tens - mean_global_comp)
 
         # Now that we have all of the error weighting functions set for each segment:
         #    - segment.delta
         #    - segment.w_length
-        #    - segment.w_anisotropy
-        #    - segment.w_stressmagnitude
+        #    - segment.w_stress
         # we can run through the entire list of segments making up the
         # lineament, and calculate the aggregate fit-metric.  This is done
         # outside the loop that's calculating the per-segment statistics so
         # that we can play around with various ways of combining them...
 
-        linfit = 0
-        rmsfit = 0
+        fit = 0
         for segment in seglist:
 
-            segfit = segment.delta
+            if metric == "linear":
+                segfit = segment.delta
+            else:
+                assert(metric == "rms")
+                segfit = segment.delta**2
 
             if segment.w_length:
                 segfit *= segment.w_length
-            if segment.w_anisotropy:
-                segfit *= segment.w_anisotropy
-            if segment.w_stressmag:
-                segfit *= segment.w_stressmag
+            if segment.w_stress:
+                segfit *= segment.w_stress
 
-            linfit += segfit
-            rmsfit += linfit**2
+            fit += segfit
         
-        rmsfit = sqrt(rmsfit)
-
-        #return(rmsfit)
-        return(linfit)
+        if (metric == "linear"): 
+            return(fit)
+        else:
+            assert(metric == "rms")
+            return(sqrt(fit))
 
     # }}}2 end stresscomp
 
-    def calc_fits(self, stress, nb, time_sec=0.0, failuremode="tensilefracture", w_length=True, w_anisotropy=False, w_stressmag=False): #{{{2
+    def calc_fits(self, stresscalc, nb, metric="rms", time_sec=0.0, failuremode="tensilefracture", w_length=True, w_stress=False): #{{{2
         """
-        Given a stresscalc object (stress), calculate the fits between that stress
-        and the lineament, at a number of backrotations (nb)
+        Given a stresscalc object, calculate the fits between that stress and
+        the lineament, at a number of backrotations (nb), evenly distributed
+        throughout pi radians of longitude.
 
         """
         self.fits=[]
+        self.metric=metric
         for b in linspace(0,pi,num=nb):
-            self.fits.append(self.lonshift(b).stresscomp(stress, time_sec=time_sec, failuremode = "tensilefracture", w_length=w_length, w_anisotropy = w_anisotropy, w_stressmag = w_stressmag))
+            self.fits.append(self.lonshift(b).stresscomp(stresscalc, metric=metric, time_sec=time_sec, failuremode = "tensilefracture", w_length=w_length, w_stress=w_stress))
+
+        # store the stresscalc object that was used in the comparison, so we know where the fits came from.
+        self.stresscalc=stresscalc
     #}}}2
 
     def best_fit(self): #{{{2
@@ -544,53 +545,6 @@ def spherical_midpoint(lon1, lat1, lon2, lat2): #{{{
 
 # }}}
 
-def tensor2pc(stress_tensor): # {{{
-    """
-    Transform the stress tensor into principal components, and return them
-    in magnitude-azimuth form.
-
-    Always returns azimuths between 0 and pi.  The more tensile of the two
-    principal components is returned first.
-
-    """
-#    (eigval_A, eigval_B), ((theta_A, phi_A), (theta_B, phi_B)) = linalg.eigh(stress_tensor)
-    (eigval_A, eigval_B), ((theta_A, phi_A), (theta_B, phi_B)) = eigen2(stress_tensor)
-    az_A = mod(arctan2(phi_A,-theta_A), pi)
-    az_B = mod(arctan2(phi_B,-theta_B), pi)
-
-    if (eigval_A > eigval_B):
-        return(eigval_A, az_A, eigval_B, az_B)
-    else:
-        return(eigval_B, az_B, eigval_A, az_A)
-# }}}
-
-def eigen2(tensor): # {{{
-
-    a = tensor[0][0]
-    b = tensor[0][1]
-    c = tensor[1][1]
-    
-    sqrt_thing = sqrt(a*a + 4.0*b*b - 2.0*a*c + c*c)
-
-    lambda1   = (0.5)*(a + c - sqrt_thing)
-    eig1theta = (-a + c + sqrt_thing)/(-2.0*b)
-    eig1phi   = 1.0
-
-    lambda2   = (0.5)*(a + c + sqrt_thing)
-    eig2theta = (-a + c - sqrt_thing)/(-2.0*b)
-    eig2phi   = 1.0
-
-    mag1 = sqrt(eig1theta**2 + eig1phi**2)
-    mag2 = sqrt(eig2theta**2 + eig2phi**2)
-
-    eig1theta /= mag1
-    eig1phi   /= mag1
-    eig2theta /= mag2
-    eig2phi   /= mag2
-
-    return ((lambda1, lambda2), ((eig1theta, eig1phi), (eig2theta, eig2phi)))
-# }}}
-
 def lingen(stresscalc, init_lon="rand", init_lat="rand", max_length="rand", time_sec=0.0, propagation="rand", failuremode="tensilefracture", noise=None, segment_length=0.01, lonshift=0.0): # {{{
     """
     Generate a "perfect" lineament, given initial crack location, final length,
@@ -615,13 +569,12 @@ def lingen(stresscalc, init_lon="rand", init_lat="rand", max_length="rand", time
 
     ice_strength = stresscalc.stresses[0].satellite.layers[-1].tensile_str
 
-    # Calculate the stress tensor at the given time and initial location
-    stress_tensor = stresscalc.tensor(theta = (pi/2.0)-vertices[-1][1],\
-                                        phi = vertices[-1][0],\
-                                          t = time_sec )
+    # Calculate the stresses at the given time and initial location
+    (tens_mag, tens_az, comp_mag, comp_az) = stresscalc.principal_components(theta = (pi/2.0)-vertices[-1][1],\
+                                                                               phi = vertices[-1][0],\
+                                                                                 t = time_sec )
 
     # Convert the stress tensor into principal components:
-    (tens_mag, tens_az, comp_mag, comp_az) = tensor2pc(stress_tensor)
 
     if propagation == "rand":
         if rand() > 0.5:
@@ -637,9 +590,6 @@ def lingen(stresscalc, init_lon="rand", init_lat="rand", max_length="rand", time
         done = True
 
     while lin_length < max_length and tens_mag > ice_strength:
-        # Convert the stress tensor into principal components:
-        (tens_mag, tens_az, comp_mag, comp_az) = tensor2pc(stress_tensor)
-
         # Choose which direction to go based on "propagation", and which
         # half of the lineament we are synthesizing
         if propagation == "east":
@@ -660,10 +610,10 @@ def lingen(stresscalc, init_lon="rand", init_lat="rand", max_length="rand", time
 
         lin_length += segment_length
 
-        # Calculate the stress tensor at the given time and initial location
-        stress_tensor = stresscalc.tensor(theta = (pi/2.0)-vertices[-1][1],\
-                                            phi = vertices[-1][0],\
-                                              t = time_sec )
+        # Calculate the stresses at the given time and initial location
+        (tens_mag, tens_az, comp_mag, comp_az) = stresscalc.principal_components(theta = (pi/2.0)-vertices[-1][1],\
+                                                                                   phi = vertices[-1][0],\
+                                                                                     t = time_sec )
 
     if len(vertices) > 1:
         if not done:
@@ -697,16 +647,16 @@ def update_lins(lins): # {{{
     newlins = []
     for lin in lins:
         if lin.doppel_E is not None:
-            new_de = Lineament(degrees(lin.doppel_E.vertices))
+            new_de = Lineament(degrees(lin.doppel_E.vertices), fits=lin.doppel_E.fits, stresscalc=lin.doppel_E.stresscalc)
         else:
             new_de = None
 
         if lin.doppel_W is not None:
-            new_dw = Lineament(degrees(lin.doppel_W.vertices))
+            new_dw = Lineament(degrees(lin.doppel_W.vertices), fits=lin.doppel_W.fits, stresscalc=lin.doppel_W.stresscalc)
         else:
             new_dw = None
 
-        newlins.append(Lineament(degrees(lin.vertices), fits=lin.fits, doppel_E = new_de, doppel_W = new_dw))
+        newlins.append(Lineament(degrees(lin.vertices), fits=lin.fits, stresscalc=lin.stresscalc, doppel_E = new_de, doppel_W = new_dw))
     return(newlins)
 #}}} end update_lins
 

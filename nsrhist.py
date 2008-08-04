@@ -7,49 +7,79 @@ Routines for comparing a set of lineaments to an NSR stress field.
 from satstress import *
 from pylab import *
 from mpl_toolkits.basemap import Basemap
+import random
 
-def calc_nsr_fits(satfile = "input/ConvectingEuropa_GlobalDiurnalNSR.ssrun",\
-                  shapefile = "input/GlobalLineaments",\
-                  nb = 180,\
-                  numlins = "all",\
-                  w_length = True,\
-                  w_anisotropy = False,\
-                  w_stressmag = False): #{{{
-    
-    # Define our satellite and stress field based on the input files:
+def calc_nsr_fits(lins=None, numlins=0, nb=19, metric="rms", satfile="input/ConvectingEuropa_GlobalDiurnalNSR.ssrun", shapefile="input/GlobalLineaments", w_length=True, w_stress=False, min_length=0.3, doppel_fits=False): #{{{
+
+    """
+    Given a list of lineaments:
+       - calculate their fits to an elastic NSR stress field
+       - create East and West doppelgangers for them
+       - calculate the fits for those doppelgangers
+       - return the original list of lineaments, with its fits and doppels
+
+    """
+
     the_sat = satstress.Satellite(open(satfile,'r'))
-    nsr = satstress.StressCalc([satstress.NSR(the_sat),])
+    nsr_stresscalc = satstress.StressCalc([satstress.NSR(the_sat),])
 
-    # This is useful just to keep things easy to read
-    sat_radius_km = nsr.stresses[0].satellite.radius()/1000.0
+    if lins is None:
+        # If we didn't get a list of lineaments passed in, read them from the shapefile
+        lins = lineament.shp2lins(shapefile)
 
-    # Turn the shapefile into a list of lineaments:
-    lins = lineament.shp2lins(shapefile)
-    # By default do all the lineaments... but allow us to shorten for testing
-    if numlins != "all":
-        lins = lins[:numlins]
+    # Make sure we don't have any lineaments that are actually just points
+    lins = [ lin for lin in lins if len(lin.vertices) > 1 ]
+    # make sure they're long enough to be interesting...
+    lins = [ lin for lin in lins if lin.length() > min_length ]
 
-    # Do the NSR-Lineament comparison and store the results in the Lineaments
-    # This can be time consuming depending on how many lineaments we've got,
-    # and how detailed of a calculation we're doing, so it's polite to print
-    # out some progress indication... also build up the fit histogram.
-    lin_num = 0
-    linhist=[]
-    for lin in lins:
-        print "lineament %d (%d segments, %g km)" % (lin_num, len(lin.vertices), lin.length()*sat_radius_km)
-        lin.calc_fits(nsr, nb, failuremode="tensilefracture", w_length=w_length, w_anisotropy=w_anisotropy, w_stressmag=w_stressmag)
-        lin.sat_radius_km = sat_radius_km
-        lin_num += 1
+    # if numlins is zero, that means do all the lineaments
+    if numlins==0:
+        numlins=len(lins)
+    # if it's not zero, we select numlins random lineaments from the list of lineaments
+    else:
+        lins = random.sample(lins,numlins)
 
-    return (lins)
-# }}}
+    for lin,N in zip(lins,range(len(lins))):
+        print "fitting lin %d of %d: length=%g km; segs=%d; nb=%d" % (N+1,numlins, lin.length()*the_sat.radius()/1000,len(lin.segments()), nb)
+        lin.calc_fits(nsr_stresscalc, nb, metric=metric, w_length=w_length, w_stress=w_stress)
+
+        print "    best_fit = %g deg" % (degrees(lin.best_fit()))
+        print "    best_b   = %g deg" % (degrees(lin.best_b()))
+        N+=1
+
+    doppels_E = [ lin.doppelganger(nsr_stresscalc, propagation="east") for lin in lins ]
+    doppels_W = [ lin.doppelganger(nsr_stresscalc, propagation="west") for lin in lins ]
+
+    for lin, dop_E, dop_W, N in zip(lins, doppels_E, doppels_W, range(len(lins))):
+        print "making doppelgangers for lin %d of %d" % (N+1, numlins)
+        if dop_E is not None:
+            dop_E_shifted = dop_E.lonshift(-lin.best_b())
+            if doppel_fits is True:
+                dop_E_shifted.calc_fits(nsr_stresscalc, nb, metric=metric, w_length=w_length, w_stress=w_stress)
+                dop_E.fits = dop_E_shifted.fits
+        else:
+            print "    dop_E was None"
+        if dop_W is not None:
+            dop_W_shifted = dop_W.lonshift(-lin.best_b())
+            if doppel_fits is True:
+                dop_W_shifted.calc_fits(nsr_stresscalc, nb, metric=metric, w_length=w_length, w_stress=w_stress)
+                dop_W.fits = dop_W_shifted.fits
+        else:
+            print "    dop_W was None"
+
+        lin.doppel_E = dop_E
+        lin.doppel_W = dop_W
+        N+=1
+
+    return(lins)
+# }}} end doppel_fits
 
 def calc_fit_hist(lins): #{{{
     linhist = []
     for lin in lins:
         # We generate the histogram dataset, adding one "count" for each km of
         # lineament that fit best at that value of b(ackrotation)
-        linhist += int(lin.length()*lin.sat_radius_km)*[degrees(lin.best_b()),]
+        linhist += int(lin.length()*lin.stresscalc.stresses[0].satellite.radius()/1000)*[degrees(lin.best_b()),]
 
     return(linhist)
 
@@ -62,11 +92,15 @@ def draw_fit_hist(linhist, bins=18):
     show()
 # }}}
 
-def draw_fits(lins, sat_radius_km, stresscalc, doppels_E=[], doppels_W=[]): #{{{
+def draw_fits(lins): #{{{
     lin_num=0
+    doppels_E = [ lin.doppel_E for lin in lins ]
+    doppels_W = [ lin.doppel_W for lin in lins ]
 
     clf()
 
+    stresscalc = lins[0].stresscalc
+    sat_radius_km = lins[0].stresscalc.stresses[0].satellite.radius()/1000
     # Make sure we got the same number of doppelganger lineaments as
     # mapped lineaments, if we're not generating them on the fly
     if len(doppels_E) > 0:
@@ -104,8 +138,6 @@ def draw_fits(lins, sat_radius_km, stresscalc, doppels_E=[], doppels_W=[]): #{{{
         # Now plot the fits for both the lineaments and the doppelgangers
         subplot(2,1,2)
         plot(linspace(0,180,num=len(lin.fits)), degrees(lin.fits), 'b-', linewidth=2)
-        #plot(linspace(0,181,10), 10*[degrees(lin.best_fit()),], 'r--')
-        #plot(10*[degrees(lin.best_b()),], linspace(0,91,10), 'r--')
 
         if doppel_E is not None:
             if len(doppel_E.fits) > 0:
@@ -120,8 +152,8 @@ def draw_fits(lins, sat_radius_km, stresscalc, doppels_E=[], doppels_W=[]): #{{{
         xticks( range(0,181,15) )
         yticks( range(0,91,15) )
         xlabel("degrees of backrotation")
-        ylabel("average misfit (degrees)")
-        title("best_fit=%g, best_b=%g, iqr=%g" % (degrees(lin.best_fit()), degrees(lin.best_b()), degrees(lin.fits_width()) ))
+        ylabel("%s weighted misfit (degrees)" % (lin.metric,) )
+        title("best_fit=%g, best_b=%g" % (degrees(lin.best_fit()), degrees(lin.best_b())))
         show()
 
         # wait for the user to hit return before we continue drawing...
@@ -140,63 +172,36 @@ def draw_nsr_fit_hist(fithist, bins=18, hist_title="Lineament formation vs. back
     axis(xmin=0, xmax=180)
     #}}}
 
-def doppel_fits(numlins=10, nb=18,\
-         satfile="input/ConvectingEuropa_GlobalDiurnalNSR.ssrun",\
-         shapefile="input/GlobalLineaments"):
 
-    """
-    Given a list of lineaments:
-       - calculate their fits to an elastic NSR stress field
-       - create East and West doppelgangers for them
-       - calculate the fits for those doppelgangers
-       - return the three lists of lineaments for later plotting
+def overnight_run():
+    import pickle
+    global_lins=lineament.shp2lins("input/GlobalLineaments")
 
-    """
+    linear_stress = calc_nsr_fits(lins=global_lins, metric="linear", w_stress=True)
+    pickle.dump(linear_stress,open("linear_stress.pkl",'w'))
+    subplot(2,2,1)
+    title("metric=linear; w_stress=True")
+    draw_fit_hist(calc_fit_hist(linear_stress))
 
-    europa = satstress.Satellite(open(satfile,'r'))
+    rms_stress = calc_nsr_fits(lins=global_lins, metric="rms", w_stress=True)
+    pickle.dump(rms_stress,open("rms_stress.pkl",'w'))
+    subplot(2,2,2)
+    title("metric=RMS; w_stress=True")
+    draw_fit_hist(calc_fit_hist(rms_stress))
 
-    elastic_nsr = satstress.StressCalc([satstress.NSR(europa),])
-    global_lins = lineament.shp2lins(shapefile)
-    global_lins = [lin for lin in global_lins if len(lin.vertices) > 1]
-    if numlins == 0:
-        test_lins = global_lins
-        numlins = len(global_lins)
-    else:
-        test_lins = global_lins[:numlins]
+    linear_nostress = calc_nsr_fits(lins=global_lins, metric="linear", w_stress=False)
+    pickle.dump(linear_nostress,open("linear_nostress.pkl",'w'))
+    subplot(2,2,3)
+    title("metric=linear; w_stress=False")
+    draw_fit_hist(calc_fit_hist(linear_nostress))
 
-    N=1
-    for lin in test_lins:
-        print "fitting lin %d of %d: length=%g km; segs=%d; nb=%d" % (N,numlins, lin.length()*europa.radius()/1000,len(lin.segments()), nb)
-        lin.calc_fits(elastic_nsr, nb)
-        print "    best_fit = %g deg" % (degrees(lin.best_fit()))
-        print "    best_b   = %g deg" % (degrees(lin.best_b()))
-        N+=1
+    rms_nostress = calc_nsr_fits(lins=global_lins, metric="rms", w_stress=False)
+    pickle.dump(rms_nostress,open("rms_nostress.pkl",'w'))
+    subplot(2,2,4)
+    title("metric=RMS; w_stress=False")
+    draw_fit_hist(calc_fit_hist(rms_nostress))
 
-    doppels_E = [ lin.doppelganger(elastic_nsr, propagation="east") for lin in test_lins ]
-    doppels_W = [ lin.doppelganger(elastic_nsr, propagation="west") for lin in test_lins ]
-
-    N=1
-    for lin, dop_E, dop_W in zip(test_lins, doppels_E, doppels_W):
-        print "fitting doppelgangers for lin %d of %d" % (N, numlins)
-        if dop_E is not None:
-            dop_E_shifted = dop_E.lonshift(-lin.best_b())
-            dop_E_shifted.calc_fits(elastic_nsr, nb)
-            dop_E.fits = dop_E_shifted.fits
-        else:
-            print "    dop_E was None"
-        if dop_W is not None:
-            dop_W_shifted = dop_W.lonshift(-lin.best_b())
-            dop_W_shifted.calc_fits(elastic_nsr, nb)
-            dop_W.fits = dop_W_shifted.fits
-        else:
-            print "    dop_W was None"
-
-        lin.doppel_E = dop_E
-        lin.doppel_W = dop_W
-        N+=1
-
-    #draw_fits(test_lins, europa.radius()/1000, elastic_nsr, doppels_E, doppels_W)
-    return(test_lins)
+    return(linear_stress, rms_stress, linear_nostress, rms_nostress)
 
 # What do I want this tool to do, anyway?
 # - assume for the moment that storing all of the stresses for the entire set
@@ -214,11 +219,12 @@ def doppel_fits(numlins=10, nb=18,\
 #
 # TODO:
 # =====
-# - improve Lineament.draw() to use Basemap, and a "doppel" style
 # - figure out what to do about weighting functions, play around with it
 # - devise measure of statistical significance:
 #   - monte carlo method
-#   - analysis of fit-curve (IQR, etc)
 # - Better binning of "best fits" in histogram
 #   - add lineament length to all bins in which fit is better than X?
 #   - or add length/N (where N is the # of bins in which it's better than X)
+#   - develop better ways to discriminate which fits are real
+#     - SMHD of lin vs. doppels for local minima
+#     - MC method
