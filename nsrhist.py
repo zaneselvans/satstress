@@ -7,9 +7,11 @@ Routines for comparing a set of lineaments to an NSR stress field.
 from satstress import *
 from pylab import *
 from mpl_toolkits.basemap import Basemap
+from numpy.ma.mstats import idealfourths
 import random
 
-def calc_nsr_fits(lins=None, numlins=0, nb=19, metric="rms", satfile="input/ConvectingEuropa_GlobalDiurnalNSR.ssrun", shapefile="input/GlobalLineaments", w_length=True, w_stress=False, min_length=0.3, doppel_fits=False): #{{{
+
+def calc_nsr_fits(lins=None, numlins=0, nb=19, metric="rms", satfile="input/ConvectingEuropa_GlobalDiurnalNSR.ssrun", shapefile="input/GlobalLineaments", w_length=True, w_stress=True, min_length=0.3, doppel_fits=False): #{{{
 
     """
     Given a list of lineaments:
@@ -72,7 +74,7 @@ def calc_nsr_fits(lins=None, numlins=0, nb=19, metric="rms", satfile="input/Conv
         N+=1
 
     return(lins)
-# }}} end doppel_fits
+# }}} end calc_nsr_fits
 
 def calc_fit_hist(lins): #{{{
     linhist = []
@@ -82,17 +84,9 @@ def calc_fit_hist(lins): #{{{
         linhist += int(lin.length()*lin.stresscalc.stresses[0].satellite.radius()/1000)*[degrees(lin.best_b()),]
 
     return(linhist)
-
-def draw_fit_hist(linhist, bins=18):
-    hist(linhist, bins=bins)
-    axis(xmin=0, xmax=180)
-    xlabel("degrees of backrotation")
-    ylabel("km of lineaments")
-    title("Lineament formation vs. best fit backrotation")
-    show()
 # }}}
 
-def draw_fits(lins): #{{{
+def plot_fits(lins): #{{{
     lin_num=0
     doppels_E = [ lin.doppel_E for lin in lins ]
     doppels_W = [ lin.doppel_W for lin in lins ]
@@ -153,7 +147,7 @@ def draw_fits(lins): #{{{
         yticks( range(0,91,15) )
         xlabel("degrees of backrotation")
         ylabel("%s weighted misfit (degrees)" % (lin.metric,) )
-        title("best_fit=%g, best_b=%g" % (degrees(lin.best_fit()), degrees(lin.best_b())))
+        title("best_fit=%g, best_b=%g, IQR=%g" % (degrees(lin.best_fit()), degrees(lin.best_b()), degrees(idealfourths(lin.fits))))
         show()
 
         # wait for the user to hit return before we continue drawing...
@@ -162,66 +156,84 @@ def draw_fits(lins): #{{{
         lin_num += 1
 # }}}
 
-def draw_nsr_fit_hist(fithist, bins=18, hist_title="Lineament formation vs. backrotation"): #{{{
-    clf()
-    hist(fithist, bins=bins, facecolor="green")
+def plot_fit_hist(fithist, bins=18, hist_title="Lineament formation vs. backrotation", color="green", rwidth=0.8): #{{{
+    hist(fithist, bins=bins, facecolor=color, align="center", rwidth=rwidth)
     grid(True)
-    xlabel("degrees of backrotation")
-    ylabel("km of lineaments formed")
+    #xlabel("degrees of backrotation")
+    ylabel("total lineaments formed [km]")
     title(hist_title)
-    axis(xmin=0, xmax=180)
-    #}}}
+    xticks(range(0,180,10))
+    axis(xmin=-10, xmax=180)
+#}}}
 
-
-def overnight_run():
+def overnight_run(): #{{{
     import pickle
     global_lins=lineament.shp2lins("input/GlobalLineaments")
 
-    linear_stress = calc_nsr_fits(lins=global_lins, metric="linear", w_stress=True)
-    pickle.dump(linear_stress,open("linear_stress.pkl",'w'))
-    subplot(2,2,1)
-    title("metric=linear; w_stress=True")
-    draw_fit_hist(calc_fit_hist(linear_stress))
+    # Just for testing that this works...
+    #global_lins = global_lins[:5]
 
-    rms_stress = calc_nsr_fits(lins=global_lins, metric="rms", w_stress=True)
-    pickle.dump(rms_stress,open("rms_stress.pkl",'w'))
-    subplot(2,2,2)
-    title("metric=RMS; w_stress=True")
-    draw_fit_hist(calc_fit_hist(rms_stress))
+    global_lins = calc_nsr_fits(lins=global_lins, metric="rms", w_stress=True, min_length=0.0, doppel_fits=True)
+    pickle.dump(global_lins,open("output/global_lins_fits.pkl",'w'))
 
-    linear_nostress = calc_nsr_fits(lins=global_lins, metric="linear", w_stress=False)
-    pickle.dump(linear_nostress,open("linear_nostress.pkl",'w'))
-    subplot(2,2,3)
-    title("metric=linear; w_stress=False")
-    draw_fit_hist(calc_fit_hist(linear_nostress))
+    subplot(2,1,1)
+    title("metric=rms; w_stress=True")
+    plot_fit_hist(calc_fit_hist(global_lins))
+    subplot(2,1,2)
+    plot_aggregate_fits(global_lins)
 
-    rms_nostress = calc_nsr_fits(lins=global_lins, metric="rms", w_stress=False)
-    pickle.dump(rms_nostress,open("rms_nostress.pkl",'w'))
-    subplot(2,2,4)
-    title("metric=RMS; w_stress=False")
-    draw_fit_hist(calc_fit_hist(rms_nostress))
 
-    return(linear_stress, rms_stress, linear_nostress, rms_nostress)
+    return(global_lins)
+#}}} end overnight_run
 
-# What do I want this tool to do, anyway?
-# - assume for the moment that storing all of the stresses for the entire set
-#   of backrotated fits isn't something I want to do... meaning that I can't
-#   store all of the possible fits and their associated weights.
-#
-# - Given (lineaments, stress field):
-#   - calculate fits to stress field over 180 degrees of backrotation
-#   - for the best fit backrotation, create both and east and a west doppelganger
-#   - calculate fits for the doppelgangers
-#   - display all three lineaments and their fit curves
-#     - use 2 panel plot (fits, lineaments)
-#     - use Basemap for the lineaments, so we can have all the mappy goodness.
-#   - save all the fit data for later reference
-#
+def plot_aggregate_fits(lins, color="green"): #{{{
+    """
+    For a given set of lineaments (lins), calculate the quality of their fits,
+    over the range of their backrotation values, and plot it, weighting the fit
+    by lineament length.
+
+    """
+    nb = len(lins[0].fits)
+    aggregate_fits = zeros(nb)
+    for lin in lins:
+        aggregate_fits += degrees(array(lin.fits))*(lin.length())
+
+    total_lin_length = array([ lin.length() for lin in lins ]).sum()
+
+    aggregate_fits /= total_lin_length
+
+    # this doubles the waveform so we can see more clearly its width...
+    #plot(linspace(0,360,nb*2-1),hstack([aggregate_fits,aggregate_fits[1:]]))
+
+    plot(linspace(0,170,nb-1),aggregate_fits[:-1], linewidth="2", color=color)
+    ylabel("mean RMS delta [degrees]")
+    xlabel("backrotation [degrees]")
+    axis(ymin=0,xmin=-10,xmax=180)
+    xticks(range(0,180,10))
+    grid(True)
+    return(aggregate_fits)
+#}}}
+
+def plot_histagg(lins, color="green", rwidth=0.8): #{{{
+    subplot(2,1,1)
+    plot_fit_hist(calc_fit_hist(lins), color=color, rwidth=rwidth)
+    subplot(2,1,2)
+    plot_aggregate_fits(lins, color=color)
+#}}}
+
 # TODO:
 # =====
-# - figure out what to do about weighting functions, play around with it
+# make lingen_static() into a basic, fully specified lineament generator:
+#   - no random stuff here
+#   - separate into _static and _dynamic for time dependant and time
+#     independent stress fields.
+#
+# build wrappers around lingen for creating various kinds of lineaments
+# separate "noise" insertion from lineament creation
+#
+#
 # - devise measure of statistical significance:
-#   - monte carlo method
+#   - monte carlo method?
 # - Better binning of "best fits" in histogram
 #   - add lineament length to all bins in which fit is better than X?
 #   - or add length/N (where N is the # of bins in which it's better than X)
