@@ -164,12 +164,12 @@ class Lineament(object): #{{{1
             return(lon2, lat2)
     #}}}2
 
-    def doppelganger(self, stresscalc, time_sec=0.0, propagation="east", failuremode="tensilefracture", noise=None): #{{{2
+    def doppelganger_endpoint(self, stresscalc, time_sec=0.0, propagation="east", failure="tensilefracture"): #{{{2
         """
         Synthesize and return a new lineament consistent with the given
-        stresscalc object, of the same length, and having one of the same
-        endpoints as self (the same west endpoint if propagation is "east",
-        and the same east endpoint if propagation is "west")
+        stresscalc object and failure mode, of the same length, and having one
+        of the same endpoints as self (the same west endpoint if propagation is
+        "east", and the same east endpoint if propagation is "west")
 
         """
 
@@ -181,11 +181,11 @@ class Lineament(object): #{{{1
 
         init_lon += self.best_b()
 
-        return(lingen(stresscalc, init_lon=init_lon, init_lat=init_lat, max_length=self.length(), time_sec=time_sec, propagation=propagation, failuremode=failuremode, noise=None))
+        return(lingen(stresscalc, init_lon=init_lon, init_lat=init_lat, max_length=self.length(), time_sec=time_sec, propagation=propagation, failure=failure))
 
     #}}}2
 
-    def stresscomp(self, stresscalc, metric="rms", time_sec=0.0, failuremode = "tensilefracture", w_length = True, w_stress = False): # {{{2
+    def stresscomp(self, stresscalc, metric="rms", time_sec=0.0, failure = "tensilefracture", w_length = True, w_stress = False): # {{{2
         """
         Return a metric of how likely it is this lineament resulted from a
         given failure mode and stress field.
@@ -215,7 +215,7 @@ class Lineament(object): #{{{1
                are considering tensile fracture)
         """
         seglist = self.segments()
-        mean_global_tens, mean_global_comp = stresscalc.mean_global_stressmag()
+        mean_global_stressdiff = stresscalc.mean_global_stressdiff()
 
         for segment in seglist:
             segment.delta = pi/2.0
@@ -231,7 +231,7 @@ class Lineament(object): #{{{1
             #   - set to pi/2 if stress is inapplicable to failure mode
             #   - will be scaled according to several weights below...
             #   - will be different, depending on the failure mode
-            if (failuremode == "tensilefracture"):
+            if (failure == "tensilefracture"):
                 # If both PCs are compressive (negative), tensile fracture
                 # does not apply, and we assign the largest possible delta:
                 if comp_mag < 0 and tens_mag < 0:
@@ -278,12 +278,12 @@ class Lineament(object): #{{{1
             #   - If we want to ignore the question of ice strength... since we
             #     actually have no idea what it is, we can just use Francis'
             #     suggestion:
-            #                      tens_mag(local) - comp_mag(local)
-            #     w_stress = ----------------------------------------------
-            #                tens_mag(global,mean) - comp_mag(global, mean)
+            #                    tens_mag - comp_mag
+            #     w_stress = ----------------------------------
+            #                  < tens_mag - comp_mag > (global)
 
             if segment.w_stress:
-                segment.w_stress = (tens_mag - comp_mag)/(mean_global_tens - mean_global_comp)
+                segment.w_stress = (tens_mag - comp_mag)/mean_global_stressdiff
 
         # Now that we have all of the error weighting functions set for each segment:
         #    - segment.delta
@@ -318,7 +318,7 @@ class Lineament(object): #{{{1
 
     # }}}2 end stresscomp
 
-    def calc_fits(self, stresscalc, nb, metric="rms", time_sec=0.0, failuremode="tensilefracture", w_length=True, w_stress=False): #{{{2
+    def calc_fits(self, stresscalc, nb, metric="rms", time_sec=0.0, failure="tensilefracture", w_length=True, w_stress=True): #{{{2
         """
         Given a stresscalc object, calculate the fits between that stress and
         the lineament, at a number of backrotations (nb), evenly distributed
@@ -328,7 +328,7 @@ class Lineament(object): #{{{1
         self.fits=[]
         self.metric=metric
         for b in linspace(0,pi,num=nb):
-            self.fits.append(self.lonshift(b).stresscomp(stresscalc, metric=metric, time_sec=time_sec, failuremode = "tensilefracture", w_length=w_length, w_stress=w_stress))
+            self.fits.append(self.lonshift(b).stresscomp(stresscalc, metric=metric, time_sec=time_sec, failure = "tensilefracture", w_length=w_length, w_stress=w_stress))
 
         # store the stresscalc object that was used in the comparison, so we know where the fits came from.
         self.stresscalc=stresscalc
@@ -350,22 +350,6 @@ class Lineament(object): #{{{1
         """
         return(linspace(0,pi,num=len(self.fits))[self.fits.index(self.best_fit())])
     # }}}2
-
-    def fits_width(self): #{{{2
-        """
-        Return a metric of the width of the distribution of fits between the
-        lineament and the stress field it has been compared to.  A small width
-        means the lineament fits well in a narrow range of backrotations, and
-        a large width means it fits equally well (or more likely, poorly) over
-        a wide range of backrotations.
-
-        For now we are using the interquartile range as the measure of fit
-        distribution width.
-        
-        """
-        return(idealfourths(self.fits))
-
-    #}}}2
 
     def centroid(self): #{{{2
         """
@@ -392,7 +376,7 @@ class Lineament(object): #{{{1
         pass
     #}}}2 end symmetric_mean_hausdorff_distance
 
-#}}}1
+#}}}1 end of the Lineament class
 
 class Segment(object): #{{{
     """
@@ -429,6 +413,7 @@ class Segment(object): #{{{
     # }}} end segment
 
 # Helper functions that aren't part of any object class:
+################################################################################
 
 def plotlinmap(lins, map=None, fixlon=False): #{{{
     if map is None:
@@ -545,12 +530,10 @@ def spherical_midpoint(lon1, lat1, lon2, lat2): #{{{
 
 # }}}
 
-def lingen(stresscalc, init_lon="rand", init_lat="rand", max_length="rand", time_sec=0.0, propagation="rand", failuremode="tensilefracture", noise=None, segment_length=0.01, lonshift=0.0): # {{{
+def lingen(stresscalc, init_lon="rand", init_lat="rand", max_length="rand", time_sec=0.0, propagation="rand", failure="tensilefracture", segment_length=0.01, lonshift=0.0): # {{{
     """
     Generate a "perfect" lineament, given initial crack location, final length,
     and the stress field and failure mode.
-
-    If noise is specified, add noise to the lineament, making it less than perfect.
 
     """
     lin_length = 0.0
@@ -617,7 +600,7 @@ def lingen(stresscalc, init_lon="rand", init_lat="rand", max_length="rand", time
 
     if len(vertices) > 1:
         if not done:
-            second_half = lingen(stresscalc, init_lon=init_lon, init_lat=init_lat, max_length=max_length, time_sec=time_sec, propagation="west", failuremode=failuremode, noise=noise)
+            second_half = lingen(stresscalc, init_lon=init_lon, init_lat=init_lat, max_length=max_length, time_sec=time_sec, propagation="west", failure=failure)
             second_half_reversed = second_half.vertices[:0:-1]
             vertices = vstack([second_half_reversed, array(vertices)])
 
@@ -660,7 +643,123 @@ def update_lins(lins): # {{{
     return(newlins)
 #}}} end update_lins
 
-# Not yet implemented:
+def aggregate_length(lins):
+    """
+    Return the sum of the lengths of the L{Lineaments} in lins, in radians of
+    arc on the surface of the body.
+
+    """
+    return(sum([lin.length() for lin in lins]))
+
+################################################################################
+# NOT YET IMPLEMENTED:
+################################################################################
+# ==================================================
+# Lineament methods
+# ==================================================
+def bestfit_greatcircle(self): #{{{
+    """
+    Returns two (lon,lat) tuples defining the great circle that best fits the
+    L{Lineament} object.
+
+    """
+    pass
+#}}} end bestfit_greatcircle
+
+def power_spectrum(self): #{{{
+    """
+    Returns the power spectrum of the L{Lineament} object's distances from the
+    great circle which best fits it.
+
+    """
+    pass
+#}}} end power_spectrum
+
+def centroid(self): #{{{
+    """
+    Returns the spherical centroid of the lineament, defined as the lon,lat
+    point which minimizes the sum of the distances from itself to the midpoints
+    of all the line segments making up the lineament, weighted by the lengths
+    of those line segments.
+
+    """
+    pass
+#}}} end centroid()
+
+def mhd(self, linB): #{{{
+    """
+    Calculate the mean Hausdorff Distance between linA and linB.
+
+    Use the midpoints of the line segments making up the lineament, instead of
+    the verticies, and weight by the lengths of the line segments.
+
+    (See: http://en.wikipedia.org/wiki/Hausdorff_distance)
+
+    """
+    return(mean_hausdorff_dist(self, linB))
+#}}} end mhd()
+
+def smhd(self, linB): #{{{
+    """
+    Calculate the symmetric mean Hausdorff Distance between linA and
+    linB - this is just (mhd(linA, linB) + mhd(linB, linA))/2
+
+    """
+    return( (mean_hausdorff_dist(self, linB) + mean_hausdorff_dist(linB, self))/2.0 )
+#}}} end smhd()
+
+def fit_percentile(self, stress=None, nb=18, num_lins=100): #{{{
+    """
+    Calculate and return the proportion of synthetic lineaments similar to self
+    (generated using doppelganger_power_spectrum) which self does better at
+    fitting to the given stress.
+
+    I.e. a fit_percentile of 0.95 would mean that self's best fit to the given
+    stress is better than the best fits of 95% of the synthetic lineaments, and
+    would ghus be a very robustly significant fit.
+
+    This also sets self.fit_percentile to this value, for later reference.
+
+    """
+    pass
+#}}} end fit_percentile()
+
+def doppelganger_power_spectrum(self): #{{{
+    """
+    Generate and return a lineament whose centroid has the same latitude as self,
+    and which has the same power spectrum relative to its best-fit great circle
+    as self, but random overall orientation, and random phase information.
+
+    Such synthetic lineaments are used to test the statistical significance of
+    a given lineament's fit to a given stress field.
+
+    """
+    pass
+#}}} end doppelganger_power_spectrum()
+
+def doppelganger_centroid(self, stress=None, seg_len=0.05): #{{{
+    """
+    Generate and return a L{Lineament} object whose midpoint is
+    self.centroid(), which has the same length as self, which is consistent with
+    the given stress.
+
+    """
+    pass
+#}}} end doppelganger_centroid()
+
+def doppelganger_bfgc(): #{{{
+    """
+    Generate and return a L{Lineament} object which is a segment of self's best
+    fit great circle, has the same length as self, and whose midpoint is the
+    point closest to self.centroid() on the great circle path.
+
+    """
+    pass
+#}}} end doppelganger_bfgc()
+
+# ==================================================
+# helper functions
+# ==================================================
 def lins2shp(lins=[], shapefile=None): #{{{
     """
     Create a shapefile from a list of L{Lineament} objects, including additions
@@ -668,7 +767,86 @@ def lins2shp(lins=[], shapefile=None): #{{{
     can be displayed easily within ArcGIS.
 
     """
-    # TODO
+    pass
+#}}} end lins2shp
+
+def fit_greatcircle(vertices): #{{{
+    """
+    Given a set of lon,lat points (vertices) on the surface of a sphere, return
+    two points defining the great circle with the best least-squares fit to the
+    points (see U{http://doi.acm.org/10.1145/367436.367478}).
+
+    """
+    pass
+#}}} end fit_greatcircle
+
+def lingen_random_stresscalc(stresscalc=None, init_lon="rand", init_lat="rand", max_length="rand", propagation="both", lonshift="rand", tensile_strength=0.0, time_sec=0.0, seg_len=0.05, failure="tens_frac"): #{{{
+    """
+    Generate a random lineament perfectly consistent with a given stress field
+    defined by stresscalc.
+
+    """
     pass
 #}}}
 
+def lingen_greatcircle(v1, v2, seg_len=0.05): #{{{
+    """
+    Return a L{Lineament} object closely approximating the shortest great
+    circle route between v1 and v2 (two lon,lat points).
+
+    """
+    pass
+#}}} end lingen_greatcircle
+
+def lingen_power_spectrum(v1, v2, num_steps=50, pow_spect=[]): #{{{
+    """
+    Given two (lon,lat) points v1 and v2 defining a unique great circle, and a
+    power spectrum, pow_spect, perturb the great circle using the power
+    spectrum.
+
+    Breaks the great circle arc defined by v1,v2 into num_steps segments, and
+    displaces each one perpendicular to the azimuth of the great circle, by an
+    amount equal to the sum of the power components at that distance from the
+    end of the great circle arc.
+
+    Returns the perturbed lineament, whose power_spectrum() method should
+    return a power spectrum equivalent to the pow_spect that was passed in.
+
+    """
+    pass
+#}}} end lingen_power_spectrum
+
+def mean_hausdorff_dist(linA, linB): #{{{
+    """
+    Calculate the mean Hausdorff Distance between linA and linB.
+
+    Use the midpoints of the line segments making up the lineament, instead of
+    the verticies, and weight by the lengths of the line segments.
+
+    (See: http://en.wikipedia.org/wiki/Hausdorff_distance)
+
+    """
+    segs = linA.segments()
+    linlen = linA.length()
+
+    midpoints = [ seg.midpoint() for seg in segs ]
+    # the proportion of the overall metric that will come from each point...
+    length_weights = [ seg.length()/linlen for seg in segs ]
+
+    mhd = 0.0
+    for pt,wt in zip(midpoints, length_weights):
+        mhd += wt*min( [ spherical_distance(pt[0], pt[1], v[0], v[1]) for v in linB.vertices ] )
+
+    return(mhd)
+
+#}}} end mean_hausdorff_dist
+
+def sym_mean_hausdorff_dist(linA, linB): #{{{
+    """
+    Calculate the symmetric mean Hausdorff Distance between linA and
+    linB - this is just (mhd(linA, linB) + mhd(linB, linA))/2
+
+    """
+    return( (mean_hausdorff_dist(linA, linB) + mean_hausdorff_dist(linB, linA))/2.0 )
+
+#}}} end sym_mean_hausdorff_dist

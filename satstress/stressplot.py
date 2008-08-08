@@ -1,3 +1,4 @@
+#!/usr/bin/python
 """
 Create map-projected vector and scalar plots of tidal stresses from netCDF
 files output by L{gridcalc}.
@@ -216,6 +217,6 @@ def main(argv=sys.argv):
         map.quiver(lons[::N], lats[::N], -evecs[1,0,::N,::N],  evecs[1,1,::N,::N])#, scale=200000000, width=0.001)
 
 if __name__ == "__main__":
-    main(argv)
+    main(sys.argv)
 
         

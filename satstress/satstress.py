@@ -1538,6 +1538,16 @@ class StressCalc(object): #
         pc = numpy.array([ self.principal_components(theta=numpy.arccos(2*numpy.random.rand()-1), phi=2*numpy.pi*numpy.random.rand(), t=time_sec) for N in range(num_samples) ])
         return(pc[:,0].mean(),pc[:,2].mean())
 
+    def mean_global_stressdiff(self, num_samples=1000, time_sec=0.0):
+        """
+        Calculate the stresses on the surface of the satellite at num_samples
+        randomly chosen locations, evenly distributed over the sphere, and
+        return the mean values of both the more and less tensile stresses.
+
+        """
+        pc = numpy.array([ self.principal_components(theta=numpy.arccos(2*numpy.random.rand()-1), phi=2*numpy.pi*numpy.random.rand(), t=time_sec) for N in range(num_samples) ])
+        return((pc[:,0]-pc[:,2]).mean())
+
 # end class StressCalc
 
 # Exception classes (for error handling):
