@@ -6,40 +6,38 @@ from mpl_toolkits.basemap import Basemap
 
 # Open Source Geospatial libraries:
 from osgeo import ogr
-#from osgeo import gdal
-#from osgeo import osr
-#from osgeo import gdal_array
-#from osgeo import gdalconst
 
 class Lineament(object): #{{{1
-    """A one dimensional feature on the surface of a spherical satellite.
-
-    Described as a list of (longitude,latitude) points.  May be transformed as
-    a whole, using translations and rotations.
-
-    May be read in from and output to the ESRI "generate" file format.
+    """
+    A one dimensional feature on the surface of a spherical satellite.
 
     """
-    def __init__(self, vertices, fits=[], metric=None, stresscalc=None, doppel_E=None, doppel_W=None): #{{{2
+    
+    def __init__(self, vertices, fits=[], stresscalc=None, doppels=[], is_doppel=False, backrot=0): #{{{2
         """
         Create a lineament from a given list of (lon,lat) points.
 
-        vertices is a list of (lon,lat) tuples in decimal degrees, representing
-        the vertices making up a polyline.  East and North are taken to be
+        vertices is a list of (lon,lat) tuples in radians, representing the
+        vertices making up a polyline.  East and North are taken to be
         positive.
         
-        fits is a list of fits to some stress field, as the lineament is
-        rotated back through pi radians of longitude.
+        fits is a list of fits to some stress field (defined by stresscalc), as
+        the lineament is rotated back through pi radians of longitude.
+
+        doppels is a list of synthetic lineaments that are meant to approximate
+        the mapped lineament.
 
         """
 
-        self.vertices = radians(vertices)
+        self.vertices = vertices
         self.fits = fits
-        self.metric = metric
         self.stresscalc = stresscalc
-        self.doppel_E = doppel_E
-        self.doppel_W = doppel_W
-
+        self.backrot = backrot
+        self.is_doppel = is_doppel
+        if self.is_doppel:
+            self.doppels = []
+        else:
+            self.doppels = doppels
     #}}}2
 
     def __str__(self): #{{{2
@@ -47,7 +45,43 @@ class Lineament(object): #{{{1
         Output the lineament as list of (lon, lat) tuples.
 
         """
-        return("\n".join([ str(degrees(v)) for v in self.vertices ]))
+        if self.stresscalc is not None:
+            stressnames = ", ".join( [ stress.__name__ for stress in self.stresscalc.stresses ])
+            my_sat = self.stresscalc.stresses[0].satellite.system_id
+            linlen = "%g %s" % (self.length()*self.stresscalc.stresses[0].satellite.radius()/1000, 'km')
+        else:
+            stressnames = None
+            my_sat = None
+            linlen = "%g %s" % (degrees(self.length()), 'degrees')
+
+        if len(self.fits) > 0:
+            has_fits = True
+        else:
+            has_fits = False
+
+        if len(self.doppels) > 0:
+            has_doppels = True
+        
+        return("""
+linhash:   %d
+system_id: %s
+stresses:  %s
+fits[]:    %s
+doppels:   %s
+length():  %s
+vertices:  %d
+""" % (self.__hash__(), str(my_sat), str(stressnames), str(has_fits), str(has_doppels), linlen, len(self.vertices)))
+
+    #}}}2
+
+    def __hash__(self): #{{{2
+        """
+        Return the hash of the list of the lineament's vertices, so we can
+        have a unique ID that corresponds to the geometry of the feature.
+
+        """
+        return self.vertices.__hash__()
+
     #}}}2
 
     def fixlon(self): # {{{
@@ -61,7 +95,7 @@ class Lineament(object): #{{{1
         self.vertices = zip(self.fixed_longitudes(), self.latitudes())
         return(self.vertices)
 
-# }}} end fixlon
+# }}}2 end fixlon
 
     def length(self): #{{{2
         """
@@ -91,6 +125,10 @@ class Lineament(object): #{{{1
 
         return(seglist)
     #}}}2 end segments
+
+    def midpoints(self): #{{{2
+        return([ seg.midpoint() for seg in self.segments() ])
+    #}}}2
 
     def longitudes(self): # {{{2
         """
@@ -131,7 +169,7 @@ class Lineament(object): #{{{1
         Return the lineament shifted in longitude by 'b'.
 
         """
-        return(Lineament([(degrees(v[0]+b), degrees(v)[1]) for v in self.vertices]))
+        return(Lineament([(v[0]+b, v[1]) for v in self.vertices], stresscalc=self.stresscalc))
     #}}}2
 
     def eastend(self): #{{{2
@@ -164,7 +202,7 @@ class Lineament(object): #{{{1
             return(lon2, lat2)
     #}}}2
 
-    def doppelganger_endpoint(self, stresscalc, time_sec=0.0, propagation="east", failure="tensilefracture"): #{{{2
+    def doppelganger_endpoint(self, stresscalc=None, time_sec=0.0, propagation="east", failure="tens_frac", lonshift=0.0): #{{{2
         """
         Synthesize and return a new lineament consistent with the given
         stresscalc object and failure mode, of the same length, and having one
@@ -173,19 +211,28 @@ class Lineament(object): #{{{1
 
         """
 
+        if stresscalc is None:
+            if self.stresscalc is not None:
+                stresscalc = self.stresscalc
+            else:
+                raise(LinMissingStressCalcError())
+
         if propagation=="east":
             (init_lon, init_lat) = self.westend()
         else:
             assert (propagation=="west")
             (init_lon, init_lat) = self.eastend()
 
-        init_lon += self.best_b()
+        init_lon += lonshift 
 
-        return(lingen(stresscalc, init_lon=init_lon, init_lat=init_lat, max_length=self.length(), time_sec=time_sec, propagation=propagation, failure=failure))
+        doppel = lingen(stresscalc, init_lon=init_lon, init_lat=init_lat, max_length=self.length(), time_sec=time_sec, propagation=propagation, failure=failure)
+        if doppel is not None:
+            doppel.backrot = lonshift
+        return(doppel)
 
     #}}}2
 
-    def stresscomp(self, stresscalc, metric="rms", time_sec=0.0, failure = "tensilefracture", w_length = True, w_stress = False): # {{{2
+    def stresscomp(self, stresscalc, time_sec=0.0, failure = "tens_frac", w_length=True, w_stress=True): # {{{2
         """
         Return a metric of how likely it is this lineament resulted from a
         given failure mode and stress field.
@@ -231,7 +278,7 @@ class Lineament(object): #{{{1
             #   - set to pi/2 if stress is inapplicable to failure mode
             #   - will be scaled according to several weights below...
             #   - will be different, depending on the failure mode
-            if (failure == "tensilefracture"):
+            if (failure == "tens_frac"):
                 # If both PCs are compressive (negative), tensile fracture
                 # does not apply, and we assign the largest possible delta:
                 if comp_mag < 0 and tens_mag < 0:
@@ -297,11 +344,7 @@ class Lineament(object): #{{{1
         fit = 0
         for segment in seglist:
 
-            if metric == "linear":
-                segfit = segment.delta
-            else:
-                assert(metric == "rms")
-                segfit = segment.delta**2
+            segfit = segment.delta**2
 
             if segment.w_length:
                 segfit *= segment.w_length
@@ -310,71 +353,222 @@ class Lineament(object): #{{{1
 
             fit += segfit
         
-        if (metric == "linear"): 
-            return(fit)
-        else:
-            assert(metric == "rms")
-            return(sqrt(fit))
+        return(sqrt(fit))
 
     # }}}2 end stresscomp
 
-    def calc_fits(self, stresscalc, nb, metric="rms", time_sec=0.0, failure="tensilefracture", w_length=True, w_stress=True): #{{{2
+    def calc_fits(self, stresscalc, nb=19, time_sec=0.0, failure="tens_frac", w_length=True, w_stress=True): #{{{2
         """
         Given a stresscalc object, calculate the fits between that stress and
         the lineament, at a number of backrotations (nb), evenly distributed
         throughout pi radians of longitude.
 
         """
-        self.fits=[]
-        self.metric=metric
-        for b in linspace(0,pi,num=nb):
-            self.fits.append(self.lonshift(b).stresscomp(stresscalc, metric=metric, time_sec=time_sec, failure = "tensilefracture", w_length=w_length, w_stress=w_stress))
-
         # store the stresscalc object that was used in the comparison, so we know where the fits came from.
         self.stresscalc=stresscalc
-    #}}}2
+
+        self.fits=[ self.lonshift(b).stresscomp(stresscalc, time_sec=time_sec, failure=failure, w_length=w_length, w_stress=w_stress) for b in linspace(0,pi,num=nb) ]
+
+    #}}}2 end calc_fits
 
     def best_fit(self): #{{{2
         """
-        Return the best fit listed in the fits data member, and the amount of
-        backrotation at which it occured.
+        Return the minimum value found within the array of fits.
 
         """
         return(min(self.fits))
-    # }}}2
+    #}}}2
+
+    def good_fits(self, fit_thresh=0.1, window=15): #{{{2
+        """
+        Return a list of backrotation values and the corresponding fits, which
+        are close to being the best fit.
+
+        fit_thresh is the proportion of the entire fit curve's amplitude away from
+        the best fit that a fit can lie, and still be considered "good".  Only
+        local minima are returned, meaning that those fits which are
+        immediately adjacent to the best fit (or another good fit) will be
+        ignored.
+
+        """
+
+        min_indices, min_fits = local_minima(self.fits, window=window)
+        fit_amplitude = max(self.fits) - min(self.fits)
+        best_fit = self.best_fit()
+
+        good_fits = []
+        for fit in min_fits:
+            if (fit-best_fit) < fit_thresh*fit_amplitude:
+                good_fits.append(fit)
+
+        good_fits.sort()
+        good_indices = [ self.fits.index(fit) for fit in good_fits ]
+        good_bs = [ linspace(0,pi,num=len(self.fits))[idx] for idx in good_indices ]
+
+
+
+        return(good_bs, good_fits)
+    #}}}2
+
+    def good_doppel_fits(self, fit_thresh=0.1, max_dop_mhd=0.1, window=15): #{{{2
+        """
+        Returns a lsit of backrotation values and the corresponding fits, which
+        are close to being the best fit, similar to L{good_fits}, but with the
+        additional constraint that for a particular backrotation result in a
+        "good fit", it must also result in doppelgangers that are similar to
+        the mapped lineament in question.
+
+        max_dop_mhd is the greatest average MHD that a lineament can have to
+        all of its doppelgangers generated at a particular value of
+        backrotation, and still have that backrotation be considered a "good
+        fit".  It is measured as a proportion of the mapped lineament's length.
+
+        If the lineament in question does not have doppelgangers, then they are
+        generated in order to do the average MHD comparison.
+
+        """
+        # make sure that the lineament has fits:
+        if len(self.fits) == 0:
+            raise(MissingFitsError())
+
+        # calculate the good_fits:
+        good_bs, good_fits = self.good_fits(fit_thresh=fit_thresh, window=window)
+
+        # generate doppelgangers for the lineament:
+        generate_doppels([self,], fit_thresh=fit_thresh, window=window)
+
+        better_bs = []
+        better_fits = []
+
+        # restrict those good_fits results based on the MHDs:
+        #   - for each good_b, find all the doppelgangers created there
+        #   - calculate the MHD from self to those doppelgangers
+        #   - average them
+        #   - if the average is less than max_dop_mhd, retain that (b,fit)
+        for b,fit in zip(good_bs,good_fits):
+            if len(self.doppels) > 0:
+                dops = [ dop for dop in self.doppels if dop.backrot == b ]
+
+                avg_dop_mhd = sum([ self.mhd(dop.lonshift(-dop.backrot))/self.length() for dop in dops ])/len(dops)
+
+                if avg_dop_mhd < max_dop_mhd:
+                    better_bs.append(b)
+                    better_fits.append(fit)
+
+        return(better_bs, better_fits)
+    #}}}2
 
     def best_b(self): #{{{2
         """
-        Return the amount of backrotation at which the best fit occurs
+        Return the amount of backrotation at which the best fit occurs.
 
         """
         return(linspace(0,pi,num=len(self.fits))[self.fits.index(self.best_fit())])
+
     # }}}2
+
+    def mhd(self, linB): #{{{2
+        """
+        Calculate the mean Hausdorff Distance between linA and linB.
+
+        Use the midpoints of the line segments making up the lineament, instead of
+        the verticies, and weight by the lengths of the line segments.
+
+        (See: http://en.wikipedia.org/wiki/Hausdorff_distance)
+
+        """
+        return(mhd(self, linB))
+    #}}}2 end mhd()
+
+    def smhd(self, linB): #{{{2
+        """
+        Calculate the symmetric mean Hausdorff Distance between linA and
+        linB - this is just (mhd(linA, linB) + mhd(linB, linA))/2
+
+        """
+        return( (mhd(self, linB) + mhd(linB, self))/2.0 )
+    #}}}2 end smhd()
+
+################################################################################
+# NOT YET IMPLEMENTED:
+################################################################################
+    def bfgc(self): #{{{2
+        """
+        Returns two (lon,lat) tuples defining the great circle that best fits the
+        L{Lineament} object.
+
+        """
+        pass
+    #}}}2 end bfgc()
+
+    def power_spectrum(self): #{{{2
+        """
+        Returns the power spectrum of the L{Lineament} object's distances from the
+        great circle which best fits it.
+
+        """
+        pass
+    #}}}2 end power_spectrum
 
     def centroid(self): #{{{2
         """
-        Return the lat/lon position of the centroid of the L{Lineament}
-        object.
-
-        CURRENTLY NOT IMPLEMENTED.
-        
-        """
-        pass
-    #}}}2 end centroid
-
-    def mean_hausdorff_distance(self, lin2): #{{{2
-        """
+        Returns the spherical centroid of the lineament, defined as the lon,lat
+        point which minimizes the sum of the distances from itself to the midpoints
+        of all the line segments making up the lineament, weighted by the lengths
+        of those line segments.
 
         """
         pass
-    #}}}2 end mean_hausdorf_distance
+    #}}}2 end centroid()
 
-    def symmetric_mean_hausdorff_distance(self, lin2): #{{{2
+    def fit_percentile(self, stress=None, nb=19, num_lins=100): #{{{2
         """
+        Calculate and return the proportion of synthetic lineaments similar to self
+        (generated using doppelganger_power_spectrum) which self does better at
+        fitting to the given stress.
+
+        I.e. a fit_percentile of 0.95 would mean that self's best fit to the given
+        stress is better than the best fits of 95% of the synthetic lineaments, and
+        would ghus be a very robustly significant fit.
+
+        This also sets self.fit_percentile to this value, for later reference.
 
         """
         pass
-    #}}}2 end symmetric_mean_hausdorff_distance
+    #}}}2 end fit_percentile()
+
+    def doppelganger_power_spectrum(self): #{{{2
+        """
+        Generate and return a lineament whose centroid has the same latitude as self,
+        and which has the same power spectrum relative to its best-fit great circle
+        as self, but random overall orientation, and random phase information.
+
+        Such synthetic lineaments are used to test the statistical significance of
+        a given lineament's fit to a given stress field.
+
+        """
+        pass
+    #}}}2 end doppelganger_power_spectrum()
+
+    def doppelganger_centroid(self, stress=None, seg_len=0.05): #{{{2
+        """
+        Generate and return a L{Lineament} object whose midpoint is
+        self.centroid(), which has the same length as self, which is consistent with
+        the given stress.
+
+        """
+        pass
+    #}}}2 end doppelganger_centroid()
+
+    def doppelganger_bfgc(): #{{{2
+        """
+        Generate and return a L{Lineament} object which is a segment of self's best
+        fit great circle, has the same length as self, and whose midpoint is the
+        point closest to self.centroid() on the great circle path.
+
+        """
+        pass
+    #}}}2 end doppelganger_bfgc()
 
 #}}}1 end of the Lineament class
 
@@ -412,6 +606,7 @@ class Segment(object): #{{{
     
     # }}} end segment
 
+################################################################################
 # Helper functions that aren't part of any object class:
 ################################################################################
 
@@ -461,7 +656,7 @@ def shp2lins(shapefile): #{{{
     while ogr_lin_feat is not None:
         ogr_lin_geom = ogr_lin_feat.GetGeometryRef()
         pointlist = [ ogr_lin_geom.GetPoint(i)[0:2] for i in range(ogr_lin_geom.GetPointCount()) ]
-        linlist.append(Lineament(pointlist))
+        linlist.append(Lineament(radians(pointlist)))
         ogr_lin_feat = lineaments.GetNextFeature()
 
     linlist = [ x for x in linlist if len(x.vertices) > 0 ]
@@ -530,7 +725,7 @@ def spherical_midpoint(lon1, lat1, lon2, lat2): #{{{
 
 # }}}
 
-def lingen(stresscalc, init_lon="rand", init_lat="rand", max_length="rand", time_sec=0.0, propagation="rand", failure="tensilefracture", segment_length=0.01, lonshift=0.0): # {{{
+def lingen(stresscalc, init_lon="rand", init_lat="rand", max_length="rand", time_sec=0.0, propagation="rand", failure="tens_frac", segment_length=0.01, lonshift=0.0): # {{{
     """
     Generate a "perfect" lineament, given initial crack location, final length,
     and the stress field and failure mode.
@@ -604,7 +799,7 @@ def lingen(stresscalc, init_lon="rand", init_lat="rand", max_length="rand", time
             second_half_reversed = second_half.vertices[:0:-1]
             vertices = vstack([second_half_reversed, array(vertices)])
 
-        newlin = Lineament(degrees(vertices))
+        newlin = Lineament(vertices, stresscalc=stresscalc)
 
         if lonshift:
             if lonshift == "rand":
@@ -629,137 +824,121 @@ def update_lins(lins): # {{{
 
     newlins = []
     for lin in lins:
-        if lin.doppel_E is not None:
-            new_de = Lineament(degrees(lin.doppel_E.vertices), fits=lin.doppel_E.fits, stresscalc=lin.doppel_E.stresscalc)
-        else:
-            new_de = None
+        new_doppels = []
+        if len(lin.doppels) > 0:
+            for dop in lin.doppels:
+                new_doppels.append(Lineament(dop.vertices, fits=dop.fits, stresscalc=dop.stresscalc, is_doppel=True))
 
-        if lin.doppel_W is not None:
-            new_dw = Lineament(degrees(lin.doppel_W.vertices), fits=lin.doppel_W.fits, stresscalc=lin.doppel_W.stresscalc)
-        else:
-            new_dw = None
+        newlin = Lineament(lin.vertices, fits=lin.fits, stresscalc=lin.stresscalc, doppels=new_doppels, is_doppel=False, backrot=0.0)
 
-        newlins.append(Lineament(degrees(lin.vertices), fits=lin.fits, stresscalc=lin.stresscalc, doppel_E = new_de, doppel_W = new_dw))
+        newlins.append(newlin)
+        
     return(newlins)
 #}}} end update_lins
 
-def aggregate_length(lins):
+def aggregate_length(lins): #{{{
     """
     Return the sum of the lengths of the L{Lineaments} in lins, in radians of
     arc on the surface of the body.
 
     """
     return(sum([lin.length() for lin in lins]))
+#}}} end aggregate_length()
 
-################################################################################
-# NOT YET IMPLEMENTED:
-################################################################################
-# ==================================================
-# Lineament methods
-# ==================================================
-def bestfit_greatcircle(self): #{{{
-    """
-    Returns two (lon,lat) tuples defining the great circle that best fits the
-    L{Lineament} object.
-
-    """
-    pass
-#}}} end bestfit_greatcircle
-
-def power_spectrum(self): #{{{
-    """
-    Returns the power spectrum of the L{Lineament} object's distances from the
-    great circle which best fits it.
-
-    """
-    pass
-#}}} end power_spectrum
-
-def centroid(self): #{{{
-    """
-    Returns the spherical centroid of the lineament, defined as the lon,lat
-    point which minimizes the sum of the distances from itself to the midpoints
-    of all the line segments making up the lineament, weighted by the lengths
-    of those line segments.
-
-    """
-    pass
-#}}} end centroid()
-
-def mhd(self, linB): #{{{
+def mhd(linA, linB): #{{{
     """
     Calculate the mean Hausdorff Distance between linA and linB.
 
     Use the midpoints of the line segments making up the lineament, instead of
-    the verticies, and weight by the lengths of the line segments.
+    the verticies, and weight by the lengths of the line segments, because
+    we're really trying to compare linear features, not sets of points.
 
     (See: http://en.wikipedia.org/wiki/Hausdorff_distance)
 
     """
-    return(mean_hausdorff_dist(self, linB))
-#}}} end mhd()
+    if linA is None or linB is None:
+        return None
 
-def smhd(self, linB): #{{{
+    midpoints = linA.midpoints()
+    linlen = linA.length()
+
+    # the proportion of the overall metric that will come from each point...
+    length_weights = [ seg.length()/linlen for seg in linA.segments() ]
+
+    mhd = 0.0
+    for pt,wt in zip(midpoints, length_weights):
+        mhd += wt*min( [ spherical_distance(pt[0], pt[1], v[0], v[1]) for v in linB.midpoints() ] )
+
+    return(mhd)
+
+#}}} end mhd
+
+def smhd(linA, linB): #{{{
     """
     Calculate the symmetric mean Hausdorff Distance between linA and
     linB - this is just (mhd(linA, linB) + mhd(linB, linA))/2
 
     """
-    return( (mean_hausdorff_dist(self, linB) + mean_hausdorff_dist(linB, self))/2.0 )
-#}}} end smhd()
+    if linA is None or linB is None:
+        return None
+    else:
+        return( (mhd(linA, linB) + mhd(linB, linA))/2.0 )
 
-def fit_percentile(self, stress=None, nb=18, num_lins=100): #{{{
+#}}} end smhd
+
+def local_minima(fits, window=15): #{{{
     """
-    Calculate and return the proportion of synthetic lineaments similar to self
-    (generated using doppelganger_power_spectrum) which self does better at
-    fitting to the given stress.
+    Find the local minima within fits, and return them and their indices.
 
-    I.e. a fit_percentile of 0.95 would mean that self's best fit to the given
-    stress is better than the best fits of 95% of the synthetic lineaments, and
-    would ghus be a very robustly significant fit.
-
-    This also sets self.fit_percentile to this value, for later reference.
-
-    """
-    pass
-#}}} end fit_percentile()
-
-def doppelganger_power_spectrum(self): #{{{
-    """
-    Generate and return a lineament whose centroid has the same latitude as self,
-    and which has the same power spectrum relative to its best-fit great circle
-    as self, but random overall orientation, and random phase information.
-
-    Such synthetic lineaments are used to test the statistical significance of
-    a given lineament's fit to a given stress field.
+    Returns a list of indices at which the minima were found, and a list of the
+    minima, sorted in order of increasing minimum.  The keyword argument window
+    determines how close two local minima are allowed to be to one another.  If
+    two local minima are found closer together than that, then the lowest of
+    them is taken as the real minimum.  window=1 will return all locala minima.
 
     """
-    pass
-#}}} end doppelganger_power_spectrum()
+    from scipy.ndimage.filters import minimum_filter as min_filter
 
-def doppelganger_centroid(self, stress=None, seg_len=0.05): #{{{
+    minfits = min_filter(fits, size=window, mode="wrap")
+
+    minima = [ fit for fit,minfit in zip(fits,minfits) if fit == minfit ]
+    minima.sort()
+
+    good_indices = [ fits.index(fit) for fit in minima ]
+    good_fits = [ fit for fit in minima ]
+
+    return(good_indices, good_fits)
+#}}}
+
+def generate_doppels(lins, fit_thresh=0.1, window=15): #{{{
     """
-    Generate and return a L{Lineament} object whose midpoint is
-    self.centroid(), which has the same length as self, which is consistent with
-    the given stress.
+    Attempt to generate a variety of doppelganger features for a given list of
+    input features.  Add the doppelgangers to the list of doppelgangers for
+    each feature.
 
     """
-    pass
-#}}} end doppelganger_centroid()
 
-def doppelganger_bfgc(): #{{{
-    """
-    Generate and return a L{Lineament} object which is a segment of self's best
-    fit great circle, has the same length as self, and whose midpoint is the
-    point closest to self.centroid() on the great circle path.
+    for lin in lins:
+        # First we need to determine what amounts of backrotation we want to 
+        # use for generation... using the good_fits method.
+        good_bs, good_fits = lin.good_fits(fit_thresh=fit_thresh, window=window)
 
-    """
-    pass
-#}}} end doppelganger_bfgc()
+        # Wipe out the existing doppels...
+        lin.doppels = []
 
-# ==================================================
-# helper functions
-# ==================================================
+        for b in good_bs:
+            # For now, just the endpoint doppelgangers can be constructed:
+            dop_E = lin.doppelganger_endpoint(propagation="east", lonshift=b)
+            if dop_E is not None:
+                lin.doppels.append(dop_E)
+            dop_W = lin.doppelganger_endpoint(propagation="west", lonshift=b)
+            if dop_W is not None:
+                lin.doppels.append(dop_W)
+#}}}
+
+################################################################################
+# NOT YET IMPLEMENTED:
+################################################################################
 def lins2shp(lins=[], shapefile=None): #{{{
     """
     Create a shapefile from a list of L{Lineament} objects, including additions
@@ -815,38 +994,3 @@ def lingen_power_spectrum(v1, v2, num_steps=50, pow_spect=[]): #{{{
     """
     pass
 #}}} end lingen_power_spectrum
-
-def mean_hausdorff_dist(linA, linB): #{{{
-    """
-    Calculate the mean Hausdorff Distance between linA and linB.
-
-    Use the midpoints of the line segments making up the lineament, instead of
-    the verticies, and weight by the lengths of the line segments.
-
-    (See: http://en.wikipedia.org/wiki/Hausdorff_distance)
-
-    """
-    segs = linA.segments()
-    linlen = linA.length()
-
-    midpoints = [ seg.midpoint() for seg in segs ]
-    # the proportion of the overall metric that will come from each point...
-    length_weights = [ seg.length()/linlen for seg in segs ]
-
-    mhd = 0.0
-    for pt,wt in zip(midpoints, length_weights):
-        mhd += wt*min( [ spherical_distance(pt[0], pt[1], v[0], v[1]) for v in linB.vertices ] )
-
-    return(mhd)
-
-#}}} end mean_hausdorff_dist
-
-def sym_mean_hausdorff_dist(linA, linB): #{{{
-    """
-    Calculate the symmetric mean Hausdorff Distance between linA and
-    linB - this is just (mhd(linA, linB) + mhd(linB, linA))/2
-
-    """
-    return( (mean_hausdorff_dist(linA, linB) + mean_hausdorff_dist(linB, linA))/2.0 )
-
-#}}} end sym_mean_hausdorff_dist
