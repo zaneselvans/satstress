@@ -13,7 +13,7 @@ class Lineament(object): #{{{1
 
     """
     
-    def __init__(self, vertices, fits=[], stresscalc=None, doppels=[], is_doppel=False, backrot=0): #{{{2
+    def __init__(self, vertices, fits=[], stresscalc=None, doppels=[], is_doppel=False, backrot=0, better_fits=None, better_bs=None): #{{{2
         """
         Create a lineament from a given list of (lon,lat) points.
 
@@ -36,8 +36,12 @@ class Lineament(object): #{{{1
         self.is_doppel = is_doppel
         if self.is_doppel:
             self.doppels = []
+            self.better_fits = None
+            self.better_bs = None
         else:
             self.doppels = doppels
+            self.better_fits = better_fits
+            self.better_bs = better_bs
     #}}}2
 
     def __str__(self): #{{{2
@@ -73,29 +77,6 @@ vertices:  %d
 """ % (self.__hash__(), str(my_sat), str(stressnames), str(has_fits), str(has_doppels), linlen, len(self.vertices)))
 
     #}}}2
-
-    def __hash__(self): #{{{2
-        """
-        Return the hash of the list of the lineament's vertices, so we can
-        have a unique ID that corresponds to the geometry of the feature.
-
-        """
-        return self.vertices.__hash__()
-
-    #}}}2
-
-    def fixlon(self): # {{{
-        """
-        Ensures that the longitudes of all points making up the L{Lineament} lie
-        within the rage -pi < lon < pi, by shifting the lineament east or west in
-        increments of pi.  This is acceptable because, for stress comparisons, a
-        lineament's location only matters to modulo pi.
-        """
-
-        self.vertices = zip(self.fixed_longitudes(), self.latitudes())
-        return(self.vertices)
-
-# }}}2 end fixlon
 
     def length(self): #{{{2
         """
@@ -140,21 +121,29 @@ vertices:  %d
 
     def fixed_longitudes(self): # {{{2
         """
-        Return a list of the latitude values from the lineament's vertices,
-        but shifted so as to lie within -pi < lon < pi.
-
+        Return a list of the longitude values from the lineament's vertices,
+        without discontinuities, and shifted to lie within -pi < lon < pi.
+    
         """
-        fixed_lons = self.longitudes()
-        while max(fixed_lons) > pi or min(fixed_lons) < -pi:
-            if max(fixed_lons) > pi:
+        lons = self.longitudes()
+        # Get rid of any discontinuities introduced during mapping
+        for i in range(len(lons)-1):
+            if abs(lons[i]-lons[i+1]) > abs(lons[i]-(lons[i+1]+2*pi)):
+                lons[i+1] += 2*pi
+            elif abs(lons[i]-lons[i+1]) > abs(lons[i]-(lons[i+1]-2*pi)):
+                lons[i+1] -= 2*pi
+    
+        # Ensure that -pi < lon < pi
+        while max(lons) > pi or min(lons) < -pi:
+            if max(lons) > pi:
                 pi_sign = -1
             else:
                 pi_sign = +1
-
-            fixed_lons = [ lon+(pi_sign*pi) for lon in fixed_lons ]
-
-        return(fixed_lons)
-# }}}2
+    
+            lons = [ lon+(pi_sign*pi) for lon in lons ]
+    
+        return(lons)
+    # }}}2
 
     def latitudes(self): # {{{2
         """
@@ -170,6 +159,16 @@ vertices:  %d
 
         """
         return(Lineament([(v[0]+b, v[1]) for v in self.vertices], stresscalc=self.stresscalc))
+    #}}}2
+
+    def poleshift(self, paleo_npole_lon, paleo_npole_lat): #{{{2
+        """
+        Return a Lineament object representing the location and orientation of
+        self, when the point defined in modern lon,lat terms by paleo_npole_lon
+        paleo_npole_lat was the north pole.
+
+        """
+        return(Lineament([ paleopole_transform(paleo_npole_lon, paleo_npole_lat, v[0], v[1]) for v in self.vertices ]) )
     #}}}2
 
     def eastend(self): #{{{2
@@ -455,6 +454,8 @@ vertices:  %d
                     better_bs.append(b)
                     better_fits.append(fit)
 
+        self.better_bs = better_bs
+        self.better_fits = better_fits
         return(better_bs, better_fits)
     #}}}2
 
@@ -610,19 +611,23 @@ class Segment(object): #{{{
 # Helper functions that aren't part of any object class:
 ################################################################################
 
-def plotlinmap(lins, map=None, fixlon=False): #{{{
+def plotlinmap(lins, map=None, fixlon=False, color="black"): #{{{
     if map is None:
         map = Basemap()
 
+    map.drawmapboundary(fill_color="white")
+    map.drawmeridians(range(-180,181,30), labels=[1,0,0,1])
+    map.drawparallels(range(-90,91,30), labels=[1,0,0,1])
+
+    interactive(False)
     for lin in lins:
         if lin is not None:
             if fixlon:
-                map.plot(degrees(lin.fixed_longitudes()),degrees(lin.latitudes()))
+                x,y = map(degrees(lin.fixed_longitudes()),degrees(lin.latitudes()))
             else:
-                map.plot(degrees(lin.longitudes()),degrees(lin.latitudes()))
-
-    map.drawmeridians(range(-180,181,30), labels=[1,0,0,1])
-    map.drawparallels(range(-90,91,30), labels=[1,0,0,1])
+                x,y = map(degrees(lin.longitudes()),degrees(lin.latitudes()))
+        map.plot(x,y,color=color)
+    show()
 
     return(map)
 #}}} end plotlinmap
@@ -829,7 +834,7 @@ def update_lins(lins): # {{{
             for dop in lin.doppels:
                 new_doppels.append(Lineament(dop.vertices, fits=dop.fits, stresscalc=dop.stresscalc, is_doppel=True))
 
-        newlin = Lineament(lin.vertices, fits=lin.fits, stresscalc=lin.stresscalc, doppels=new_doppels, is_doppel=False, backrot=0.0)
+        newlin = Lineament(lin.vertices, fits=lin.fits, stresscalc=lin.stresscalc, doppels=new_doppels, is_doppel=False, backrot=0.0, better_fits=lin.better_fits, better_bs=lin.better_bs)
 
         newlins.append(newlin)
         
@@ -934,6 +939,91 @@ def generate_doppels(lins, fit_thresh=0.1, window=15): #{{{
             dop_W = lin.doppelganger_endpoint(propagation="west", lonshift=b)
             if dop_W is not None:
                 lin.doppels.append(dop_W)
+#}}}
+
+def sphere2xyz(r, theta, phi): #{{{
+    """
+    Takes a point in spherical coordinates and returns its cartesian
+    equivalent.
+
+    r is the distance from the origin.
+
+    theta is south positive co-latitude (zero at the north pole)
+
+    phi is the east positive longitude.
+
+    Assumes that the z-axis is the rotation axis.
+
+    """
+
+    x = r * sin(theta) * cos(phi)
+    y = r * sin(theta) * sin(phi)
+    z = r * cos(theta)
+
+    return(x, y, z)
+#}}}
+
+def xyz2sphere(x, y, z): #{{{
+    """
+    Takes a Cartesian (x,y,z) point and returns the equivalent point in terms
+    of spherical (r, theta, phi), where:
+
+    r is the radial distance from the origin.
+
+    theta is co-latitude.
+
+    phi is east-positive longitude.
+
+    And the z-axis is taken to be the same as the rotation axis.
+
+    """
+
+    r     = sqrt(x**2 + y**2 + z**2)
+    theta = arctan2(sqrt(x**2 + y**2), z)
+    phi   = arctan2(y, x)
+
+    return(r, theta, phi)
+#}}}
+
+def paleopole_transform(paleo_npole_lon, paleo_npole_lat, lon_in, lat_in): #{{{
+    """
+    Transforms the location of a point on the surface of a sphere, defined by
+    (lon_in,lat_in) in east-positive longitude, returning the (lon,lat)
+    location that point would be located at if the point defined by
+    (paleo_npole_lon,paleo_npole_lat) is moved directly north until it is at
+    the north pole.
+
+    """
+
+    # First we convert the point to be transformed into Cartesian coords.
+    # Since we only care about the lon,lat position in the end, we'll treat the
+    # the body as a unit sphere.  Remember that sphere2xyz needs CO-latitude:
+    colat_in = pi/2 - lat_in
+    xyz_in = array(sphere2xyz(1.0, colat_in, lon_in))
+
+    # Now, remember that what we're doing is bringing a wayward pole back to
+    # the top of the sphere... which means the angles we're interested in are
+    # actually -colat, -lon:
+    alpha = pi/2 + paleo_npole_lon
+    beta  = pi/2 - paleo_npole_lat
+    gamma = 0
+
+    # The definition of the X-Z rotation matrix:
+    rot_mat = array([ [ cos(alpha)*cos(gamma)-sin(alpha)*cos(beta)*sin(gamma), -cos(alpha)*sin(gamma)-sin(alpha)*cos(beta)*cos(gamma),  sin(beta)*sin(alpha) ],\
+                      [ sin(alpha)*cos(gamma)+cos(alpha)*cos(beta)*sin(gamma), -sin(alpha)*sin(gamma)+cos(alpha)*cos(beta)*cos(gamma), -sin(beta)*cos(alpha) ],\
+                      [                 sin(beta)*sin(gamma),                                     sin(beta)*cos(gamma),                       cos(beta)      ] ])
+
+    # Do the matrix multiplication using dot():
+    x_out, y_out, z_out = dot(xyz_in, rot_mat)
+
+    # Transform back to spherical coordinates:
+    r_out, theta_out, phi_out = xyz2sphere(x_out, y_out, z_out)
+
+    # and back to lon/lat from colon/lat:
+    lon_out = mod(phi_out + alpha,2*pi)
+    lat_out = pi/2 - theta_out # co-lat to lat
+
+    return(lon_out, lat_out)
 #}}}
 
 ################################################################################
