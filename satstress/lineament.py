@@ -1,4 +1,3 @@
-# Numeric Python routines, like arcsin2:
 from numpy import *
 from numpy.ma.mstats import idealfourths
 from pylab import *
