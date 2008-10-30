@@ -1,5 +1,5 @@
 from numpy import *
-from numpy.ma.mstats import idealfourths
+from scipy.stats.mmorestats import idealfourths
 from pylab import *
 from mpl_toolkits.basemap import Basemap
 
@@ -11,8 +11,8 @@ class Lineament(object): #{{{1
     A one dimensional feature on the surface of a spherical satellite.
 
     """
-    
-    def __init__(self, vertices, fits=[], stresscalc=None, doppels=[], is_doppel=False, backrot=0, better_fits=None, better_bs=None): #{{{2
+
+    def __init__(self, vertices=[], stresscalc=None, failure_mode="tens_frac", fits=[], doppels=[], is_doppel=False, proto_lin=None, proto_mhd=None, backrot=0): #{{{2
         """
         Create a lineament from a given list of (lon,lat) points.
 
@@ -20,60 +20,47 @@ class Lineament(object): #{{{1
         vertices making up a polyline.  East and North are taken to be
         positive.
         
-        fits is a list of fits to some stress field (defined by stresscalc), as
-        the lineament is rotated back through pi radians of longitude.
+        stresscalc is a L{satstress.StressCalc} object defining the field we
+        are going to be comparing the lineament to.
+        
+        failure_mode describes the mechanism we are assuming.  Currently only
+        tensile fracture is accepted.
+
+        fits is an array or list of (b, delta_rms(b), dbar(b)) tuples defining
+        how well the lineament matches its stresscalc, assuming failure_mode as
+        the formation mechanism.
 
         doppels is a list of synthetic lineaments that are meant to approximate
         the mapped lineament.
 
+        is_doppel indicates whether this Lineament itself is a doppelganger.
+
+        proto_lin defines the prototype lineament this Lineament is based on,
+        if it is a doppelganger.
+
+        proto_mhd is the MHD from the prototype lineament to this lineament, in
+        degrees of arc on the surface of the satellite, if it is a
+        doppelganger.
+
+        backrot is the amount of longitudinal translation that at which the
+        doppelganger was created, if it is a doppelganger.
+
         """
 
-        self.vertices = vertices
-        self.fits = fits
-        self.stresscalc = stresscalc
-        self.backrot = backrot
+        # This data is intrinsic, for the purposes of NSR comparisons
+        self.vertices     = vertices
+        self.stresscalc   = stresscalc
+        self.failure_mode = failure_mode
+
+        # These are semi-private derived/cached data:
+        self.__fits = array(fits)
+        self.__doppelgangers = doppels
+
+        # Extra info for the doppelgangers:
         self.is_doppel = is_doppel
-        if self.is_doppel:
-            self.doppels = []
-            self.better_fits = None
-            self.better_bs = None
-        else:
-            self.doppels = doppels
-            self.better_fits = better_fits
-            self.better_bs = better_bs
-    #}}}2
-
-    def __str__(self): #{{{2
-        """
-        Output the lineament as list of (lon, lat) tuples.
-
-        """
-        if self.stresscalc is not None:
-            stressnames = ", ".join( [ stress.__name__ for stress in self.stresscalc.stresses ])
-            my_sat = self.stresscalc.stresses[0].satellite.system_id
-            linlen = "%g %s" % (self.length()*self.stresscalc.stresses[0].satellite.radius()/1000, 'km')
-        else:
-            stressnames = None
-            my_sat = None
-            linlen = "%g %s" % (degrees(self.length()), 'degrees')
-
-        if len(self.fits) > 0:
-            has_fits = True
-        else:
-            has_fits = False
-
-        if len(self.doppels) > 0:
-            has_doppels = True
-        
-        return("""
-linhash:   %d
-system_id: %s
-stresses:  %s
-fits[]:    %s
-doppels:   %s
-length():  %s
-vertices:  %d
-""" % (self.__hash__(), str(my_sat), str(stressnames), str(has_fits), str(has_doppels), linlen, len(self.vertices)))
+        self.proto_lin = proto_lin
+        self.proto_mhd = proto_mhd
+        self.backrot   = backrot
 
     #}}}2
 
@@ -84,10 +71,12 @@ vertices:  %d
 
         """
         sph_len = 0
-        for i in range(len(self.vertices)-1):
-            lon1, lat1 = self.vertices[i]
-            lon2, lat2 = self.vertices[i+1]
-            sph_len += spherical_distance(lon1, lat1, lon2, lat2)
+
+        if len(self.vertices) > 1:
+            for i in range(len(self.vertices)-1):
+                lon1, lat1 = self.vertices[i]
+                lon2, lat2 = self.vertices[i+1]
+                sph_len += spherical_distance(lon1, lat1, lon2, lat2)
 
         return sph_len
     #}}}2 end spherical_length
@@ -98,16 +87,27 @@ vertices:  %d
 
         """
         seglist = []
-        for i in range(len(self.vertices)-1):
-            lon1, lat1 = self.vertices[i]
-            lon2, lat2 = self.vertices[i+1]
-            seglist.append(Segment(lon1, lat1, lon2, lat2))
+
+        if len(self.vertices) > 1:
+            for i in range(len(self.vertices)-1):
+                lon1, lat1 = self.vertices[i]
+                lon2, lat2 = self.vertices[i+1]
+                seglist.append(Segment(lon1, lat1, lon2, lat2))
 
         return(seglist)
     #}}}2 end segments
 
     def midpoints(self): #{{{2
-        return([ seg.midpoint() for seg in self.segments() ])
+        """
+        Return a list of the midpoints of each line segment in the Lineament.
+
+        """
+        mp = None
+
+        if len(self.vertices) > 1:
+            mp = [ seg.midpoint() for seg in self.segments() ]
+
+        return(mp)
     #}}}2
 
     def longitudes(self): # {{{2
@@ -115,7 +115,10 @@ vertices:  %d
         Return a list of the latitude values from the lineament's vertices
 
         """
-        return( [ v[0] for v in self.vertices ] )
+        if len(self.vertices) == 0:
+            return None
+        else:
+            return( [ v[0] for v in self.vertices ] )
 # }}}2
 
     def fixed_longitudes(self): # {{{2
@@ -125,22 +128,23 @@ vertices:  %d
     
         """
         lons = self.longitudes()
-        # Get rid of any discontinuities introduced during mapping
-        for i in range(len(lons)-1):
-            if abs(lons[i]-lons[i+1]) > abs(lons[i]-(lons[i+1]+2*pi)):
-                lons[i+1] += 2*pi
-            elif abs(lons[i]-lons[i+1]) > abs(lons[i]-(lons[i+1]-2*pi)):
-                lons[i+1] -= 2*pi
-    
-        # Ensure that -pi < lon < pi
-        while max(lons) > pi or min(lons) < -pi:
-            if max(lons) > pi:
-                pi_sign = -1
-            else:
-                pi_sign = +1
-    
-            lons = [ lon+(pi_sign*pi) for lon in lons ]
-    
+        if lons is not None and len(lons) > 1:
+            # Get rid of any discontinuities introduced during mapping
+            for i in range(len(lons)-1):
+                if abs(lons[i]-lons[i+1]) > abs(lons[i]-(lons[i+1]+2*pi)):
+                    lons[i+1] += 2*pi
+                elif abs(lons[i]-lons[i+1]) > abs(lons[i]-(lons[i+1]-2*pi)):
+                    lons[i+1] -= 2*pi
+
+            # Ensure that -pi < lon < pi
+            while max(lons) > pi or min(lons) < -pi:
+                if max(lons) > pi:
+                    pi_sign = -1
+                else:
+                    pi_sign = +1
+
+                lons = [ lon+(pi_sign*pi) for lon in lons ]
+
         return(lons)
     # }}}2
 
@@ -149,7 +153,10 @@ vertices:  %d
         Return a list of the latitude values from the lineament's vertices"
 
         """
-        return( [ v[1] for v in self.vertices ] )
+        if len(self.vertices) == 0:
+            return None
+        else:
+            return( [ v[1] for v in self.vertices ] )
     #}}}2
 
     def lonshift(self, b): #{{{2
@@ -157,7 +164,8 @@ vertices:  %d
         Return the lineament shifted in longitude by 'b'.
 
         """
-        return(Lineament([(v[0]+b, v[1]) for v in self.vertices], stresscalc=self.stresscalc))
+        shifted_vertices = [ (v[0]+b, v[1]) for v in self.vertices ]
+        return(Lineament(shifted_vertices, stresscalc=self.stresscalc, failure_mode=self.failure_mode))
     #}}}2
 
     def poleshift(self, paleo_npole_lon, paleo_npole_lat): #{{{2
@@ -167,20 +175,29 @@ vertices:  %d
         paleo_npole_lat was the north pole.
 
         """
-        return(Lineament([ paleopole_transform(paleo_npole_lon, paleo_npole_lat, v[0], v[1]) for v in self.vertices ]) )
+        transformed_vertices = [ paleopole_transform(paleo_npole_lon, paleo_npole_lat, v[0], v[1]) for v in self.vertices ]
+        return(Lineament(vertices=transformed_vertices, stresscalc=self.stresscalc, failure_mode=self.failure_mode) )
     #}}}2
 
     def eastend(self): #{{{2
         """
         Return a tuple representing the easternmost endpoint of the L{Lineament}.
 
+        If only one vertex, report it.  If no vertices, return None.
+
         """
 
-        (lon1, lat1) = self.vertices[0]
-        (lon2, lat2) = self.vertices[-1]
+        # if we don't have any vertices, there's no end to report:
+        if len(self.vertices) == 0:
+            return None
+        else:
+            (lon1, lat1) = self.vertices[0]
+            (lon2, lat2) = self.vertices[-1]
 
-        if spherical_azimuth(lon1, lat1, lon2, lat2) < pi:
+        # if we have more than one point, then a direction makes sense:
+        if len(self.vertices) > 1 and spherical_azimuth(lon1, lat1, lon2, lat2) < pi:
             return(lon2, lat2)
+        # if we only have one point, it doesn't matter which end we report
         else:
             return(lon1, lat1)
     # }}}2
@@ -189,18 +206,215 @@ vertices:  %d
         """
         Return a tuple representing the westernmost endpoint of the L{Lineament}.
 
+        If only one vertex, report it.  If no vertices, return None.
+
         """
+        # if we don't have any vertices, there's no end to report:
+        if len(self.vertices) == 0:
+            return None
+        else:
+            (lon1, lat1) = self.vertices[0]
+            (lon2, lat2) = self.vertices[-1]
 
-        (lon1, lat1) = self.vertices[0]
-        (lon2, lat2) = self.vertices[-1]
-
-        if spherical_azimuth(lon1, lat1, lon2, lat2) < pi:
+        # if we have more than one point, then a direction makes sense:
+        if len(self.vertices) > 1 and spherical_azimuth(lon1, lat1, lon2, lat2) < pi:
             return(lon1, lat1)
+        # if we only have one point, it doesn't matter which end we report
         else:
             return(lon2, lat2)
     #}}}2
 
-    def doppelganger_endpoint(self, stresscalc=None, time_sec=0.0, propagation="east", failure="tens_frac", lonshift=0.0): #{{{2
+    def ensure_blist(self, b): #{{{
+        """
+        Convert a single float compatible value to a list, or ensure that we've got
+        a list-like value.  Return a flag indicating which thing happened.  If we're
+        given an empty list, return all of the lineament's b values.
+
+        """
+
+        try:
+            # If b can be converted to a float, we just have one value:
+            type(float(b))
+            is_list = False
+            # convert it to a list, so that all the processing can be done
+            # identically for both the list and non-list case:
+            return([b,],is_list)
+        except TypeError:
+            # otherwise, assert that it's a list or array we can iterate over:
+            assert(type(b) is list or type(b) is ndarray)
+            is_list=True
+            if len(b) == 0:
+                b = self.bs()
+            return(b,is_list)
+#}}}
+
+    def bs(self, delta_ismin=False, dbar_ismin=False, delta_max=None, dbar_max=None): #{{{2 TODO Test!
+        """
+        Return a sorted array of all the b values for which fits have been
+        calculated, and which satisfy the keyword requirements.
+
+        delta_ismin and dbar_ismin, if True, require that the b values returned
+        represent local minima within the delta_rms(b) and dbar(b) curves,
+        respectively.
+
+        delta_max and dbar_max, if not None, represent maximum acceptable
+        values of those variables for which to return b values.  delta_max is
+        measured in radians, and dbar_max is a fraction of the overall length
+        of the lineament.
+
+        """
+        # We don't have any fits!  Return an empty array.
+        if len(self.__fits == 0):
+            return(array([]))
+        # No restrictions, just return everything.
+        elif delta_ismin is False and dbar_ismin is False and delta_max is None and dbar_max is None:
+            return(sort(self.__fits[:,0]))
+        # Otherwise, we must have some restrictions.  Start paring down fits.
+        else:
+            fits = self.__fits
+            if delta_max is not None:
+                fits = array([ f for f in fits if f[1] < delta_max ])
+            if dbar_max is not None:
+                fits = array([ f for f in fits if f[2] < dbar_max ])
+            if delta_ismin is True:
+                b_mins,delta_mins = local_minima(fits[:,0],fits[:,1])
+                fits = array([ f for f in fits if f[1] in delta_mins])
+            if dbar_ismin is True:
+                b_mins,dbar_mins = local_minima(fits[:,0],fits[:,2])
+                fits = array([ f for f in fits if f[2] in dbar_mins])
+
+            return(fits[:,0])
+    #}}}2
+
+    def delta_rms(self, b=[], w_length=True, w_stress=True): #{{{2
+        """
+        Calculate the root mean square (RMS) angle between observed and
+        predicted orientations of failure, assuming the lineament is shifted in
+        longitude by b radians from it's present location, with expected
+        failure orientations determined by the L{StressCalc} object, time_sec,
+        and the specified failure mode.  Optionally, weight by lineament
+        segment length (if w_length=True) and importance of that location
+        within the stress field (if w_stress=True)
+
+        """
+
+        if b==[]:
+            b=self.bs()
+
+        bs,was_list = self.ensure_blist(b)
+
+        for x in bs:
+            if x not in self.bs():
+                self.fit(b=x)
+
+        if len(bs) == 1:
+            deltas =  [ fit[1] for fit in self.__fits if fit[0] in bs ]
+        else:
+            deltas = [ self.delta_rms(x) for x in bs ]
+
+        return(array(fix_blist(b, deltas, was_list)))
+    #}}}2
+
+    def doppel(self, b=[]): #{{{2
+        """
+        Return a list containing doppelgangers for the specified values of b.
+        Calculate them if they do not already exist.  Each entry in the list
+        will contain the doppelgangers for a single value of b.  If only a single
+        value of b is given as an integer, return a flat list of the
+        doppelgangers at that backrotation.
+
+        """
+
+        if b==[]:
+            b=self.bs()
+
+        bs,was_list = self.ensure_blist(b)
+
+        doplist = []
+        for x in bs:
+            # if we don't have doppels for this value of b:
+            dops = [ d for d in self.__doppelgangers if d.backrot == x ]
+
+            if len(dops) == 0:
+                # add the two endpoint doppelgangers:
+                self.__doppelgangers.append(self.doppelgen_endpoint(propagation="east", lonshift=x))
+                self.__doppelgangers.append(self.doppelgen_endpoint(propagation="west", lonshift=x))
+                dops = [ d for d in self.__doppelgangers if d.backrot == x ]
+
+            doplist.append(dops)
+
+        return(fix_blist(b,doplist,was_list))
+    #}}}2
+
+    def dbar(self, b=[]): #{{{2
+        """
+        Return the mean L{mhd} from the L{Lineament} to its doppelgangers
+        having the given backrotation.  If no doppelgangers have that
+        backrotation, generate them.
+
+        """
+
+        if b==[]:
+            b=self.bs()
+
+        bs,was_list = self.ensure_blist(b)
+
+        dbars = []
+        for x in bs:
+            if x not in self.bs():
+                self.fit(b=x)
+
+        if len(bs) == 1:
+            dbars =  [ fit[2] for fit in self.__fits if fit[0] in bs ]
+        else:
+            dbars = [ self.dbar(x) for x in bs ]
+
+        return(array(fix_blist(b,dbars,was_list)))
+    #}}}2
+
+    def fit(self, b=[], w_length=True, w_stress=True): #{{{2
+        """
+        Return a list of tuples (b, delta_rms(b), dbar(b)) describing how well
+        the lineament matches the stress field in question (self.stresscalc)
+        given the chosen failure mode (self.failure_mode - limited to tens_frac
+        currently), at the given value, or values, of b.  If only a single
+        value of b is given, return a tuple, not a list of tuples.
+        
+        If a fit has not been calculated at a given value of b, calculate it.
+
+        if b=[], return all fits.
+
+        """
+
+        if b==[]:
+            b=self.bs()
+
+        bs,was_list = self.ensure_blist(b)
+
+        for x in bs:
+            # if we have no fit at this value of b, calculate it:
+            if x not in self.bs():
+                # first we need delta_rms
+                newdelta = self.lonshift(x).stresscomp(self.stresscalc)
+                # doppelgangers are required to calculate dbar
+                dops = self.doppel(b=x)
+                newdbar = mean([ d.proto_mhd for d in dops if d.backrot == x])/self.length()
+
+                # Add the first fit by itself, instead of vstacking
+                if len(self.__fits) == 0:
+                    self.__fits = array([(x,newdelta,newdbar)])
+                else:
+                    self.__fits = vstack([self.__fits,(x,newdelta,newdbar)])
+
+        if len(bs) == 1:
+            fits =  [ fit for fit in self.__fits if fit[0] in bs ]
+        else:
+            fits = [ self.fit(x) for x in bs ]
+
+        return(array(fix_blist(b, fits, was_list)))
+    #}}}2
+
+    def doppelgen_endpoint(self, time_sec=0.0, propagation="east", lonshift=0.0): #{{{2
         """
         Synthesize and return a new lineament consistent with the given
         stresscalc object and failure mode, of the same length, and having one
@@ -208,12 +422,6 @@ vertices:  %d
         "east", and the same east endpoint if propagation is "west")
 
         """
-
-        if stresscalc is None:
-            if self.stresscalc is not None:
-                stresscalc = self.stresscalc
-            else:
-                raise(LinMissingStressCalcError())
 
         if propagation=="east":
             (init_lon, init_lat) = self.westend()
@@ -223,11 +431,14 @@ vertices:  %d
 
         init_lon += lonshift 
 
-        doppel = lingen(stresscalc, init_lon=init_lon, init_lat=init_lat, max_length=self.length(), time_sec=time_sec, propagation=propagation, failure=failure)
-        if doppel is not None:
-            doppel.backrot = lonshift
-        return(doppel)
+        doppel = lingen(self.stresscalc, init_lon=init_lon, init_lat=init_lat, max_length=self.length(), time_sec=time_sec, propagation=propagation, failure=self.failure_mode)
 
+        doppel.backrot = lonshift
+        doppel.is_doppel = True
+        doppel.proto_lin = self
+        doppel.proto_mhd = self.mhd(doppel.lonshift(-doppel.backrot))
+
+        return(doppel)
     #}}}2
 
     def stresscomp(self, stresscalc, time_sec=0.0, failure = "tens_frac", w_length=True, w_stress=True): # {{{2
@@ -354,118 +565,6 @@ vertices:  %d
         return(sqrt(fit))
 
     # }}}2 end stresscomp
-
-    def calc_fits(self, stresscalc, nb=19, time_sec=0.0, failure="tens_frac", w_length=True, w_stress=True): #{{{2
-        """
-        Given a stresscalc object, calculate the fits between that stress and
-        the lineament, at a number of backrotations (nb), evenly distributed
-        throughout pi radians of longitude.
-
-        """
-        # store the stresscalc object that was used in the comparison, so we know where the fits came from.
-        self.stresscalc=stresscalc
-
-        self.fits=[ self.lonshift(b).stresscomp(stresscalc, time_sec=time_sec, failure=failure, w_length=w_length, w_stress=w_stress) for b in linspace(0,pi,num=nb) ]
-
-    #}}}2 end calc_fits
-
-    def best_fit(self): #{{{2
-        """
-        Return the minimum value found within the array of fits.
-
-        """
-        return(min(self.fits))
-    #}}}2
-
-    def good_fits(self, fit_thresh=0.1, window=15): #{{{2
-        """
-        Return a list of backrotation values and the corresponding fits, which
-        are close to being the best fit.
-
-        fit_thresh is the proportion of the entire fit curve's amplitude away from
-        the best fit that a fit can lie, and still be considered "good".  Only
-        local minima are returned, meaning that those fits which are
-        immediately adjacent to the best fit (or another good fit) will be
-        ignored.
-
-        """
-
-        min_indices, min_fits = local_minima(self.fits, window=window)
-        fit_amplitude = max(self.fits) - min(self.fits)
-        best_fit = self.best_fit()
-
-        good_fits = []
-        for fit in min_fits:
-            if (fit-best_fit) < fit_thresh*fit_amplitude:
-                good_fits.append(fit)
-
-        good_fits.sort()
-        good_indices = [ self.fits.index(fit) for fit in good_fits ]
-        good_bs = [ linspace(0,pi,num=len(self.fits))[idx] for idx in good_indices ]
-
-
-
-        return(good_bs, good_fits)
-    #}}}2
-
-    def good_doppel_fits(self, fit_thresh=0.1, max_dop_mhd=0.1, window=15): #{{{2
-        """
-        Returns a lsit of backrotation values and the corresponding fits, which
-        are close to being the best fit, similar to L{good_fits}, but with the
-        additional constraint that for a particular backrotation result in a
-        "good fit", it must also result in doppelgangers that are similar to
-        the mapped lineament in question.
-
-        max_dop_mhd is the greatest average MHD that a lineament can have to
-        all of its doppelgangers generated at a particular value of
-        backrotation, and still have that backrotation be considered a "good
-        fit".  It is measured as a proportion of the mapped lineament's length.
-
-        If the lineament in question does not have doppelgangers, then they are
-        generated in order to do the average MHD comparison.
-
-        """
-        # make sure that the lineament has fits:
-        if len(self.fits) == 0:
-            raise(MissingFitsError())
-
-        # calculate the good_fits:
-        good_bs, good_fits = self.good_fits(fit_thresh=fit_thresh, window=window)
-
-        # generate doppelgangers for the lineament:
-        generate_doppels([self,], fit_thresh=fit_thresh, window=window)
-
-        better_bs = []
-        better_fits = []
-
-        # restrict those good_fits results based on the MHDs:
-        #   - for each good_b, find all the doppelgangers created there
-        #   - calculate the MHD from self to those doppelgangers
-        #   - average them
-        #   - if the average is less than max_dop_mhd, retain that (b,fit)
-        for b,fit in zip(good_bs,good_fits):
-            if len(self.doppels) > 0:
-                dops = [ dop for dop in self.doppels if dop.backrot == b ]
-
-                avg_dop_mhd = sum([ self.mhd(dop.lonshift(-dop.backrot))/self.length() for dop in dops ])/len(dops)
-
-                if avg_dop_mhd < max_dop_mhd:
-                    better_bs.append(b)
-                    better_fits.append(fit)
-
-        self.better_bs = better_bs
-        self.better_fits = better_fits
-        return(better_bs, better_fits)
-    #}}}2
-
-    def best_b(self): #{{{2
-        """
-        Return the amount of backrotation at which the best fit occurs.
-
-        """
-        return(linspace(0,pi,num=len(self.fits))[self.fits.index(self.best_fit())])
-
-    # }}}2
 
     def mhd(self, linB): #{{{2
         """
@@ -610,28 +709,49 @@ class Segment(object): #{{{
 # Helper functions that aren't part of any object class:
 ################################################################################
 
-def plotlinmap(lins, map=None, fixlon=False, color="black"): #{{{
+def fix_blist(b,blist,was_list): #{{{
+    """
+    Convert a list back into a float, or leave it a list, depending on its
+    original form.
+
+    """
+    if was_list:
+        assert(len(blist) == len(b))
+        return(blist)
+    else:
+        assert(len(blist) == 1)
+        return(blist[0])
+#}}}
+
+def plotlinmap(lins, map=None, fixlon=False, color='black', alpha=1.0, lw=1.0): #{{{
+    """
+    Plot a map of the lineaments listed in 'lins'.  Plot it to 'map' if given.
+
+    """
     if map is None:
         map = Basemap()
-
-    map.drawmapboundary(fill_color="white")
-    map.drawmeridians(range(-180,181,30), labels=[1,0,0,1])
-    map.drawparallels(range(-90,91,30), labels=[1,0,0,1])
+        map.drawmapboundary(fill_color="white")
+        map.drawmeridians(range(-180,181,30), labels=[1,0,0,1])
+        map.drawparallels(range(-90,91,30), labels=[1,0,0,1])
 
     interactive(False)
+    lines = []
+
     for lin in lins:
         if lin is not None:
             if fixlon:
                 x,y = map(degrees(lin.fixed_longitudes()),degrees(lin.latitudes()))
             else:
                 x,y = map(degrees(lin.longitudes()),degrees(lin.latitudes()))
-        map.plot(x,y,color=color)
+
+        lines.append(map.plot(x, y, color=color, alpha=alpha, linewidth=lw))
+    interactive(True)
     show()
 
-    return(map)
+    return(lines, map)
 #}}} end plotlinmap
 
-def shp2lins(shapefile): #{{{
+def shp2lins(shapefile, stresscalc=None): #{{{
     """
     Create a list of L{Lineament} objects from an ESRI shapefile.
 
@@ -660,7 +780,7 @@ def shp2lins(shapefile): #{{{
     while ogr_lin_feat is not None:
         ogr_lin_geom = ogr_lin_feat.GetGeometryRef()
         pointlist = [ ogr_lin_geom.GetPoint(i)[0:2] for i in range(ogr_lin_geom.GetPointCount()) ]
-        linlist.append(Lineament(radians(pointlist)))
+        linlist.append(Lineament(radians(pointlist), stresscalc=stresscalc))
         ogr_lin_feat = lineaments.GetNextFeature()
 
     linlist = [ x for x in linlist if len(x.vertices) > 0 ]
@@ -756,8 +876,6 @@ def lingen(stresscalc, init_lon="rand", init_lat="rand", max_length="rand", time
                                                                                phi = vertices[-1][0],\
                                                                                  t = time_sec )
 
-    # Convert the stress tensor into principal components:
-
     if propagation == "rand":
         if rand() > 0.5:
             propagation="east"
@@ -797,24 +915,20 @@ def lingen(stresscalc, init_lon="rand", init_lat="rand", max_length="rand", time
                                                                                    phi = vertices[-1][0],\
                                                                                      t = time_sec )
 
-    if len(vertices) > 1:
-        if not done:
-            second_half = lingen(stresscalc, init_lon=init_lon, init_lat=init_lat, max_length=max_length, time_sec=time_sec, propagation="west", failure=failure)
-            second_half_reversed = second_half.vertices[:0:-1]
-            vertices = vstack([second_half_reversed, array(vertices)])
+    if not done:
+        second_half = lingen(stresscalc, init_lon=init_lon, init_lat=init_lat, max_length=max_length, time_sec=time_sec, propagation="west", failure=failure)
+        second_half_reversed = second_half.vertices[:0:-1]
+        vertices = vstack([second_half_reversed, array(vertices)])
 
-        newlin = Lineament(vertices, stresscalc=stresscalc)
+    newlin = Lineament(vertices=vertices, stresscalc=stresscalc)
 
-        if lonshift:
-            if lonshift == "rand":
-                lonshift = 2*pi*(rand()-0.5)
+    if lonshift:
+        if lonshift == "rand":
+            lonshift = 2*pi*(rand()-0.5)
 
-            newlin = newlin.lonshift(lonshift)
+        newlin = newlin.lonshift(lonshift)
 
-        return newlin
-
-    else:
-        return None
+    return newlin
 
 #}}} end lingen
 
@@ -829,14 +943,14 @@ def update_lins(lins): # {{{
     newlins = []
     for lin in lins:
         new_doppels = []
-        if len(lin.doppels) > 0:
-            for dop in lin.doppels:
-                new_doppels.append(Lineament(dop.vertices, fits=dop.fits, stresscalc=dop.stresscalc, is_doppel=True))
+        if len(lin.doppel()) > 0:
+            for dop in lin._Lineament__doppelgangers:
+                new_doppels.append(Lineament(dop.vertices, stresscalc=dop.stresscalc, failure_mode=dop.failure_mode, fits=dop.fit(),\
+                                             is_doppel=True, proto_lin=dop.proto_lin, proto_mhd=dop.proto_mhd, backrot=dop.backrot))
 
-        newlin = Lineament(lin.vertices, fits=lin.fits, stresscalc=lin.stresscalc, doppels=new_doppels, is_doppel=False, backrot=0.0, better_fits=lin.better_fits, better_bs=lin.better_bs)
-
+        newlin = Lineament(lin.vertices, stresscalc=lin.stresscalc, failure_mode=lin.failure_mode, fits=lin.fit(), doppels=new_doppels)
         newlins.append(newlin)
-        
+
     return(newlins)
 #}}} end update_lins
 
@@ -890,54 +1004,47 @@ def smhd(linA, linB): #{{{
 
 #}}} end smhd
 
-def local_minima(fits, window=15): #{{{
+def local_minima(x_in, y_in, winwidth=15): #{{{ TODO (need to test)
     """
-    Find the local minima within fits, and return them and their indices.
+    Given two arrays x and y(x), find the values of x which correspond to the
+    smallest local minima within the function y(x), within a window winwidth
+    wide.  winwidth=0 will return all local minima, no matter how local.
+
+    Returns two arrays, x_out, y_out, corresponding to the x and y values that
+    match the given criteria.
 
     Returns a list of indices at which the minima were found, and a list of the
-    minima, sorted in order of increasing minimum.  The keyword argument window
+    minima, sorted in order of increasing minimum.  The keyword argument deg_win
     determines how close two local minima are allowed to be to one another.  If
-    two local minima are found closer together than that, then the lowest of
-    them is taken as the real minimum.  window=1 will return all locala minima.
+    two local minima are found less than deg_win degrees apart, then the lowest
+    of them is taken as the real minimum.
+
+    For now this is hacked to assume that the x values are evenly distributed
+    across the entire range of possible values, from 0-180 degrees (or 0-pi
+    radians).
 
     """
     from scipy.ndimage.filters import minimum_filter as min_filter
 
-    minfits = min_filter(fits, size=window, mode="wrap")
+    # winwidth as passed in is in degrees, but the 'size' that min_filter needs
+    # is a number of neighboring points to use.  First we need to convert from
+    # degrees to indices, rounding up
+    deg_win = int(round(winwidth/(180.0/(len(y_in)-1))))
 
-    minima = [ fit for fit,minfit in zip(fits,minfits) if fit == minfit ]
-    minima.sort()
+    # then we can calculate the minima using min_filter
+    y_mins = min_filter(y_in, size=deg_win, mode="wrap")
 
-    good_indices = [ fits.index(fit) for fit in minima ]
-    good_fits = [ fit for fit in minima ]
+    # but really we just want the values where y(x) = y_min
+    y_out = [ y for y,y_min in zip(y_in,y_mins) if y_in == y_min ]
 
-    return(good_indices, good_fits)
+    # we need extract the x values that correspond do these y values:
+    good_indices = ravel([ find(y_in==y) for y in y_out ])
+    x_out = [ y_in[idx] for idx in good_indices ]
+
+    return(x_out, y_out)
 #}}}
 
-def generate_doppels(lins, fit_thresh=0.1, window=15): #{{{
-    """
-    Attempt to generate a variety of doppelganger features for a given list of
-    input features.  Add the doppelgangers to the list of doppelgangers for
-    each feature.
-
-    """
-
-    for lin in lins:
-        # First we need to determine what amounts of backrotation we want to 
-        # use for generation... using the good_fits method.
-        good_bs, good_fits = lin.good_fits(fit_thresh=fit_thresh, window=window)
-
-        # Wipe out the existing doppels...
-        lin.doppels = []
-
-        for b in good_bs:
-            # For now, just the endpoint doppelgangers can be constructed:
-            dop_E = lin.doppelganger_endpoint(propagation="east", lonshift=b)
-            if dop_E is not None:
-                lin.doppels.append(dop_E)
-            dop_W = lin.doppelganger_endpoint(propagation="west", lonshift=b)
-            if dop_W is not None:
-                lin.doppels.append(dop_W)
+def linfilter(lins, ): #{{{ TODO
 #}}}
 
 def sphere2xyz(r, theta, phi): #{{{
