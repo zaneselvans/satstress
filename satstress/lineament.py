@@ -12,7 +12,7 @@ class Lineament(object): #{{{1
 
     """
 
-    def __init__(self, vertices=[], stresscalc=None, failure_mode="tens_frac", fits=[], doppels=[], is_doppel=False, proto_lin=None, proto_mhd=None, backrot=0): #{{{2
+    def __init__(self, vertices=None, stresscalc=None, failure_mode="tens_frac", fits=None, doppels=None, is_doppel=False, proto_lin=None, proto_mhd=None, backrot=0): #{{{2
         """
         Create a lineament from a given list of (lon,lat) points.
 
@@ -48,21 +48,36 @@ class Lineament(object): #{{{1
         """
 
         # This data is intrinsic, for the purposes of NSR comparisons
-        self.vertices     = vertices
+        if vertices is None:
+            self.vertices = []
+        else:
+            self.vertices = vertices
+
         self.stresscalc   = stresscalc
         self.failure_mode = failure_mode
 
         # These are semi-private derived/cached data:
-        self.__fits = array(fits)
-        self.__doppelgangers = doppels
+        if doppels is None:
+            self.__doppelgangers = []
+        else:
+            self.__doppelgangers = doppels
+
+        if fits is None:
+            self.__fits = []
+        else:
+            self.__fits = array(fits)
 
         # Extra info for the doppelgangers:
         self.is_doppel = is_doppel
         self.proto_lin = proto_lin
         self.proto_mhd = proto_mhd
         self.backrot   = backrot
-
     #}}}2
+
+    def __str__():
+        """
+        """
+        pass
 
     def length(self): #{{{2
         """
@@ -104,7 +119,11 @@ class Lineament(object): #{{{1
         """
         mp = None
 
-        if len(self.vertices) > 1:
+        if len(self.vertices) == 0:
+            mp = None
+        elif len(self.vertices) == 1:
+            mp = self.vertices
+        elif len(self.vertices) > 1:
             mp = [ seg.midpoint() for seg in self.segments() ]
 
         return(mp)
@@ -224,31 +243,7 @@ class Lineament(object): #{{{1
             return(lon2, lat2)
     #}}}2
 
-    def ensure_blist(self, b): #{{{
-        """
-        Convert a single float compatible value to a list, or ensure that we've got
-        a list-like value.  Return a flag indicating which thing happened.  If we're
-        given an empty list, return all of the lineament's b values.
-
-        """
-
-        try:
-            # If b can be converted to a float, we just have one value:
-            type(float(b))
-            is_list = False
-            # convert it to a list, so that all the processing can be done
-            # identically for both the list and non-list case:
-            return([b,],is_list)
-        except TypeError:
-            # otherwise, assert that it's a list or array we can iterate over:
-            assert(type(b) is list or type(b) is ndarray)
-            is_list=True
-            if len(b) == 0:
-                b = self.bs()
-            return(b,is_list)
-#}}}
-
-    def bs(self, delta_ismin=False, dbar_ismin=False, delta_max=None, dbar_max=None): #{{{2 TODO Test!
+    def bs(self, delta_rms=None, dbar=None, delta_ismin=False, dbar_ismin=False, delta_max=None, dbar_max=None, winwidth=15): #{{{2
         """
         Return a sorted array of all the b values for which fits have been
         calculated, and which satisfy the keyword requirements.
@@ -263,30 +258,46 @@ class Lineament(object): #{{{1
         of the lineament.
 
         """
-        # We don't have any fits!  Return an empty array.
-        if len(self.__fits == 0):
-            return(array([]))
-        # No restrictions, just return everything.
-        elif delta_ismin is False and dbar_ismin is False and delta_max is None and dbar_max is None:
-            return(sort(self.__fits[:,0]))
-        # Otherwise, we must have some restrictions.  Start paring down fits.
-        else:
-            fits = self.__fits
+        # special cases:
+        # find b values associated with a particular value of delta_rms or dbar
+        if delta_rms is not None:
+            return(self.fit()[find(self.delta_rms()==delta_rms),0])
+        if dbar is not None:
+            return(self.fit()[find(self.dbar()==dbar),0])
+
+        fits = self.__fits
+
+        # Because the local minima function still expects an evenly
+        # distributed array of points, we need to find the delta minima
+        # and the dbar minima separately...
+
+        if len(fits) > 0:
+            if delta_ismin:
+                b_delta_mins, delta_mins = local_minima(self.bs(),self.delta_rms(), winwidth=winwidth)
+            else:
+                b_delta_mins, delta_mins = self.__fits[:,0], self.__fits[:,1]
+
+            if dbar_ismin:
+                b_dbar_mins, dbar_mins = local_minima(self.bs(),self.dbar(), winwidth=winwidth)
+            else:
+                b_dbar_mins, dbar_mins = self.__fits[:,0], self.__fits[:,2]
+
+            fits = array([ f for f in fits if f[1] in delta_mins and f[2] in dbar_mins ])
+
+            # Now that we've got only the fits that meet the local minima requirements,
+            # we can go ahead and filter by their magnitudes:
             if delta_max is not None:
                 fits = array([ f for f in fits if f[1] < delta_max ])
             if dbar_max is not None:
                 fits = array([ f for f in fits if f[2] < dbar_max ])
-            if delta_ismin is True:
-                b_mins,delta_mins = local_minima(fits[:,0],fits[:,1])
-                fits = array([ f for f in fits if f[1] in delta_mins])
-            if dbar_ismin is True:
-                b_mins,dbar_mins = local_minima(fits[:,0],fits[:,2])
-                fits = array([ f for f in fits if f[2] in dbar_mins])
 
-            return(fits[:,0])
+            return(sort(fits[:,0]))
+
+        else:
+            return(array([]))
     #}}}2
 
-    def delta_rms(self, b=[], w_length=True, w_stress=True): #{{{2
+    def delta_rms(self, bs=[], w_length=True, w_stress=True): #{{{2
         """
         Calculate the root mean square (RMS) angle between observed and
         predicted orientations of failure, assuming the lineament is shifted in
@@ -298,24 +309,22 @@ class Lineament(object): #{{{1
 
         """
 
-        if b==[]:
-            b=self.bs()
-
-        bs,was_list = self.ensure_blist(b)
+        if bs == []:
+            bs = self.bs()
 
         for x in bs:
             if x not in self.bs():
-                self.fit(b=x)
+                self.fit(bs=[x,])
 
-        if len(bs) == 1:
-            deltas =  [ fit[1] for fit in self.__fits if fit[0] in bs ]
-        else:
-            deltas = [ self.delta_rms(x) for x in bs ]
+        deltas = []
+        for b in bs:
+            idx = find(b==self.__fits[:,0])
+            deltas.append(self.__fits[idx,1])
 
-        return(array(fix_blist(b, deltas, was_list)))
+        return(array(deltas))
     #}}}2
 
-    def doppel(self, b=[]): #{{{2
+    def doppel(self, bs=[]): #{{{2
         """
         Return a list containing doppelgangers for the specified values of b.
         Calculate them if they do not already exist.  Each entry in the list
@@ -325,28 +334,70 @@ class Lineament(object): #{{{1
 
         """
 
-        if b==[]:
-            b=self.bs()
-
-        bs,was_list = self.ensure_blist(b)
+        if bs == []:
+            bs = self.bs()
 
         doplist = []
         for x in bs:
-            # if we don't have doppels for this value of b:
-            dops = [ d for d in self.__doppelgangers if d.backrot == x ]
+            # create a list of all doppelgangers at b=x:
+            dops = []
+            for d in self.__doppelgangers:
+                if d.backrot == x:
+                    dops.append(d)
 
+            # if there were none, calculate them:
             if len(dops) == 0:
-                # add the two endpoint doppelgangers:
-                self.__doppelgangers.append(self.doppelgen_endpoint(propagation="east", lonshift=x))
-                self.__doppelgangers.append(self.doppelgen_endpoint(propagation="west", lonshift=x))
-                dops = [ d for d in self.__doppelgangers if d.backrot == x ]
+                # Generate two new endpoint doppelgangers:
+                new_east_doppel = self.doppelgen_endpoint(propagation="east", lonshift=x)
+                new_west_doppel = self.doppelgen_endpoint(propagation="west", lonshift=x)
+                dops = [ new_east_doppel, new_west_doppel ]
+                # add them to the Lineament's list of doppelganger lineaments:
+                self.__doppelgangers += dops
 
-            doplist.append(dops)
+            # Whether we had to calculate them or not, add the doppelgangers
+            # to the list that we're returning:
+            doplist += [ dops ]
 
-        return(fix_blist(b,doplist,was_list))
+        return(doplist)
     #}}}2
 
-    def dbar(self, b=[]): #{{{2
+    def plot(self, map=None, fixlon=False, color='black', alpha=1.0, lw=1.0): #{{{
+        """
+        Plot the lineament on the provided map, or create a new one.
+
+        """
+        return(plotlinmap([self,], map=map, fixlon=fixlon, color=color, lw=lw))
+
+    def plotdoppels(self, bs=[], backrot=True, map=None, fixlon=False, color='black', alpha=0.5, lw=1.0): #{{{
+        """
+        Produce a plot showing a lineament's doppelgangers, in association with
+        the lineament itself.
+        
+        Show only those doppelgangers whose backrot is contained in the list b.
+        If b is [], plot all of them.  If b is a single value, show only the
+        doppelgangers having backrot==b.
+
+        If backrot is True, shift all of the doppelgangers in longitude such
+        that they share their initial starting point with one of the prototype
+        lineament's endpoints.  If false, show them at the longitude where they
+        were generated.
+
+        """
+
+        if backrot is True:
+            dops2plot = [ d.lonshift(-d.backrot) for d in self.__doppelgangers if d.backrot in bs ]
+        else:
+            dops2plot = [ d for d in self.__doppelgangers if d.backrot in bs ]
+
+        if len(dops2plot) > 0:
+            lines_out, map_out = plotlinmap(dops2plot, map=map, fixlon=fixlon, color=color, alpha=alpha, lw=lw)
+        else:
+            lines_out, map_out = None, map
+
+        return(lines_out, map_out)
+    # }}}2
+        
+    def dbar(self, bs=[]): #{{{2
         """
         Return the mean L{mhd} from the L{Lineament} to its doppelgangers
         having the given backrotation.  If no doppelgangers have that
@@ -354,25 +405,22 @@ class Lineament(object): #{{{1
 
         """
 
-        if b==[]:
-            b=self.bs()
+        if bs == []:
+           bs = self.bs()
 
-        bs,was_list = self.ensure_blist(b)
-
-        dbars = []
         for x in bs:
             if x not in self.bs():
-                self.fit(b=x)
+                self.fit(bs=[x,])
 
-        if len(bs) == 1:
-            dbars =  [ fit[2] for fit in self.__fits if fit[0] in bs ]
-        else:
-            dbars = [ self.dbar(x) for x in bs ]
+        dbars=[]
+        for b in bs:
+            idx = find(b==self.__fits[:,0])
+            dbars.append(self.__fits[idx,2])
 
-        return(array(fix_blist(b,dbars,was_list)))
+        return(array(dbars))
     #}}}2
 
-    def fit(self, b=[], w_length=True, w_stress=True): #{{{2
+    def fit(self, bs=[], w_length=True, w_stress=True): #{{{2
         """
         Return a list of tuples (b, delta_rms(b), dbar(b)) describing how well
         the lineament matches the stress field in question (self.stresscalc)
@@ -382,23 +430,23 @@ class Lineament(object): #{{{1
         
         If a fit has not been calculated at a given value of b, calculate it.
 
-        if b=[], return all fits.
+        if bs=[], return all fits.
 
         """
 
-        if b==[]:
-            b=self.bs()
-
-        bs,was_list = self.ensure_blist(b)
+        if bs == []:
+            bs = self.bs()
 
         for x in bs:
             # if we have no fit at this value of b, calculate it:
             if x not in self.bs():
                 # first we need delta_rms
+                print("  calculating delta_rms(b=%g)" % (degrees(x),))
                 newdelta = self.lonshift(x).stresscomp(self.stresscalc)
                 # doppelgangers are required to calculate dbar
-                dops = self.doppel(b=x)
-                newdbar = mean([ d.proto_mhd for d in dops if d.backrot == x])/self.length()
+                dops = self.doppel(bs=[x,])
+                print("  calculating dbar(b=%g)" % (degrees(x),))
+                newdbar = mean([ d.proto_mhd for d in dops[0] if d.backrot == x])/self.length()
 
                 # Add the first fit by itself, instead of vstacking
                 if len(self.__fits) == 0:
@@ -406,12 +454,15 @@ class Lineament(object): #{{{1
                 else:
                     self.__fits = vstack([self.__fits,(x,newdelta,newdbar)])
 
-        if len(bs) == 1:
-            fits =  [ fit for fit in self.__fits if fit[0] in bs ]
-        else:
-            fits = [ self.fit(x) for x in bs ]
+        fits = array([])
+        for b in bs:
+            idx = find(b==self.__fits[:,0])
+            if len(fits) == 0:
+                fits = self.__fits[idx]
+            else:
+                fits = vstack([fits,self.__fits[idx]])
 
-        return(array(fix_blist(b, fits, was_list)))
+        return(fits)
     #}}}2
 
     def doppelgen_endpoint(self, time_sec=0.0, propagation="east", lonshift=0.0): #{{{2
@@ -431,14 +482,15 @@ class Lineament(object): #{{{1
 
         init_lon += lonshift 
 
-        doppel = lingen(self.stresscalc, init_lon=init_lon, init_lat=init_lat, max_length=self.length(), time_sec=time_sec, propagation=propagation, failure=self.failure_mode)
+        print("  generating %s doppel(b=%g)" % (propagation, degrees(lonshift)))
+        newdoppel = lingen(self.stresscalc, init_lon=init_lon, init_lat=init_lat, max_length=self.length(), time_sec=time_sec, propagation=propagation, failure=self.failure_mode)
 
-        doppel.backrot = lonshift
-        doppel.is_doppel = True
-        doppel.proto_lin = self
-        doppel.proto_mhd = self.mhd(doppel.lonshift(-doppel.backrot))
+        newdoppel.backrot = lonshift
+        newdoppel.is_doppel = True
+        newdoppel.proto_lin = self
+        newdoppel.proto_mhd = self.mhd(newdoppel.lonshift(-newdoppel.backrot))
 
-        return(doppel)
+        return(newdoppel)
     #}}}2
 
     def stresscomp(self, stresscalc, time_sec=0.0, failure = "tens_frac", w_length=True, w_stress=True): # {{{2
@@ -709,20 +761,6 @@ class Segment(object): #{{{
 # Helper functions that aren't part of any object class:
 ################################################################################
 
-def fix_blist(b,blist,was_list): #{{{
-    """
-    Convert a list back into a float, or leave it a list, depending on its
-    original form.
-
-    """
-    if was_list:
-        assert(len(blist) == len(b))
-        return(blist)
-    else:
-        assert(len(blist) == 1)
-        return(blist[0])
-#}}}
-
 def plotlinmap(lins, map=None, fixlon=False, color='black', alpha=1.0, lw=1.0): #{{{
     """
     Plot a map of the lineaments listed in 'lins'.  Plot it to 'map' if given.
@@ -943,12 +981,12 @@ def update_lins(lins): # {{{
     newlins = []
     for lin in lins:
         new_doppels = []
-        if len(lin.doppel()) > 0:
+        if len(lin._Lineament__doppelgangers) > 0:
             for dop in lin._Lineament__doppelgangers:
-                new_doppels.append(Lineament(dop.vertices, stresscalc=dop.stresscalc, failure_mode=dop.failure_mode, fits=dop.fit(),\
+                new_doppels.append(Lineament(dop.vertices, stresscalc=dop.stresscalc, failure_mode=dop.failure_mode, fits=dop._Lineament__fits,\
                                              is_doppel=True, proto_lin=dop.proto_lin, proto_mhd=dop.proto_mhd, backrot=dop.backrot))
 
-        newlin = Lineament(lin.vertices, stresscalc=lin.stresscalc, failure_mode=lin.failure_mode, fits=lin.fit(), doppels=new_doppels)
+        newlin = Lineament(lin.vertices, stresscalc=lin.stresscalc, failure_mode=lin.failure_mode, fits=lin._Lineament__fits, doppels=new_doppels)
         newlins.append(newlin)
 
     return(newlins)
@@ -1004,7 +1042,7 @@ def smhd(linA, linB): #{{{
 
 #}}} end smhd
 
-def local_minima(x_in, y_in, winwidth=15): #{{{ TODO (need to test)
+def local_minima(x_in, y_in, winwidth=15): #{{{
     """
     Given two arrays x and y(x), find the values of x which correspond to the
     smallest local minima within the function y(x), within a window winwidth
@@ -1035,7 +1073,7 @@ def local_minima(x_in, y_in, winwidth=15): #{{{ TODO (need to test)
     y_mins = min_filter(y_in, size=deg_win, mode="wrap")
 
     # but really we just want the values where y(x) = y_min
-    y_out = [ y for y,y_min in zip(y_in,y_mins) if y_in == y_min ]
+    y_out = [ y for y,y_min in zip(y_in,y_mins) if y == y_min ]
 
     # we need extract the x values that correspond do these y values:
     good_indices = ravel([ find(y_in==y) for y in y_out ])
@@ -1044,7 +1082,69 @@ def local_minima(x_in, y_in, winwidth=15): #{{{ TODO (need to test)
     return(x_out, y_out)
 #}}}
 
-def linfilter(lins, ): #{{{ TODO
+def filter(lins, \
+           min_length    = None, max_length    = None, \
+           min_sinuosity = None, max_sinuosity = None, \
+           min_latitude  = None, max_latitude  = None, \
+           min_longitude = None, max_longitude = None, \
+           min_delta_rms = None, max_delta_rms = None, \
+           min_dbar      = None, max_dbar      = None): #{{{ TODO: Testing/debugging
+    """
+    Takes a list of lineaments, lins, and returns a list of lineaments that
+    match the filtering criteria.
+
+    Each parameter has a min_ and max_ value.  Only lineaments having at least
+    the minimum, and at most the maximum, are returned.  All values are None by
+    default, and if called with no keyword arguments, all lineaments in lins
+    are returned.
+
+    length: spherical length of the lineament in radians of arc on the
+    satellite surface.
+
+    sinuosity: ratio of lineament length overall to spherical distance between
+    endpoints.
+
+    latitude & longitude: requires all vertices to be greater than min_ and
+    less than max_ values, stated in units of radians.  Latitude ranges from 0
+    to pi.  Longitude is constrained to range from from -pi to pi.
+
+    delta_rms: refers to the smallest value of delta_rms associated with the
+    lineament, in radians.
+
+    dbar: refers to the smallest value of dbar associated with the lineament.
+
+    """
+    if min_length is not None:
+        lins = [ l for l in lins if l.length() >= min_length ]
+    if max_length is not None:
+        lins = [ l for l in lins if l .length() <= max_length ]
+
+    if min_sinuosity is not None:
+        lins = [ l for l in lins if l.sinuosity() >= min_sinuosity ]
+    if max_sinuosity is not None:
+        lins = [ l for l in lins if l.sinuosity() <= max_sinuosity ]
+
+    if min_latitude is not None:
+        lins = [ l for l in lins if min(l.latitudes()) >= min_latitude ]
+    if max_latitude is not None:
+        lins = [ l for l in lins if max(l.latitudes()) <= max_latitude ]
+
+    if min_longitude is not None:
+        lins = [ l for l in lins if min(l.fixed_longitudes()) >= min_longitude ]
+    if max_longitude is not None:
+        lins = [ l for l in lins if max(l.fixed_longitudes()) <= max_longitude ]
+
+    if min_delta_rms is not None:
+        lins = [ l for l in lins if len(l.delta_rms()) > 0 and max(l.delta_rms()) >= min_delta_rms ]
+    if max_delta_rms is not None:
+        lins = [ l for l in lins if len(l.delta_rms()) > 0 and min(l.delta_rms()) <= max_delta_rms ]
+
+    if min_dbar is not None:
+        lins = [ l for l in lins if len(l.dbar()) > 0 and max(l.dbar()) >= min_dbar ]
+    if max_dbar is not None:
+        lins = [ l for l in lins if len(l.dbar()) > 0 and min(l.dbar()) <= max_dbar ]
+
+    return lins
 #}}}
 
 def sphere2xyz(r, theta, phi): #{{{
