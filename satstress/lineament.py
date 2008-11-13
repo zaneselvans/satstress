@@ -94,7 +94,22 @@ class Lineament(object): #{{{1
                 sph_len += spherical_distance(lon1, lat1, lon2, lat2)
 
         return sph_len
-    #}}}2 end spherical_length
+    #}}}2 end length
+    
+    def sinuosity(self): #{{{2
+        """
+        Return the sinuosity of the lineament, using spherical distances.
+
+        Sinuosity is the ratio of the sum of the lengths of all the line
+        segments making up the lineament, to the distance separating the
+        endpoints.
+
+        """
+        lon1, lat1 = self.eastend()
+        lon2, lat2 = self.westend()
+        return (self.length() / spherical_distance(lon1, lat1, lon2, lat2))
+
+    #}}}2
 
     def segments(self): #{{{2
         """
@@ -243,7 +258,7 @@ class Lineament(object): #{{{1
             return(lon2, lat2)
     #}}}2
 
-    def bs(self, delta_rms=None, dbar=None, delta_ismin=False, dbar_ismin=False, delta_max=None, dbar_max=None, winwidth=15): #{{{2
+    def bs(self, delta_rms=None, dbar=None, delta_ismin=False, dbar_ismin=False, delta_max=None, dbar_max=None, winwidth=18): #{{{2
         """
         Return a sorted array of all the b values for which fits have been
         calculated, and which satisfy the keyword requirements.
@@ -291,10 +306,10 @@ class Lineament(object): #{{{1
             if dbar_max is not None:
                 fits = array([ f for f in fits if f[2] < dbar_max ])
 
-            return(sort(fits[:,0]))
+            if len(fits) > 0:
+                return(sort(fits[:,0]))
 
-        else:
-            return(array([]))
+        return(array([]))
     #}}}2
 
     def delta_rms(self, bs=[], w_length=True, w_stress=True): #{{{2
@@ -321,7 +336,7 @@ class Lineament(object): #{{{1
             idx = find(b==self.__fits[:,0])
             deltas.append(self.__fits[idx,1])
 
-        return(array(deltas))
+        return(ravel(deltas))
     #}}}2
 
     def doppel(self, bs=[]): #{{{2
@@ -361,14 +376,15 @@ class Lineament(object): #{{{1
         return(doplist)
     #}}}2
 
-    def plot(self, map=None, fixlon=False, color='black', alpha=1.0, lw=1.0): #{{{
+    def plot(self, map=None, fixlon=False, color='black', alpha=1.0, lw=1.0): #{{{2
         """
         Plot the lineament on the provided map, or create a new one.
 
         """
         return(plotlinmap([self,], map=map, fixlon=fixlon, color=color, lw=lw))
+    #}}}2
 
-    def plotdoppels(self, bs=[], backrot=True, map=None, fixlon=False, color='black', alpha=0.5, lw=1.0): #{{{
+    def plotdoppels(self, bs=[], backrot=True, map=None, fixlon=False, color='black', alpha=0.5, lw=1.0): #{{{2
         """
         Produce a plot showing a lineament's doppelgangers, in association with
         the lineament itself.
@@ -384,6 +400,9 @@ class Lineament(object): #{{{1
 
         """
 
+        if bs == []:
+           bs = self.bs()
+
         if backrot is True:
             dops2plot = [ d.lonshift(-d.backrot) for d in self.__doppelgangers if d.backrot in bs ]
         else:
@@ -393,6 +412,8 @@ class Lineament(object): #{{{1
             lines_out, map_out = plotlinmap(dops2plot, map=map, fixlon=fixlon, color=color, alpha=alpha, lw=lw)
         else:
             lines_out, map_out = None, map
+
+        self.plot(map=map_out, fixlon=fixlon, lw=2.0)
 
         return(lines_out, map_out)
     # }}}2
@@ -417,7 +438,7 @@ class Lineament(object): #{{{1
             idx = find(b==self.__fits[:,0])
             dbars.append(self.__fits[idx,2])
 
-        return(array(dbars))
+        return(ravel(dbars))
     #}}}2
 
     def fit(self, bs=[], w_length=True, w_stress=True): #{{{2
@@ -441,11 +462,9 @@ class Lineament(object): #{{{1
             # if we have no fit at this value of b, calculate it:
             if x not in self.bs():
                 # first we need delta_rms
-                print("  calculating delta_rms(b=%g)" % (degrees(x),))
                 newdelta = self.lonshift(x).stresscomp(self.stresscalc)
                 # doppelgangers are required to calculate dbar
                 dops = self.doppel(bs=[x,])
-                print("  calculating dbar(b=%g)" % (degrees(x),))
                 newdbar = mean([ d.proto_mhd for d in dops[0] if d.backrot == x])/self.length()
 
                 # Add the first fit by itself, instead of vstacking
@@ -482,7 +501,6 @@ class Lineament(object): #{{{1
 
         init_lon += lonshift 
 
-        print("  generating %s doppel(b=%g)" % (propagation, degrees(lonshift)))
         newdoppel = lingen(self.stresscalc, init_lon=init_lon, init_lat=init_lat, max_length=self.length(), time_sec=time_sec, propagation=propagation, failure=self.failure_mode)
 
         newdoppel.backrot = lonshift
@@ -1083,12 +1101,12 @@ def local_minima(x_in, y_in, winwidth=15): #{{{
 #}}}
 
 def filter(lins, \
-           min_length    = None, max_length    = None, \
-           min_sinuosity = None, max_sinuosity = None, \
-           min_latitude  = None, max_latitude  = None, \
-           min_longitude = None, max_longitude = None, \
-           min_delta_rms = None, max_delta_rms = None, \
-           min_dbar      = None, max_dbar      = None): #{{{ TODO: Testing/debugging
+           length_min    = None, length_max    = None, \
+           sinuosity_min = None, sinuosity_max = None, \
+           latitude_min  = None, latitude_max  = None, \
+           longitude_min = None, longitude_max = None, \
+           delta_min     = None, delta_max     = None, \
+           dbar_min      = None, dbar_max      = None): #{{{ TODO: Testing/debugging
     """
     Takes a list of lineaments, lins, and returns a list of lineaments that
     match the filtering criteria.
@@ -1114,35 +1132,35 @@ def filter(lins, \
     dbar: refers to the smallest value of dbar associated with the lineament.
 
     """
-    if min_length is not None:
-        lins = [ l for l in lins if l.length() >= min_length ]
-    if max_length is not None:
-        lins = [ l for l in lins if l .length() <= max_length ]
+    if length_min is not None:
+        lins = [ l for l in lins if l.length() >= length_min ]
+    if length_max is not None:
+        lins = [ l for l in lins if l.length() <= length_max ]
 
-    if min_sinuosity is not None:
-        lins = [ l for l in lins if l.sinuosity() >= min_sinuosity ]
-    if max_sinuosity is not None:
-        lins = [ l for l in lins if l.sinuosity() <= max_sinuosity ]
+    if sinuosity_min is not None:
+        lins = [ l for l in lins if l.sinuosity() >= sinuosity_min ]
+    if sinuosity_max is not None:
+        lins = [ l for l in lins if l.sinuosity() <= sinuosity_max ]
 
-    if min_latitude is not None:
-        lins = [ l for l in lins if min(l.latitudes()) >= min_latitude ]
-    if max_latitude is not None:
-        lins = [ l for l in lins if max(l.latitudes()) <= max_latitude ]
+    if latitude_min is not None:
+        lins = [ l for l in lins if min(l.latitudes()) >= latitude_min ]
+    if latitude_max is not None:
+        lins = [ l for l in lins if max(l.latitudes()) <= latitude_max ]
 
-    if min_longitude is not None:
-        lins = [ l for l in lins if min(l.fixed_longitudes()) >= min_longitude ]
-    if max_longitude is not None:
-        lins = [ l for l in lins if max(l.fixed_longitudes()) <= max_longitude ]
+    if longitude_min is not None:
+        lins = [ l for l in lins if min(l.fixed_longitudes()) >= longitude_min ]
+    if longitude_max is not None:
+        lins = [ l for l in lins if max(l.fixed_longitudes()) <= longitude_max ]
 
-    if min_delta_rms is not None:
-        lins = [ l for l in lins if len(l.delta_rms()) > 0 and max(l.delta_rms()) >= min_delta_rms ]
-    if max_delta_rms is not None:
-        lins = [ l for l in lins if len(l.delta_rms()) > 0 and min(l.delta_rms()) <= max_delta_rms ]
+    if delta_min is not None:
+        lins = [ l for l in lins if len(l.delta_rms()) > 0 and max(l.delta_rms()) >= delta_min ]
+    if delta_max is not None:
+        lins = [ l for l in lins if len(l.delta_rms()) > 0 and min(l.delta_rms()) <= delta_max ]
 
-    if min_dbar is not None:
-        lins = [ l for l in lins if len(l.dbar()) > 0 and max(l.dbar()) >= min_dbar ]
-    if max_dbar is not None:
-        lins = [ l for l in lins if len(l.dbar()) > 0 and min(l.dbar()) <= max_dbar ]
+    if dbar_min is not None:
+        lins = [ l for l in lins if len(l.dbar()) > 0 and max(l.dbar()) >= dbar_min ]
+    if dbar_max is not None:
+        lins = [ l for l in lins if len(l.dbar()) > 0 and min(l.dbar()) <= dbar_max ]
 
     return lins
 #}}}
