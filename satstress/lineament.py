@@ -12,7 +12,7 @@ class Lineament(object): #{{{1
 
     """
 
-    def __init__(self, vertices=None, stresscalc=None, failure_mode="tens_frac", fits=None, doppels=None, is_doppel=False, proto_lin=None, proto_mhd=None, backrot=0): #{{{2
+    def __init__(self, vertices=None, stresscalc=None, failure_mode="tens_frac", fits=None, good_fits=None, is_doppel=False, proto_lin=None, proto_mhd=None, backrot=0): #{{{2
         """
         Create a lineament from a given list of (lon,lat) points.
 
@@ -29,9 +29,6 @@ class Lineament(object): #{{{1
         fits is an array or list of (b, delta_rms(b), dbar(b)) tuples defining
         how well the lineament matches its stresscalc, assuming failure_mode as
         the formation mechanism.
-
-        doppels is a list of synthetic lineaments that are meant to approximate
-        the mapped lineament.
 
         is_doppel indicates whether this Lineament itself is a doppelganger.
 
@@ -56,16 +53,15 @@ class Lineament(object): #{{{1
         self.stresscalc   = stresscalc
         self.failure_mode = failure_mode
 
-        # These are semi-private derived/cached data:
-        if doppels is None:
-            self.__doppelgangers = []
-        else:
-            self.__doppelgangers = doppels
-
         if fits is None:
             self.__fits = []
         else:
             self.__fits = array(fits)
+
+        if good_fits is None:
+            self.__good_fits = []
+        else:
+            self.__good_fits = good_fits
 
         # Extra info for the doppelgangers:
         self.is_doppel = is_doppel
@@ -74,10 +70,11 @@ class Lineament(object): #{{{1
         self.backrot   = backrot
     #}}}2
 
-    def __str__():
+    def __str__(): #{{{2
         """
         """
         pass
+    #}}}2
 
     def length(self): #{{{2
         """
@@ -276,9 +273,9 @@ class Lineament(object): #{{{1
         # special cases:
         # find b values associated with a particular value of delta_rms or dbar
         if delta_rms is not None:
-            return(self.fit()[find(self.delta_rms()==delta_rms),0])
+            return(self.fit()[find(self.delta_rms()==delta_rms)[0],0])
         if dbar is not None:
-            return(self.fit()[find(self.dbar()==dbar),0])
+            return(self.fit()[find(self.dbar()==dbar)[0],0])
 
         fits = self.__fits
 
@@ -333,7 +330,7 @@ class Lineament(object): #{{{1
 
         deltas = []
         for b in bs:
-            idx = find(b==self.__fits[:,0])
+            idx = find(b==self.__fits[:,0])[0]
             deltas.append(self.__fits[idx,1])
 
         return(ravel(deltas))
@@ -341,11 +338,10 @@ class Lineament(object): #{{{1
 
     def doppel(self, bs=[]): #{{{2
         """
-        Return a list containing doppelgangers for the specified values of b.
-        Calculate them if they do not already exist.  Each entry in the list
-        will contain the doppelgangers for a single value of b.  If only a single
-        value of b is given as an integer, return a flat list of the
-        doppelgangers at that backrotation.
+        Calculate and return a list containing doppelgangers for the specified
+        values of b.  Each entry in the list will contain the doppelgangers for
+        a single value of b.  If only a single value of b is given as an
+        integer, return a flat list of the doppelgangers at that backrotation.
 
         """
 
@@ -356,21 +352,12 @@ class Lineament(object): #{{{1
         for x in bs:
             # create a list of all doppelgangers at b=x:
             dops = []
-            for d in self.__doppelgangers:
-                if d.backrot == x:
-                    dops.append(d)
+            # Generate two new endpoint doppelgangers:
+            new_east_doppel = self.doppelgen_endpoint(propagation="east", lonshift=x)
+            new_west_doppel = self.doppelgen_endpoint(propagation="west", lonshift=x)
+            dops = [ new_east_doppel, new_west_doppel ]
 
-            # if there were none, calculate them:
-            if len(dops) == 0:
-                # Generate two new endpoint doppelgangers:
-                new_east_doppel = self.doppelgen_endpoint(propagation="east", lonshift=x)
-                new_west_doppel = self.doppelgen_endpoint(propagation="west", lonshift=x)
-                dops = [ new_east_doppel, new_west_doppel ]
-                # add them to the Lineament's list of doppelganger lineaments:
-                self.__doppelgangers += dops
-
-            # Whether we had to calculate them or not, add the doppelgangers
-            # to the list that we're returning:
+            # add the doppelgangers to the list that we're returning:
             doplist += [ dops ]
 
         return(doplist)
@@ -403,10 +390,10 @@ class Lineament(object): #{{{1
         if bs == []:
            bs = self.bs()
 
+        dops2plot = self.doppel(bs=bs)
+
         if backrot is True:
-            dops2plot = [ d.lonshift(-d.backrot) for d in self.__doppelgangers if d.backrot in bs ]
-        else:
-            dops2plot = [ d for d in self.__doppelgangers if d.backrot in bs ]
+            dops2plot = [ d.lonshift(-d.backrot) for d in dops2plot ]
 
         if len(dops2plot) > 0:
             lines_out, map_out = plotlinmap(dops2plot, map=map, fixlon=fixlon, color=color, alpha=alpha, lw=lw)
@@ -421,8 +408,7 @@ class Lineament(object): #{{{1
     def dbar(self, bs=[]): #{{{2
         """
         Return the mean L{mhd} from the L{Lineament} to its doppelgangers
-        having the given backrotation.  If no doppelgangers have that
-        backrotation, generate them.
+        having the given backrotation.
 
         """
 
@@ -435,7 +421,7 @@ class Lineament(object): #{{{1
 
         dbars=[]
         for b in bs:
-            idx = find(b==self.__fits[:,0])
+            idx = find(b==self.__fits[:,0])[0]
             dbars.append(self.__fits[idx,2])
 
         return(ravel(dbars))
@@ -475,13 +461,40 @@ class Lineament(object): #{{{1
 
         fits = array([])
         for b in bs:
-            idx = find(b==self.__fits[:,0])
+            idx = find(b==self.__fits[:,0])[0]
             if len(fits) == 0:
-                fits = self.__fits[idx]
+                fits = array([self.__fits[idx],])
             else:
                 fits = vstack([fits,self.__fits[idx]])
 
         return(fits)
+    #}}}2
+
+    def cache_good_fits(self, delta_max=radians(20), dbar_max=0.05): #{{{2
+        """
+        Save good fits for future reference...
+
+        """
+        self.__good_fits = self.fit(bs=self.bs(delta_max=delta_max, dbar_max=dbar_max))
+    #}}}2
+
+    def good_fits(self): #{{{2
+        """
+        Return the cached good fits.  They may be empty though...
+        """
+        return(self.__good_fits)
+    #}}}2
+
+    def best_fit(self): #{{{2
+        """
+        Return the cached good fit with the lowest value of delta_rms.
+        """
+        best_fit = []
+        if len(self.__good_fits) > 0:
+            best_idx = int(find(self.__good_fits[:,1]==min(self.__good_fits[:,1])))
+            best_fit = self.__good_fits[best_idx]
+
+        return(best_fit)
     #}}}2
 
     def doppelgen_endpoint(self, time_sec=0.0, propagation="east", lonshift=0.0): #{{{2
@@ -905,7 +918,9 @@ def spherical_midpoint(lon1, lat1, lon2, lat2): #{{{
 
 # }}}
 
-def lingen(stresscalc, init_lon="rand", init_lat="rand", max_length="rand", time_sec=0.0, propagation="rand", failure="tens_frac", segment_length=0.01, lonshift=0.0): # {{{
+def lingen(stresscalc, init_lon="rand", init_lat="rand", max_length="rand",\
+           time_sec=0.0, propagation="rand", failure="tens_frac",\
+           segment_length=0.01, lonshift=0.0): # {{{
     """
     Generate a "perfect" lineament, given initial crack location, final length,
     and the stress field and failure mode.
@@ -971,7 +986,10 @@ def lingen(stresscalc, init_lon="rand", init_lat="rand", max_length="rand", time
                                                                                    phi = vertices[-1][0],\
                                                                                      t = time_sec )
 
-    if not done:
+    # if vertices is only one long, then we failed to initiate a fracture, and
+    # should not even try to make the second half.
+
+    if not done and len(vertices) > 1:
         second_half = lingen(stresscalc, init_lon=init_lon, init_lat=init_lat, max_length=max_length, time_sec=time_sec, propagation="west", failure=failure)
         second_half_reversed = second_half.vertices[:0:-1]
         vertices = vstack([second_half_reversed, array(vertices)])
@@ -988,23 +1006,47 @@ def lingen(stresscalc, init_lon="rand", init_lat="rand", max_length="rand", time
 
 #}}} end lingen
 
-def update_lins(lins): # {{{
+def lingen_greatcircle(init_lon, init_lat, fin_lon, fin_lat, seg_len=0.01): #{{{
+    """
+    Return a L{Lineament} object closely approximating the shortest great
+    circle route between (lon1,lat1) and (lon2,lat2).
+
+    """
+    verts = [(init_lon,init_lat),]
+
+    # while the distance from the last point in the list of vertices to our
+    # final destination is less than our step size, keep calculating new points
+    while(spherical_distance(verts[-1][0],verts[-1][1], fin_lon, fin_lat) > seg_len):
+        new_az = spherical_azimuth(verts[-1][0],verts[-1][1], fin_lon, fin_lat)
+        new_vert = spherical_reckon(verts[-1][0],verts[-1][1], new_az, seg_len)
+        verts.append(new_vert)
+
+    # add on the second endpoint for completeness...
+    verts.append((fin_lon,fin_lat))
+
+    return(Lineament(verts))
+
+#}}} end lingen_greatcircle
+
+def update_lins(lins, delta_max=None, dbar_max=None): # {{{
     """
     Just a quick and easy way to remember what all has to be done in order to
     update a set of lineaments to include all the newest and bestest
     functionality from the module.
 
+    Can also be used to update the "good fit" threshold, if both delta_max and
+    dbar_max are provided.
+
     """
 
     newlins = []
-    for lin in lins:
-        new_doppels = []
-        if len(lin._Lineament__doppelgangers) > 0:
-            for dop in lin._Lineament__doppelgangers:
-                new_doppels.append(Lineament(dop.vertices, stresscalc=dop.stresscalc, failure_mode=dop.failure_mode, fits=dop._Lineament__fits,\
-                                             is_doppel=True, proto_lin=dop.proto_lin, proto_mhd=dop.proto_mhd, backrot=dop.backrot))
-
-        newlin = Lineament(lin.vertices, stresscalc=lin.stresscalc, failure_mode=lin.failure_mode, fits=lin._Lineament__fits, doppels=new_doppels)
+    linlen=len(lins)
+    for lin,N in zip(lins,range(linlen)):
+        if delta_max is not None and dbar_max is not None:
+            print "updating good_fit threshold for lin %d / %d " %(N+1, linlen)
+            newlin = Lineament(lin.vertices, stresscalc=lin.stresscalc, failure_mode=lin.failure_mode, fits=lin._Lineament__fits, good_fits=lin.fit(bs=lin.bs(delta_max=delta_max, dbar_max=dbar_max)))
+        else:
+            newlin = Lineament(lin.vertices, stresscalc=lin.stresscalc, failure_mode=lin.failure_mode, fits=lin._Lineament__fits, good_fits=lin._Lineament__good_fits)
         newlins.append(newlin)
 
     return(newlins)
@@ -1098,71 +1140,6 @@ def local_minima(x_in, y_in, winwidth=15): #{{{
     x_out = [ y_in[idx] for idx in good_indices ]
 
     return(x_out, y_out)
-#}}}
-
-def filter(lins, \
-           length_min    = None, length_max    = None, \
-           sinuosity_min = None, sinuosity_max = None, \
-           latitude_min  = None, latitude_max  = None, \
-           longitude_min = None, longitude_max = None, \
-           delta_min     = None, delta_max     = None, \
-           dbar_min      = None, dbar_max      = None): #{{{ TODO: Testing/debugging
-    """
-    Takes a list of lineaments, lins, and returns a list of lineaments that
-    match the filtering criteria.
-
-    Each parameter has a min_ and max_ value.  Only lineaments having at least
-    the minimum, and at most the maximum, are returned.  All values are None by
-    default, and if called with no keyword arguments, all lineaments in lins
-    are returned.
-
-    length: spherical length of the lineament in radians of arc on the
-    satellite surface.
-
-    sinuosity: ratio of lineament length overall to spherical distance between
-    endpoints.
-
-    latitude & longitude: requires all vertices to be greater than min_ and
-    less than max_ values, stated in units of radians.  Latitude ranges from 0
-    to pi.  Longitude is constrained to range from from -pi to pi.
-
-    delta_rms: refers to the smallest value of delta_rms associated with the
-    lineament, in radians.
-
-    dbar: refers to the smallest value of dbar associated with the lineament.
-
-    """
-    if length_min is not None:
-        lins = [ l for l in lins if l.length() >= length_min ]
-    if length_max is not None:
-        lins = [ l for l in lins if l.length() <= length_max ]
-
-    if sinuosity_min is not None:
-        lins = [ l for l in lins if l.sinuosity() >= sinuosity_min ]
-    if sinuosity_max is not None:
-        lins = [ l for l in lins if l.sinuosity() <= sinuosity_max ]
-
-    if latitude_min is not None:
-        lins = [ l for l in lins if min(l.latitudes()) >= latitude_min ]
-    if latitude_max is not None:
-        lins = [ l for l in lins if max(l.latitudes()) <= latitude_max ]
-
-    if longitude_min is not None:
-        lins = [ l for l in lins if min(l.fixed_longitudes()) >= longitude_min ]
-    if longitude_max is not None:
-        lins = [ l for l in lins if max(l.fixed_longitudes()) <= longitude_max ]
-
-    if delta_min is not None:
-        lins = [ l for l in lins if len(l.delta_rms()) > 0 and max(l.delta_rms()) >= delta_min ]
-    if delta_max is not None:
-        lins = [ l for l in lins if len(l.delta_rms()) > 0 and min(l.delta_rms()) <= delta_max ]
-
-    if dbar_min is not None:
-        lins = [ l for l in lins if len(l.dbar()) > 0 and max(l.dbar()) >= dbar_min ]
-    if dbar_max is not None:
-        lins = [ l for l in lins if len(l.dbar()) > 0 and min(l.dbar()) <= dbar_max ]
-
-    return lins
 #}}}
 
 def sphere2xyz(r, theta, phi): #{{{
@@ -1272,24 +1249,6 @@ def fit_greatcircle(vertices): #{{{
     """
     pass
 #}}} end fit_greatcircle
-
-def lingen_random_stresscalc(stresscalc=None, init_lon="rand", init_lat="rand", max_length="rand", propagation="both", lonshift="rand", tensile_strength=0.0, time_sec=0.0, seg_len=0.05, failure="tens_frac"): #{{{
-    """
-    Generate a random lineament perfectly consistent with a given stress field
-    defined by stresscalc.
-
-    """
-    pass
-#}}}
-
-def lingen_greatcircle(v1, v2, seg_len=0.05): #{{{
-    """
-    Return a L{Lineament} object closely approximating the shortest great
-    circle route between v1 and v2 (two lon,lat points).
-
-    """
-    pass
-#}}} end lingen_greatcircle
 
 def lingen_power_spectrum(v1, v2, num_steps=50, pow_spect=[]): #{{{
     """
