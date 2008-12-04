@@ -47,8 +47,10 @@ class Lineament(object): #{{{1
         # This data is intrinsic, for the purposes of NSR comparisons
         if vertices is None:
             self.vertices = []
+            self.length = 0
         else:
             self.vertices = vertices
+            self.length = self.calc_length()
 
         self.stresscalc   = stresscalc
         self.failure_mode = failure_mode
@@ -76,7 +78,7 @@ class Lineament(object): #{{{1
         pass
     #}}}2
 
-    def length(self): #{{{2
+    def calc_length(self): #{{{2
         """
         Return the total length of the L{Lineament} in radians of arc, along
         the surface of the sphere.
@@ -104,7 +106,7 @@ class Lineament(object): #{{{1
         """
         lon1, lat1 = self.eastend()
         lon2, lat2 = self.westend()
-        return (self.length() / spherical_distance(lon1, lat1, lon2, lat2))
+        return (self.length / spherical_distance(lon1, lat1, lon2, lat2))
 
     #}}}2
 
@@ -451,7 +453,7 @@ class Lineament(object): #{{{1
                 newdelta = self.lonshift(x).stresscomp(self.stresscalc)
                 # doppelgangers are required to calculate dbar
                 dops = self.doppel(bs=[x,])
-                newdbar = mean([ d.proto_mhd for d in dops[0] if d.backrot == x])/self.length()
+                newdbar = mean([ d.proto_mhd for d in dops[0] if d.backrot == x])/self.length
 
                 # Add the first fit by itself, instead of vstacking
                 if len(self.__fits) == 0:
@@ -514,7 +516,7 @@ class Lineament(object): #{{{1
 
         init_lon += lonshift 
 
-        newdoppel = lingen(self.stresscalc, init_lon=init_lon, init_lat=init_lat, max_length=self.length(), time_sec=time_sec, propagation=propagation, failure=self.failure_mode)
+        newdoppel = lingen(self.stresscalc, init_lon=init_lon, init_lat=init_lat, max_length=self.length, time_sec=time_sec, propagation=propagation, failure=self.failure_mode)
 
         newdoppel.backrot = lonshift
         newdoppel.is_doppel = True
@@ -598,7 +600,7 @@ class Lineament(object): #{{{1
             #   - thus, this is simply the fractional length of the segment.
 
             if segment.w_length:
-                segment.w_length = segment.length()/self.length()
+                segment.w_length = segment.calc_length()/self.length
         
             # W_{stress}:
             #   - want to reduce the weight of segments experiencing nearly
@@ -766,7 +768,7 @@ class Segment(object): #{{{
         self.lon2 = lon2
         self.lat2 = lat2
 
-    def length(self):
+    def calc_length(self):
         return(spherical_distance(self.lon1, self.lat1, self.lon2, self.lat2))
 
     def midpoint(self):
@@ -1058,7 +1060,7 @@ def aggregate_length(lins): #{{{
     arc on the surface of the body.
 
     """
-    return(sum([lin.length() for lin in lins]))
+    return(sum([lin.length for lin in lins]))
 #}}} end aggregate_length()
 
 def mhd(linA, linB): #{{{
@@ -1076,10 +1078,10 @@ def mhd(linA, linB): #{{{
         return None
 
     midpoints = linA.midpoints()
-    linlen = linA.length()
+    linlen = linA.length
 
     # the proportion of the overall metric that will come from each point...
-    length_weights = [ seg.length()/linlen for seg in linA.segments() ]
+    length_weights = [ seg.calc_length()/linlen for seg in linA.segments() ]
 
     mhd = 0.0
     for pt,wt in zip(midpoints, length_weights):
