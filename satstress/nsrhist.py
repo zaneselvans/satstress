@@ -684,8 +684,9 @@ def makefigs(delta_max=radians(20), dbar_max=0.10,\
         FitMap(goodlins=nsr_goodlins, badlins=nsr_badlins, nbins=9, titlestr="global lins, fit to NSR")
         #FitMap(goodlins=tpw_goodlins, badlins=tpw_badlins, nbins=9, titlestr="pre-TPW lins, fit to NSR", fixlon=True)
         FitMap(goodlins=nsr_goodlins, badlins=regular_nsr_lingen(nlats=60), nbins=9, titlestr="global lins, in NSR formation locations", derotate=True)
+        EuropaCoverageMap()
 
-        # Map of the fake synthetic NSR lineaments:
+        # Map of the fake (great circle) NSR lineaments:
         #FitMap()
         # Map of the perfect synthetic NSR lineaments:
         #Fitmap()
@@ -693,8 +694,7 @@ def makefigs(delta_max=radians(20), dbar_max=0.10,\
     if make_hists is True:
         ActHist_NSRvTPW(nsr_goodlins, tpw_goodlins, nbins=18)
         ActHist_ByLength(nsr_goodlins, lengths=[0,150,300,500,1000,2000], nbins=18)
-
-        #ActHist_SynthMap()
+        #ActHist_Synthetic()
 
         # Lineaments for doing the viscous relaxation comparison:
         #D01  = pickle.load(open(nsrD01linfile))
@@ -1037,3 +1037,46 @@ def NSRFailDirByLat(nsr_stresscalc, lats=linspace(0,80,9), lons=linspace(0,180,1
         ax.set_title("lat = %g          " % (degrees(lats[n]),) )
 
 # end NSRFailDirByLat }}}
+
+def EuropaCoverageMap(worst_res=2000): #{{{
+    from osgeo import gdal
+    import matplotlib.colors as colors
+    from mpl_toolkits import basemap
+
+    # Incredibly, I can just read in the whole raster dataset like this!
+    EuropaGrid = gdal.Open("input/europa_coverage_simpcyl.cub")
+
+    # The data cube has 4 bands:
+    # 1. resolution [km/px]
+    # 2. emission angle [degrees]
+    # 3. incident angle [degrees]
+    # 4. phase angle [degrees]
+
+    # changing it to m/px here
+    res_arr = 1000*EuropaGrid.GetRasterBand(1).ReadAsArray()
+
+    the_fig = figure(figsize=(16,8))
+
+    palette = cm.jet
+    # "bad" values are where there is no coverage.
+    palette.set_bad('black')
+    # "over" values are where the resolution is worse than worst_res
+    palette.set_over('gray')
+    palette.set_under(palette(0))
+
+    # mask the array so that the "bad" values disappear
+    res_masked = ma.masked_where(res_arr < 0, res_arr)
+    res_norm = colors.Normalize(vmin=500,vmax=worst_res)
+
+    #res_ax = the_fig.add_subplot(1,1,1)
+    res_map = Basemap()
+    res_ax = the_fig.add_subplot(1,1,1)
+    res_ax.set_title("Europa mosaic resolution and coverage")
+    res_map.imshow(res_masked, cmap=palette, norm=res_norm, extent=[0,360,-90,90], origin='upper')
+    res_map.drawmeridians(linspace(-180,180,13), labels=[1,0,0,1])
+    res_map.drawparallels(linspace(-90,90,7), labels=[1,0,0,1])
+
+    cb_ax,kw = colorbar.make_axes(res_ax, pad=0.05, orientation='horizontal', shrink=0.5)
+    colorbar.ColorbarBase(cb_ax, cmap=palette, norm=res_norm, orientation='horizontal')
+    cb_ax.set_xlabel('resolution [m/px]')
+#}}}

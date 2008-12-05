@@ -192,13 +192,28 @@ class Lineament(object): #{{{1
             return( [ v[1] for v in self.vertices ] )
     #}}}2
 
-    def lonshift(self, b): #{{{2
+    def lonshift(self, b, keepfits=False): #{{{2
         """
         Return the lineament shifted in longitude by 'b'.
 
+        If keepfits is True, also preserve the fitcurves, by shifting the
+        values of delta_rms and dbar associated with a given value of b, in
+        effect entirely changing the apparent formation longitude of the
+        feature.
+
+        If keepfits is False (the default), then all the fit information will
+        be discarded.
+
         """
-        shifted_vertices = [ (v[0]+b, v[1]) for v in self.vertices ]
-        return(Lineament(shifted_vertices, stresscalc=self.stresscalc, failure_mode=self.failure_mode))
+        new_vertices = [ (v[0]+b, v[1]) for v in self.vertices ]
+
+        if shiftfits is True:
+            # TODO: some amazing Numpy shit here!
+            pass
+        else:
+            new_fits = None
+
+        return(Lineament(new_vertices, stresscalc=self.stresscalc, failure_mode=self.failure_mode, fits=new_fits))
     #}}}2
 
     def poleshift(self, paleo_npole_lon, paleo_npole_lat): #{{{2
