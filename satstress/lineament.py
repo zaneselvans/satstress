@@ -46,24 +46,24 @@ class Lineament(object): #{{{1
 
         # This data is intrinsic, for the purposes of NSR comparisons
         if vertices is None:
-            self.vertices = []
+            self.vertices = array([])
             self.length = 0
         else:
-            self.vertices = vertices
+            self.vertices = array(vertices)
             self.length = self.calc_length()
 
         self.stresscalc   = stresscalc
         self.failure_mode = failure_mode
 
         if fits is None:
-            self.__fits = []
+            self.__fits = array([])
         else:
             self.__fits = array(fits)
 
         if good_fits is None:
-            self.__good_fits = []
+            self.__good_fits = array([])
         else:
-            self.__good_fits = good_fits
+            self.__good_fits = array(good_fits)
 
         # Extra info for the doppelgangers:
         self.is_doppel = is_doppel
@@ -207,7 +207,7 @@ class Lineament(object): #{{{1
         """
         new_vertices = [ (v[0]+b, v[1]) for v in self.vertices ]
 
-        if shiftfits is True:
+        if keepfits is True:
             # TODO: some amazing Numpy shit here!
             pass
         else:
@@ -380,15 +380,65 @@ class Lineament(object): #{{{1
         return(doplist)
     #}}}2
 
-    def plot(self, map=None, fixlon=False, color='black', alpha=1.0, lw=1.0): #{{{2
+    def plot(self, map, lon_cyc=2*pi, lat_mirror=False, color='black', alpha=1.0, linewidth=1.0): #{{{2
         """
-        Plot the lineament on the provided map, or create a new one.
+        Plot the lineament on the provided Basemap object, map, with the
+        associated color, alpha, and width.
 
+        if lon_cyclic is non-zero, modulo the longitudes of the feature by the
+        cyclic value, until any that can ever fall in the displayed area of the
+        map do so, plotting the feature once for each distinct time it is the
+        case.  The default value, 2*pi, means that features which cross the
+        edge of the map will have that portion that runs out of the display
+        plotted on the far side.  If lon_cyclic=pi, then all the features will
+        be placed in the same non-repeating pi-wide portion of the stress
+        field, for easy comparison therein.
+
+        If lat_mirror is True, use the absolute values of the latitudes,
+        instead of the latitudes, in order to map the lineament into the
+        northern hemisphere.  This allows more compact comparison of lineaments
+        in stress-equivalent locations.
+        
         """
-        return(plotlinmap([self,], map=map, fixlon=fixlon, color=color, lw=lw))
+
+        plotted_lines = []
+        lons  = array(self.vertices[:,0])
+        lats  = array(self.vertices[:,1])
+
+        # What does it mean to have a longitude discontinuity?  It means
+        # that two adjacent points in the lineament have longitude values
+        # which differ by more than they need to... that is, for two points
+        # ptA, ptB, having longitudes lonA and lonB, there exists some integer
+        # N, such that:
+        # abs(lonA - (2*pi*N + lonB)) < abs(lonA - lonB) 
+        # this can only be true if:
+        # abs(lonA - lonB) > pi
+
+        lons = mod(lons,2*pi)
+
+        # if the difference in longitude between two adjacent points in the
+        # lineament is ever greater than pi, we have a discontinuity:
+        while len(where(abs(lons[:-1]-lons[1:]) > pi)[0] > 0):
+            lons[1:] = where(abs(lons[:-1]-lons[1:]) > pi, lons[1:]+2*pi*sign(lons[:-1]-lons[1:]), lons[1:])
+
+        # In order to create the illusion that the lineaments are wrapping
+        # around in longitude, we plot one copy at each longitude where a
+        # portion of them will show up on the map...
+        nrange = unique1d(floor((lons-radians(map.llcrnrlon))/lon_cyc))
+        for N in nrange:
+            (x,y) = map(degrees(lons-N*lon_cyc), degrees(lats))
+            plotted_lines.append(map.plot(x, y, color=color, alpha=alpha, linewidth=linewidth))
+
+            # If we're mirroring across the equator, we need to plot all of the
+            # lineaments with their anti-latitudes as well:
+            if lat_mirror:
+                (x,y) = map(degrees(lons-N*lon_cyc), -degrees(lats))
+                plotted_lines.append(map.plot(x, y, color=color, alpha=alpha, linewidth=linewidth))
+
+        return(plotted_lines)
     #}}}2
 
-    def plotdoppels(self, bs=[], backrot=True, map=None, fixlon=False, color='black', alpha=0.5, lw=1.0): #{{{2
+    def plotdoppels(self, bs=[], backrot=True, map=None, fixlon=False, color='black', alpha=0.5, linewidth=1.0): #{{{2
         """
         Produce a plot showing a lineament's doppelgangers, in association with
         the lineament itself.
@@ -413,11 +463,11 @@ class Lineament(object): #{{{1
             dops2plot = [ d.lonshift(-d.backrot) for d in dops2plot ]
 
         if len(dops2plot) > 0:
-            lines_out, map_out = plotlinmap(dops2plot, map=map, fixlon=fixlon, color=color, alpha=alpha, lw=lw)
+            lines_out, map_out = plotlinmap(dops2plot, map=map, fixlon=fixlon, color=color, alpha=alpha, linewidth=linewidth)
         else:
             lines_out, map_out = None, map
 
-        self.plot(map=map_out, fixlon=fixlon, lw=2.0)
+        self.plot(map=map_out, fixlon=fixlon, linewidth=2.0)
 
         return(lines_out, map_out)
     # }}}2
@@ -492,7 +542,7 @@ class Lineament(object): #{{{1
         Save good fits for future reference...
 
         """
-        self.__good_fits = self.fit(bs=self.bs(delta_max=delta_max, dbar_max=dbar_max))
+        self.__good_fits = self.__fits[intersect1d_nu(where(self.__fits[:,1] < delta_max), where(self.__fits[:,2] < dbar_max)) ]
     #}}}2
 
     def good_fits(self): #{{{2
@@ -809,12 +859,13 @@ class Segment(object): #{{{
 # Helper functions that aren't part of any object class:
 ################################################################################
 
-def plotlinmap(lins, map=None, fixlon=False, color='black', alpha=1.0, lw=1.0): #{{{
+def plotlinmap(lins, map=None, color='black', alpha=1.0, linewidth=1.0, lon_cyc=2*pi, lat_mirror=False): #{{{
     """
     Plot a map of the lineaments listed in 'lins'.  Plot it to 'map' if given.
 
     """
     if map is None:
+        thefig = figure()
         map = Basemap()
         map.drawmapboundary(fill_color="white")
         map.drawmeridians(range(-180,181,30), labels=[1,0,0,1])
@@ -823,18 +874,12 @@ def plotlinmap(lins, map=None, fixlon=False, color='black', alpha=1.0, lw=1.0): 
     interactive(False)
     lines = []
 
-    for lin in lins:
-        if lin is not None:
-            if fixlon:
-                x,y = map(degrees(lin.fixed_longitudes()),degrees(lin.latitudes()))
-            else:
-                x,y = map(degrees(lin.longitudes()),degrees(lin.latitudes()))
+    lines += [ lin.plot(map, color=color, alpha=alpha, linewidth=linewidth, lon_cyc=lon_cyc, lat_mirror=lat_mirror) for lin in lins ]
 
-        lines.append(map.plot(x, y, color=color, alpha=alpha, linewidth=lw))
     interactive(True)
     show()
 
-    return(lines, map)
+    return([line for line in flatten(lines)], map)
 #}}} end plotlinmap
 
 def shp2lins(shapefile, stresscalc=None): #{{{
@@ -1045,7 +1090,7 @@ def lingen_greatcircle(init_lon, init_lat, fin_lon, fin_lat, seg_len=0.01): #{{{
 
 #}}} end lingen_greatcircle
 
-def update_lins(lins, delta_max=None, dbar_max=None): # {{{
+def update_lins(lins): # {{{
     """
     Just a quick and easy way to remember what all has to be done in order to
     update a set of lineaments to include all the newest and bestest
@@ -1059,11 +1104,7 @@ def update_lins(lins, delta_max=None, dbar_max=None): # {{{
     newlins = []
     linlen=len(lins)
     for lin,N in zip(lins,range(linlen)):
-        if delta_max is not None and dbar_max is not None:
-            print "updating good_fit threshold for lin %d / %d " %(N+1, linlen)
-            newlin = Lineament(lin.vertices, stresscalc=lin.stresscalc, failure_mode=lin.failure_mode, fits=lin._Lineament__fits, good_fits=lin.fit(bs=lin.bs(delta_max=delta_max, dbar_max=dbar_max)))
-        else:
-            newlin = Lineament(lin.vertices, stresscalc=lin.stresscalc, failure_mode=lin.failure_mode, fits=lin._Lineament__fits, good_fits=lin._Lineament__good_fits)
+        newlin = Lineament(lin.vertices, stresscalc=lin.stresscalc, failure_mode=lin.failure_mode, fits=lin._Lineament__fits)
         newlins.append(newlin)
 
     return(newlins)

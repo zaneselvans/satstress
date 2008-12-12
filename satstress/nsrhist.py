@@ -10,12 +10,12 @@ from pylab import *
 from matplotlib import colors, colorbar
 from mpl_toolkits.basemap import Basemap
 import random
+import os
 
-def calc_fits(nb=180, nlins=0, save=True, name="linfits", nbins=20,\
-              satfile="input/ConvectingEuropa_GlobalDiurnalNSR.ssrun",\
-              mapped_lins=None,\
-              synthetic_lins=None,\
-              pnp_lon=None, pnp_lat=None): #{{{
+def nsrfits(nb=180, nlins=0, save=100, name="linfits", nbins=20,\
+            satfile="input/ConvectingEuropa_GlobalDiurnalNSR.ssrun",\
+            mapped_lins=None, synthetic_lins=None,\
+            pnp_lon=None, pnp_lat=None): #{{{
     """
     Calculate the fit curves for a set of lineaments.
 
@@ -28,8 +28,10 @@ def calc_fits(nb=180, nlins=0, save=True, name="linfits", nbins=20,\
     nlins=0, all lineaments are used, otherwise, only the first nlins of them
     are used.  Mostly useful for testing before starting a long run.
 
-    If save is True, pickle and save the resulting lineaments with their fits
-    intact, using a datestamp to keep the filenames unique.
+    save defines how many fits should be calculated before output is done.  If
+    save is 0, then no output is done.  Otherwise, for each save lineaments, a
+    new pickle file is dumped into the directory created using the name and
+    datestamp provided.
 
     name defines a useful identifying prefix for the saved file.
 
@@ -55,6 +57,7 @@ def calc_fits(nb=180, nlins=0, save=True, name="linfits", nbins=20,\
     
     """
     import pickle
+    from time import strftime
 
     europa = satstress.Satellite(open(satfile,'r'))
     nsr_stresscalc = satstress.StressCalc([satstress.NSR(europa),])
@@ -98,45 +101,74 @@ def calc_fits(nb=180, nlins=0, save=True, name="linfits", nbins=20,\
 
     # if we have proto_lins we need to subsample lins2fit
     if proto_lins is not None:
-        # Currently, the only lineament population characteristic that I'm
-        # trying to match is the overall length distribution.
-
-        # define the length bins to replicate:
-        Ns, bins = histogram([ lin.length for lin in proto_lins ], bins=nbins, new=True)
-
-        # randomize lins2fit to avoid habitually selecting from the same pool:
-        shuffle(lins2fit)
-
-        keepers = []
-        numlins = len(proto_lins)
-        for N,i in zip(Ns, range(nbins)):
-            lins_by_bin = []
-            for lin in lins2fit:
-                linlen = lin.length
-                if linlen > bins[i] and linlen < bins[i+1]:
-                    lins_by_bin.append(lin)
-
-            keepers += lins_by_bin[:N]
-
-        lins2fit = keepers
+        lins2fit = linsample(proto=proto_lins, pool=lins2fit, nbins=nbins)
 
     # If we need to transform for a paleopole, do so here:
     if(pnp_lon is not None and pnp_lat is not None):
         lins2fit = [ lin.poleshift(radians(pnp_lon), radians(pnp_lat)) for lin in lins2fit ]
 
-    # Now we finally actually perform the fits:
+    # If save is non-zero, we need to create a new and uniquely named directory
+    # into which we will save the lineaments and their fits, in several bunches as
+    # the calculations are completed.
+    if save > 0:
+        # create the uniquely named directory
+        savedir = "output/%s_%s" % (name, strftime('%Y%m%d%H%M%S')) 
+        print "Creating output directory", savedir, "\n"
+        os.mkdir(savedir)
+        partcount=1
+
+    numlins = len(lins2fit)
+    # Now we calculate the fits:
     for n,lin in zip(range(numlins),lins2fit):
-        print("Calculating fits for lineament %d / %d in %s" % (n+1,numlins,name))
+        print("    Fitting lin %d / %d from %s" % (n+1,numlins,name))
         lin.stresscalc = nsr_stresscalc
         fits = lin.fit(bs=linspace(0,pi,nb, endpoint=False))
-
-    if save:
-        save_lins(lins2fit, name=name)
+        # If we're going to be saving our results, do it periodically so we don't 
+        # lose a bunch of work when something goes wrong elsewhere, and so we can
+        # play with the results as they come out.
+        if save > 0 and ((mod(n+1,save) == 0) or (n == numlins-1)):
+            savepartfilename = savedir+"/%s_part_%d_of_%d.pkl" % (strftime('%Y%m%d%H%M%S'), partcount, numlins/save + 1)
+            print "Saving lins %d-%d of %d in %s\n" % ((partcount-1)*save+1,n+1,numlins,savepartfilename)
+            if mod(n+1,save) == 0:
+                pickle.dump(lins2fit[(partcount-1)*save:partcount*save],open(savepartfilename,'w'))
+            else:
+                pickle.dump(lins2fit[(partcount-1)*save:],open(savepartfilename,'w'))
+            partcount = partcount + 1
 
     return lins2fit
 #}}}
 
-def browse_fits(lins, delta_max=radians(20), dbar_max=0.05, fixlon=True): #{{{
+def linsample(proto=None, pool=None, nbins=20): #{{{
+    """
+    Select lineaments from pool that approximate the length distribution of
+    those in proto.  Approximate the distribution using nbins bins, ranging
+    from the minimum to the maximum length of th lineaments in proto.
+
+    """
+
+    # define the length bins to replicate:
+    Ns, bins = histogram([ lin.length for lin in proto ], bins=nbins, new=True)
+
+    # randomize lins2fit to avoid habitually selecting from the same pool:
+    shuffle(pool)
+
+    keepers = []
+    numlins = len(proto)
+    for N,i in zip(Ns, range(nbins)):
+        lins_by_bin = []
+        for lin in pool:
+            linlen = lin.length
+            if linlen > bins[i] and linlen < bins[i+1]:
+                lins_by_bin.append(lin)
+
+        keepers += lins_by_bin[:N]
+
+    # avoid ordering the lineaments by length:
+    shuffle(keepers)
+    return(keepers)
+#}}}
+
+def browse_fits(lins, delta_max=radians(20), dbar_max=0.05): #{{{
     lin_num=0
 
     the_fig = figure()
@@ -159,7 +191,7 @@ def browse_fits(lins, delta_max=radians(20), dbar_max=0.05, fixlon=True): #{{{
         linmap.drawmeridians(range(-180,180,30), labels=[1,0,0,1])
         linmap.drawparallels(range(-90,90,30), labels=[1,0,0,1])
 
-        lin.plot(map=linmap, fixlon=fixlon, lw=2.0)
+        lin.plot(map=linmap, linewidth=2.0)
 
         good_fits = lin._Lineament__good_fits
         b_vals     = lin.bs()
@@ -285,10 +317,47 @@ def calc_fit_hist(lins): #{{{
 def save_lins(lins, name="global_lins"): #{{{
     from time import strftime
     import pickle
+    import os
 
-    outfile = open("output/%s_%s.pkl" % (name, strftime('%Y%m%d%H%M%S')),'w')
-    pickle.dump(lins, outfile)
+    outdir="output"
+    outfile="%s_%s.pkl" % (name, strftime('%Y%m%d%H%M%S'))
+    outpath = os.path.join(outdir,outfile)
+    linkpath = os.path.join(outdir,name)
+    pickle.dump(lins, open(outpath,'w'))
+
+    try:
+        os.unlink(linkpath)
+    except OSError:
+        pass
+
+    os.symlink(outfile, linkpath)
+
 #}}} end save_lins()
+
+def load_lins(linpath): #{{{
+    """
+    Load a list of lineaments from either a pickle file, or a directory filled
+    with pickle files (as is produced by calc_fits)
+
+    """
+    import pickle
+
+    linlist = []
+    if os.path.isdir(linpath):
+        lindir = os.listdir(linpath)
+        for linfilename in lindir:
+            linfilepartname = os.path.join(linpath, linfilename)
+            print "Loading", linfilepartname
+            newpart = pickle.load(open(linfilepartname))
+            print "  found %d lineaments" % (len(newpart,))
+            linlist += newpart
+    elif os.path.isfile(linpath):
+        linlist = pickle.load(open(linpath))
+    else:
+        raise os.error("Path: \'%s\' is not a file or directory" % (linpath,) )
+
+    return linlist
+#}}}
 
 def activity_histogram(lins_list, hist_ax=None, nbins=18, labels=[], colors=[], lin_cm=cm.jet): #{{{
     """
@@ -357,17 +426,6 @@ def activity_histogram(lins_list, hist_ax=None, nbins=18, labels=[], colors=[], 
         for patch in patches:
             patch.set_facecolor(color)
 
-# mean/stddev aren't *really* meaningful here, because there's no reason to
-# expect this to have a normal distribution.
-#    bin_means   = [ mean(N) for N in lins_n ]
-#    bin_stddevs = [ std(N) for N in lins_n ]
-#    for bin_mean,bin_stddev,label,color in zip(bin_means, bin_stddevs,labels,colors):
-#        print("%s bin mean count = %.0f +/- %.0f" % (label, bin_mean, bin_stddev) )
-#        b_vals = linspace(0,180,len(lins_n))
-#
-#        hist_ax.fill_between(b_vals, bin_mean+bin_stddev, max([0,bin_mean-bin_stddev]), color=color, alpha=0.2)
-#        hist_ax.fill_between(b_vals, bin_mean+2*bin_stddev, max([0,bin_mean-2*bin_stddev]), color=color, alpha=0.2)
-
     hist_ax.set_ylabel("cumulative feature length [km]")
     hist_ax.grid(True)
     hist_ax.set_xticks(linspace(0,180,nbins+1))
@@ -427,7 +485,7 @@ def fitcurves(lins_list, fit_ax=None, labels=[], colors=[], lin_cm=cm.jet): #{{{
         agg_delta_rms = zeros(len(lins[0].bs()))
         agg_delta_rms_derotated = zeros(len(lins[0].bs()))
         agg_length = 0
-        for lin in lins:
+        for lin,N in zip(lins,range(len(lins))):
             linlength = lin.length
             agg_length += linlength
             # de-rotation can only work if we know how much to de-rotate a lineament...
@@ -440,8 +498,8 @@ def fitcurves(lins_list, fit_ax=None, labels=[], colors=[], lin_cm=cm.jet): #{{{
 
                 # assemble an array containing the same values as the delta_rms
                 # portion of the fits array, but shifted by best_idx positions:
-                derotated = hstack([lin._Lineament__fits[best_idx:,1],lin._Lineament__fits[:best_idx,1]])
-                agg_delta_rms_derotated += derotated*linlength
+                derotated_fits = hstack([lin._Lineament__fits[best_idx:,1],lin._Lineament__fits[:best_idx,1]])
+                agg_delta_rms_derotated += derotated_fits*linlength
 
             fits_to_add = lin._Lineament__fits[:,1]
             agg_delta_rms += fits_to_add*linlength
@@ -597,113 +655,111 @@ def w_stress_map(nlats=90, nlons=180): #{{{
     return(stress_weights)
 #}}}
 
+def cache_linstats(lins, name="", delta_max=radians(20), dbar_max=0.10): #{{{
+    """
+    Segregate a list of lineaments by whether or not they've got fits of the
+    specified goodness, and also calculate some statistics on the population,
+    to be used later in plotting.
+
+    """
+
+    print("""Caching good fits for %s features:
+    delta_max = %.2g degrees
+    dbar_max  = %.2g""" % (name, degrees(delta_max), dbar_max))
+
+    stresscalc = lins[0].stresscalc
+    sat_radius_km = stresscalc.stresses[0].satellite.radius()/1000.0
+
+    for lin in lins:
+        lin.cache_good_fits(delta_max=delta_max, dbar_max=dbar_max)
+
+    # How many of the lineaments pass the fit test, by number:
+    goodlins = [ lin for lin in lins if len(lin.good_fits()) > 0 ]
+    badlins  = [ lin for lin in lins if lin not in goodlins ]
+
+    # What proportion of their overall length passes the fit tests:
+    lins_lengths     = array([ lin.length for lin in lins ])
+    goodlins_lengths = sum( [lin.length for lin in goodlins ]) * sat_radius_km
+    badlins_lengths  = sum( [lin.length for lin in badlins  ]) * sat_radius_km
+
+    # How unique are the fits for these values of delta_max and dbar_max?
+    # The fit degeneracy 
+    fit_degeneracy   = array([ float(len(lin.good_fits()))/float(len(lin._Lineament__fits)) for lin in lins ])
+    mean_fdn = mean( [ x for x in fit_degeneracy if x > 0 ])
+
+    print("    N kept: %d / %d (%.0f%%)" % (len(goodlins), len(lins), 100.0*len(goodlins)/float(len(lins))) )
+    print("    km kept: %d / %d (%.0f%%)" % (goodlins_lengths, badlins_lengths+goodlins_lengths, 100.0*goodlins_lengths/float(goodlins_lengths+badlins_lengths)) )
+    print("    mean fit degeneracy:  %.2f%% " % (100.0*mean_fdn) )
+
+    return(goodlins, badlins, goodlins_lengths, badlins_lengths, fit_degeneracy)
+
+#}}}
+
 ###############################################################################
 #         Routines that generate plots in support of the TPW paper:           #
 ###############################################################################
 
-def makefigs(delta_max=radians(20), dbar_max=0.10,\
-             make_faildir=False, make_maps=True, make_hists=True,\
-             make_examples=False, make_stats=False): #{{{
+def makefigs(delta_max=radians(20), dbar_max=0.10, faildir=False, maps=False, hists=False, examples=False, stats=False): #{{{
     """
     A wrapper that takes input parameters for the figures, and calls all of the
     individual figure plotting routines, below.
 
     """
-    import pickle
-
     # These are the lineaments in their modern locations, compared to an
     # elastic NSR stress field, with Delta ~ 0.001.
-    nsrlinfile = "output/nsr_delta20_dbar05_20081124174547.pkl"
-
+    nsrlins = load_lins("output/map_nsrfit")
     # All the mapped lineaments, transformed to a pre-TPW coordinate system,
     # with the paleo-north pole at 80E, 10N in current lat/lon.
-    tpwlinfile = "output/tpw_80E10N_delta20_dbar05_20081124174727.pkl"
-
-    # All the mapped lineaments, compared to various NSR stress fields, for
-    # different amounts of viscous relaxation:
-    # Delta = 0.1
-    nsrD01linfile = "output/nsr_D01_200811.pkl"
-    # Delta = 1.0
-    nsrD1linfile = "output/nsr_D1_200811.pkl"
-    # Delta = 10
-    nsrD10linfile = "output/nsr_D10_200811.pkl"
-    # Delta = 100
-    nsrD100linfile = "output/nsr_D100_200811.pkl"
-    # Delta = 1000
-    nsrD1000linfile = "output/nsr_D1000_200811.pkl"
-
-    # A set of synthetic lineaments, each of which is a portion of a great
+    tpwlins = load_lins("output/tpw_nsrfit")
+    # A set of 661 synthetic lineaments, each of which is a portion of a great
     # circle, oriented randomly on the surface, having a random location, in a
     # variety of lengths, allowing a very basic null hypothesis test.  They've
     # had their fits calculated relative to an elastic NSR stress field.
-    nsr_SynthGCL_linfile = "output/nsr_synth_gcl.pkl"
+    gclins = load_lins("output/gc_nsrfit")
+    # A set of 661 perfect synthetic NSR lineaments, as a control dataset:
+    synlins = load_lins("output/synth_nsrfit")
 
-    # A set of 1000 perfect synthetic NSR lineaments, as a control dataset:
-    nsr_SynthPerfect_linfile = "output/nsr_synth_perfect.pkl"
+    # All the mapped lineaments, compared to various NSR stress fields, for
+    # different amounts of viscous relaxation (Delta=[0.1,1,10,100,1000])
+    #nsrD01lins   = load_lins("output/Delta01_nsrfit")
+    #nsrD1lins    = load_lins("output/Delta1_nsrfit")
+    #nsrD10lins   = load_lins("output/Delta10_nsrfit")
+    #nsrD100lins  = load_lins("output/Delta100_nsrfit")
+    #nsrD1000lins = load_lins("output/Delta1000_nsrfit")
 
-    # Read in the NSR lineaments, and cache their good fits, it necessary:
-    nsrlins = pickle.load(open(nsrlinfile))
+    # The implicit assumption here is that we've got the same StressCalc for all of the
+    # lists of lineaments... should really check to make sure that it's true:
     nsr_stresscalc = nsrlins[0].stresscalc
-
-    # going to assume we're all using the same satellite here...
     sat_radius_km = nsr_stresscalc.stresses[0].satellite.radius()/1000.0
 
-    print("""Caching good fits for modern mapped features:
-    delta_max = %.2g degrees
-    dbar_max  = %.2g""" % (degrees(delta_max), dbar_max))
-    for lin in nsrlins:
-        lin.cache_good_fits(delta_max=delta_max, dbar_max=dbar_max)
-    nsr_goodlins = [ lin for lin in nsrlins if len(lin.good_fits()) > 0 ]
-    nsr_badlins  = [ lin for lin in nsrlins if lin not in nsr_goodlins ]
-    nsr_goodlength = sum( [lin.length for lin in nsr_goodlins ]) * sat_radius_km
-    nsr_badlength  = sum( [lin.length for lin in nsr_badlins  ]) * sat_radius_km
-    print("""    lineaments kept: %d / %d (%.0f%%)
-    kilometers kept: %.0f / %.0f (%.0f%%)""" % (len(nsr_goodlins), len(nsrlins), 100.0*len(nsr_goodlins)/float(len(nsrlins)),\
-           nsr_goodlength, nsr_goodlength+nsr_badlength, 100.0*nsr_goodlength/float(nsr_goodlength+nsr_badlength)) )
+    nsr_goodlins, nsr_badlins, nsr_goodlins_lengths, nsr_badlins_lengths, nsr_fitprop = cache_linstats(nsrlins, name="Modern Mapped",  delta_max=delta_max, dbar_max=dbar_max)
+    tpw_goodlins, tpw_badlins, tpw_goodlins_lengths, tpw_badlins_lengths, tpw_fitprop = cache_linstats(tpwlins, name="Pre-TPW 80E10N", delta_max=delta_max, dbar_max=dbar_max)
+    gc_goodlins,   gc_badlins,  gc_goodlins_lengths,  gc_badlins_lengths,  gc_fitprop = cache_linstats(gclins,  name="Great Circle",   delta_max=delta_max, dbar_max=dbar_max)
+    syn_goodlins, syn_badlins, syn_goodlins_lengths, syn_badlins_lengths, syn_fitprop = cache_linstats(synlins, name="Synthetic NSR",  delta_max=delta_max, dbar_max=dbar_max)
 
-    # Read in the pre-TPW lineaments, and cache their good fits:
-    tpwlins = pickle.load(open(tpwlinfile))
-    print("""Caching good fits for pre-TPW features:
-    delta_max = %.2g degrees
-    dbar_max  = %.2g""" % (degrees(delta_max), dbar_max))
-    for lin in tpwlins:
-        lin.cache_good_fits(delta_max=delta_max, dbar_max=dbar_max)
-    tpw_goodlins = [ lin for lin in tpwlins if len(lin.good_fits()) > 0 ]
-    tpw_badlins  = [ lin for lin in tpwlins if lin not in tpw_goodlins ]
-    tpw_goodlength = sum( [lin.length for lin in tpw_goodlins ]) * sat_radius_km
-    tpw_badlength  = sum( [lin.length for lin in tpw_badlins  ]) * sat_radius_km
-    print("""    lineaments kept: %d / %d (%.0f%%)
-    kilometers kept: %.0f / %.0f (%.0f%%)""" % (len(tpw_goodlins), len(tpwlins), 100.0*len(tpw_goodlins)/float(len(tpwlins)),\
-           tpw_goodlength, tpw_goodlength+tpw_badlength, 100.0*tpw_goodlength/float(tpw_goodlength+tpw_badlength)) )
-
-    if make_faildir is True:
+    if faildir is True:
         # the stresscalc object has information about the satellite buried in it.
         NSRFailDirByLat(nsr_stresscalc, lats=linspace(20,36,9))
 
-    if make_maps is True:
+    if maps is True:
         FitMap(goodlins=nsr_goodlins, badlins=nsr_badlins, nbins=9, titlestr="global lins, fit to NSR")
-        #FitMap(goodlins=tpw_goodlins, badlins=tpw_badlins, nbins=9, titlestr="pre-TPW lins, fit to NSR", fixlon=True)
-        FitMap(goodlins=nsr_goodlins, badlins=regular_nsr_lingen(nlats=60), nbins=9, titlestr="global lins, in NSR formation locations", derotate=True)
+        FitMap(goodlins=tpw_goodlins, badlins=tpw_badlins, nbins=9, titlestr="pre-TPW lins, fit to NSR")
+        FitMap(goodlins=nsr_goodlins, badlins=regular_nsr_lingen(nlats=60), nbins=9, titlestr="global lins, in NSR formation locations", derotate=True, stresscentric=True)
+        # Map of the fake (great circle) NSR lineaments:
+        FitMap(goodlins=gc_goodlins, badlins=gc_badlins, nbins=9, titlestr="Great Circle Segments fit to NSR")
+        # Map of the perfect synthetic NSR lineaments:
+        FitMap(goodlins=synlins, titlestr="Perfect Synthetic NSR Lineaments", nbins=9)
+
+        # This shows the resolution of coverage we've got to work with:
         EuropaCoverageMap()
 
-        # Map of the fake (great circle) NSR lineaments:
-        #FitMap()
-        # Map of the perfect synthetic NSR lineaments:
-        #Fitmap()
-
-    if make_hists is True:
-        ActHist_NSRvTPW(nsr_goodlins, tpw_goodlins, nbins=18)
-        ActHist_ByLength(nsr_goodlins, lengths=[0,150,300,500,1000,2000], nbins=18)
-        #ActHist_Synthetic()
-
-        # Lineaments for doing the viscous relaxation comparison:
-        #D01  = pickle.load(open(nsrD01linfile))
-        #D1   = pickle.load(open(nsrD1linfile))
-        #D10  = pickle.load(open(nsrD010linfile))
-        #D100 = pickle.load(open(nsrD0100linfile))
-        #ViscoActHist([nsrlins, D01, D1, D10, D100, D1000])
+    if hists is True:
+        ActHist_NSRvTPW(nsr_goodlins, nsr_badlins, tpw_goodlins, tpw_badlins, nbins=18)
+        ActHist_ByLength(nsr_goodlins, nsr_badlins, lengths=[0,150,300,500,1000,2000], nbins=18)
+        ActHist_MappedGC(nsr_goodlins, nsr_badlins, gc_goodlins, gc_badlins, nbins=18)
+        #ActHist_Viscoelastic([nsrlins, nsrD01lins, nsrD1lins, nsrD10lins, nsrD100lins, nsrD1000lins])
  
-    if make_examples is True: #{{{2
+    if examples is True: #{{{2
         good_nsr1    = nsrlins[2]   # 1500 km long, symmetric arcuate lineament in the N. hemisphere
         good_nsr2    = nsrlins[53]  #  700 km long, asymmetric arcuate lineament in the N. hemisphere
         good_nsr3    = nsrlins[108] # 1800 km long, nearly symmetric arcuate lineament in the S. hemisphere
@@ -739,14 +795,22 @@ def makefigs(delta_max=radians(20), dbar_max=0.10,\
         DoppelgangerExamples(example_lins)
 #}}}2
 
-    if make_stats is True:
-        LinStats(nsrlins, delta_max, dbar_max)
+    if stats is True:
         MinDeltaRMSCorr(nsrlins)
-        DbarDeltaCorr(nsrlins)
+        #DbarDeltaStats(nsrlins)
+        LinLatLonStats(goodlins=nsr_goodlins, badlins=nsr_badlins, label="Mapped Lineaments")
+        LinLatLonStats(goodlins=gc_goodlins,  badlins=gc_badlins,  label="Great Circle Segments")
+        LinLatLonStats(goodlins=tpw_goodlins, badlins=tpw_badlins, label="pre-TPW Lineaments (pole=80E10N)")
+        LinLatLonStats(goodlins=syn_goodlins, badlins=syn_badlins, label="Synthetic NSR Lineaments")
+        # This is the pool of 12,000 synthetic NSR lineaments from which the
+        # above control dataset was drawn.  We can use it to show what dense
+        # "perfect" coverage of the surface would look like, 
+        synlins_pool = load_lins("output/synth_pool")
+        LinLatLonStats(goodlins=synlins_pool, badlins=[],          label="All Synthetic NSR Lineaments")
 
 # end makefigs }}}
 
-def ActHist_NSRvTPW(nsrlins, tpwlins, nbins=18): #{{{
+def ActHist_NSRvTPW(nsr_goodlins, nsr_badlins, tpw_goodlins, tpw_badlins, nbins=18): #{{{
     """
     A plot showing the activity histograms and the aggregate fit curves for the
     set of lineaments included in each of the analyses.  One for the lineaments
@@ -760,18 +824,54 @@ def ActHist_NSRvTPW(nsrlins, tpwlins, nbins=18): #{{{
     act_hist_axes = the_fig.add_subplot(2,1,1)
     fit_curv_axes = the_fig.add_subplot(2,1,2)
 
-    sat_radius_km = nsrlins[0].stresscalc.stresses[0].satellite.radius()/1000
-    lin_labels = ['modern (%d km)'  % (sum([lin.length for lin in nsrlins])*sat_radius_km),\
-                  'pre-TPW (%d km)' % (sum([lin.length for lin in tpwlins])*sat_radius_km) ]
+    nsr_goodlen = sum([lin.length for lin in nsr_goodlins])
+    nsr_badlen  = sum([lin.length for lin in nsr_badlins])
+    nsr_pct_kept = 100.0*nsr_goodlen/(nsr_goodlen + nsr_badlen)
 
-    activity_histogram([nsrlins, tpwlins], hist_ax=act_hist_axes,nbins=nbins, labels=lin_labels)
-    fitcurves([nsrlins, tpwlins], fit_ax=fit_curv_axes, labels=lin_labels)
+    tpw_goodlen = sum([lin.length for lin in tpw_goodlins])
+    tpw_badlen  = sum([lin.length for lin in tpw_badlins])
+    tpw_pct_kept = 100.0*tpw_goodlen/(tpw_goodlen + tpw_badlen)
+
+    lin_labels = ['Modern Mapped (%.0f%% retained)'  % (nsr_pct_kept),\
+                  'Pre-TPW 80E10N (%.0f%% retained)' % (tpw_pct_kept) ]
+
+    activity_histogram([nsr_goodlins, tpw_goodlins], hist_ax=act_hist_axes,nbins=nbins, labels=lin_labels)
+    fitcurves([nsr_goodlins, tpw_goodlins], fit_ax=fit_curv_axes, labels=lin_labels)
 
     the_fig.show()
 
 # end ActHist_NSRvTPW }}}
 
-def ActHist_ByLength(nsrlins, lengths=[0,150,300,500,1000,2000], nbins=18): #{{{
+def ActHist_MappedGC(nsr_goodlins, nsr_badlins, gc_goodlins, gc_badlins, nbins=18): #{{{
+    """
+    A plot comparing the mapped features to random great circle segments having
+    the same overall length distribution.
+
+    """
+
+    the_fig = figure()
+    # Two subplots, one above the other:
+    act_hist_axes = the_fig.add_subplot(2,1,1)
+    fit_curv_axes = the_fig.add_subplot(2,1,2)
+
+    nsr_goodlen = sum([lin.length for lin in nsr_goodlins])
+    nsr_badlen  = sum([lin.length for lin in nsr_badlins])
+    nsr_pct_kept = 100.0*nsr_goodlen/(nsr_goodlen + nsr_badlen)
+
+    gc_goodlen = sum([lin.length for lin in gc_goodlins])
+    gc_badlen  = sum([lin.length for lin in gc_badlins])
+    gc_pct_kept = 100.0*gc_goodlen/(gc_goodlen + gc_badlen)
+
+    lin_labels = ['Modern Mapped (%.0f%% retained)'  % (nsr_pct_kept),\
+                  'Great Circles (%.0f%% retained)' % (gc_pct_kept) ]
+
+    activity_histogram([nsr_goodlins, gc_goodlins], hist_ax=act_hist_axes,nbins=nbins, labels=lin_labels)
+    fitcurves([nsr_goodlins, gc_goodlins], fit_ax=fit_curv_axes, labels=lin_labels)
+
+    the_fig.show()
+#}}}
+
+def ActHist_ByLength(goodlins, badlins, lengths=[0,150,300,500,1000,2000], nbins=18): #{{{
     """
     Activity histogram and aggregate fit curves for the lineaments compared to
     the NSR stress field, but with the lineaments broken into several different
@@ -786,41 +886,54 @@ def ActHist_ByLength(nsrlins, lengths=[0,150,300,500,1000,2000], nbins=18): #{{{
     fit_curv_axes = the_fig.add_subplot(212)
 
     numlens = len(lengths)-1
-    lins_by_length = []
+    goodlins_by_length = []
+    goodlengths_by_length = [0,]*numlens
+    badlins_by_length = []
+    badlengths_by_length = [0,]*numlens
 
     for N in range(numlens):
-        lins_by_length.append([])
+        goodlins_by_length.append([])
+        badlins_by_length.append([])
 
-    sat_radius_km = nsrlins[0].stresscalc.stresses[0].satellite.radius()/1000
-    for lin in nsrlins:
-        lin_length_km = lin.length*sat_radius_km
-        for N in range(numlens):
+    sat_radius_km = goodlins[0].stresscalc.stresses[0].satellite.radius()/1000
+    for N in range(numlens):
+        for lin in goodlins:
+            lin_length_km = lin.length*sat_radius_km
             if (lin_length_km > lengths[N]) and (lin_length_km < lengths[N+1]):
-                lins_by_length[N].append(lin)
+                goodlins_by_length[N].append(lin)
+                goodlengths_by_length[N] += lin_length_km
                 continue
 
-    lin_labels = ["all lengths (%d km)" % (sum([lin.length*sat_radius_km for lin in nsrlins]))]
+        for lin in badlins:
+            lin_length_km = lin.length*sat_radius_km
+            if (lin_length_km > lengths[N]) and (lin_length_km < lengths[N+1]):
+                badlins_by_length[N].append(lin)
+                badlengths_by_length[N] += lin_length_km
+                continue
 
+    pct_kept = []
+    lin_labels = []
     for N in range(numlens):
-        lin_labels.append("%d - %d km (%d km)" % (lengths[N], lengths[N+1], sum([ lin.length*sat_radius_km for lin in lins_by_length[N] ])))
+        pct_kept.append(100.0*goodlengths_by_length[N]/(goodlengths_by_length[N]+badlengths_by_length[N]))
+        lin_labels.append("%d - %d km (%.0f%% retained)" % (lengths[N], lengths[N+1], pct_kept[N]))
 
-    activity_histogram([nsrlins,]+lins_by_length, hist_ax=act_hist_axes, nbins=nbins, labels=lin_labels)
-    fitcurves([nsrlins,]+lins_by_length, fit_ax=fit_curv_axes, labels=lin_labels)
+    activity_histogram(goodlins_by_length, hist_ax=act_hist_axes, nbins=nbins, labels=lin_labels)
+    fitcurves(goodlins_by_length, fit_ax=fit_curv_axes, labels=lin_labels)
 
     show()
 
 # end ActHist_ByLength }}}
 
-def ViscoActHist(D01, D1, D10, D100, delta_max, dbar_max): #{{{
+def ActHist_Viscoelastic(D01, D1, D10, D100, delta_max, dbar_max): #{{{
     """
     Activity histogram and aggregate fit curves for the lineaments compared to NSR
     stress fields for three values of Delta, representing four different viscous
     relaxation scenarios, ranging from elastic, to viscous: Delta={0.1,1,10,100}
 
     """
-# end ViscoActHist }}}
+# end ActHist_Viscoelastic }}}
 
-def FitMap(goodlins=[], badlins=[], titlestr="Features colored by fit", lin_cm=cm.jet, nbins=18, derotate=False, fixlon=False): #{{{
+def FitMap(goodlins=[], badlins=[], titlestr="Features colored by fit", lin_cm=cm.jet, nbins=9, derotate=False, stresscentric=False): #{{{
     """
     Creates a global map of the lineaments, color coding them by what amount of
     backrotation (b) minimizes delta_rms(b) when compared to the NSR stress
@@ -844,15 +957,32 @@ def FitMap(goodlins=[], badlins=[], titlestr="Features colored by fit", lin_cm=c
     badlen  = sum( [ lin.length for lin in badlins  ] ) * sat_radius_km
     goodlen = sum( [ lin.length for lin in goodlins ] ) * sat_radius_km
 
-    fig = figure()
-    linfitmap = Basemap()
+    fig = figure(figsize=(12,8))
+    if stresscentric:
+        llcrnrlon=0
+        llcrnrlat=0
+        urcrnrlon=180
+        urcrnrlat=90
+        lat_mirror=True
+        gridspace=15
+    else:
+        llcrnrlon=0
+        llcrnrlat=-90
+        urcrnrlon=360
+        urcrnrlat=90
+        lat_mirror=False
+        gridspace=30
+
+        
+    lon_cyc=abs(radians(llcrnrlon-urcrnrlon))
+    linfitmap = Basemap(llcrnrlon=llcrnrlon,llcrnrlat=llcrnrlat,urcrnrlon=urcrnrlon,urcrnrlat=urcrnrlat)
+    linfitmap.drawmeridians(range(llcrnrlon,urcrnrlon+1,gridspace), labels=[1,0,0,1])
+    linfitmap.drawparallels(range(llcrnrlat,urcrnrlat+1,gridspace), labels=[1,0,0,1])
     linfitmap.drawmapboundary(fill_color="white")
-    linfitmap.drawmeridians(range(-180,181,30), labels=[1,0,0,1])
-    linfitmap.drawparallels(range(-90,91,30), labels=[1,0,0,1])
     map_ax = fig.axes[0]
 
     if len(badlins) > 0:
-        badlines,linfitmap = lineament.plotlinmap(badlins, map=linfitmap, color='black', alpha=1.0, lw=1.0, fixlon=fixlon)
+        badlines,linfitmap = lineament.plotlinmap(badlins, map=linfitmap, color='black', alpha=1.0, linewidth=1.0, lon_cyc=lon_cyc, lat_mirror=lat_mirror)
 
     goodlines = []
     for lin in goodlins:
@@ -869,9 +999,8 @@ def FitMap(goodlins=[], badlins=[], titlestr="Features colored by fit", lin_cm=c
         backrot = 0
         if derotate:
             backrot = best_b
-            fixlon = True
 
-        newline, linfitmap = lineament.plotlinmap([lin.lonshift(backrot)], map=linfitmap, lw=lin_width, color=lin_color, alpha=lin_alpha, fixlon=fixlon)
+        newline, linfitmap = lineament.plotlinmap([lin.lonshift(backrot)], map=linfitmap, linewidth=lin_width, color=lin_color, alpha=lin_alpha, lon_cyc=lon_cyc, lat_mirror=lat_mirror)
         goodlines.append(newline)
 
     map_ax.set_title(titlestr + " " + 'max($\delta_{rms}$)=%.2g$^\circ$, max($\\bar{D}$)=%.2g' % (degrees(delta_max),dbar_max))
@@ -884,75 +1013,6 @@ def FitMap(goodlins=[], badlins=[], titlestr="Features colored by fit", lin_cm=c
     show()
 
 # end FitMap }}}
-
-def LinStats(nsrlins, delta_max, dbar_max): #{{{
-    """
-    Creates several histograms, showing information about the statistical
-    distribution and morphologies of the lineaments used in the analysis.
-    Several of these can be shown in each individual bar chart, showing
-    side-by-side comparisons.
-
-    Possibilities include:
-
-    A1: Number weighted length distribution of all included lineaments
-    A2: Number weighted length distribution of all excluded lineaments
-        (barstacked histogram, so that total bar heights show the distribution
-        of the entire mapped dataset)
-
-    B1: Length weighted length distribution of all included lineaments
-    B2: Length weighted length distribution of all excluded lineaments
-        (barstacked histogram, so that total bar heights show the distribution
-        of the entire mapped dataset)
-
-    C1: Length weighted sinuosity distribution of included lineaments
-    C2: Length weighted sinuosity distribution of excluded lineaments
-        (barstacked histogram, so that total bar heights show the distribution
-        of the entire mapped dataset)
-    C3: Length weighted sinuosity distribution of a synthetic population with
-        the same length distribution as the included features.
-
-    D1: Latitude of mapped lineament segment midpoints, scaled by the length of
-        the segments that they are part of, normalized by the factor
-        corresponding to the decrease in surface area at higher latitudes.
-        (Showing the deviation from a normal distribution across the surface)
-    D2: Longitude of lineament segment midpoints, scaled by the length of the
-        segments that they are part of.
-    D3: Latitude and longitude biases present in the resolution of images that
-        went into the 500 meter global mosaic, as captured by the number of image
-        pixels present at each latitude and longitude, compared to the number that
-        there would have been if the entire surface had been imaged at 500 m/px.
-    D4: Correlation between lat/lon biases in mapped lineaments, and resolution
-        of images.
-
-    """
-# end LinStats }}}
-
-def FitCurveExamples(example_lins, delta_max, dbar_max): #{{{
-    """
-    Several archetypal fit curves (delta_rms(b) and dbar(b)), showing a
-    selection of different behaviors, for different lineament morphologies.
-
-    Possibly to include:
-    
-    A: An "obviously" NSR related lineament (long, arcuate, good best fit).
-    B: An "obviously" non-NSR lineament (long E-W near equator?).
-    C: Cycloidal lineament.
-    D: High sinuosity, non-cycloidal lineament.
-    E: Short lineament at high latitude.
-    F: Short lineament at low latitude.
-
-    """
-# end FitCurveExamples }}}
-
-def DoppelgangerExamples(example_lins): #{{{
-    """
-    A close up of the example lineaments shown in the fit curve examples, with
-    a whole range of their doppelganger lineaments plotted, color coded by the
-    value of b that was used to generate them, labeled with the value of dbar
-    that they result in.
-
-    """
-# end DoppelgangerExamples }}}
 
 def MinDeltaRMSCorr(lins): #{{{
     """
@@ -999,18 +1059,6 @@ def MinDeltaRMSCorr(lins): #{{{
 
 # end MinDeltaRMSCorr }}}
 
-def DbarDeltaCorr(nsrlins): #{{{
-    """
-    Scatter plots exploring the correlation between dbar and delta, as a
-    function of several lineament variables, including:
-
-    A: lineament.sinuosity()
-    B: lineament.length
-    C: min(lin.delta_rms())
-
-    """
-# end DbarDeltaCorr }}}
- 
 def NSRFailDirByLat(nsr_stresscalc, lats=linspace(0,80,9), lons=linspace(0,180,1000)): #{{{
     """
     Graphic display of how the range of possible failure orientations changes
@@ -1055,7 +1103,7 @@ def EuropaCoverageMap(worst_res=2000): #{{{
     # changing it to m/px here
     res_arr = 1000*EuropaGrid.GetRasterBand(1).ReadAsArray()
 
-    the_fig = figure(figsize=(16,8))
+    the_fig = figure(figsize=(12,8))
 
     palette = cm.jet
     # "bad" values are where there is no coverage.
@@ -1069,14 +1117,255 @@ def EuropaCoverageMap(worst_res=2000): #{{{
     res_norm = colors.Normalize(vmin=500,vmax=worst_res)
 
     #res_ax = the_fig.add_subplot(1,1,1)
-    res_map = Basemap()
+    res_map = Basemap(llcrnrlon=0,llcrnrlat=-90,urcrnrlon=360,urcrnrlat=90)
     res_ax = the_fig.add_subplot(1,1,1)
     res_ax.set_title("Europa mosaic resolution and coverage")
     res_map.imshow(res_masked, cmap=palette, norm=res_norm, extent=[0,360,-90,90], origin='upper')
-    res_map.drawmeridians(linspace(-180,180,13), labels=[1,0,0,1])
+    res_map.drawmeridians(linspace(0,360,13), labels=[1,0,0,1])
     res_map.drawparallels(linspace(-90,90,7), labels=[1,0,0,1])
 
     cb_ax,kw = colorbar.make_axes(res_ax, pad=0.05, orientation='horizontal', shrink=0.5)
     colorbar.ColorbarBase(cb_ax, cmap=palette, norm=res_norm, orientation='horizontal')
     cb_ax.set_xlabel('resolution [m/px]')
 #}}}
+
+def DbarDeltaStats(lins_list, labels, deltas=[], dbars=[]): #{{{
+    """
+    A routine for plotting the behavior of several quantities 
+    which depend on both delta_max and dbar_max
+
+      - proportion of lineaments retained (those with at least one good fit)
+      - degeneracy of fits (how many good fits?)
+    
+    Do these things behave differently depending on what kind of dataset I'm
+    fitting?
+
+      - mapped lineaments
+      - mapped TPW 80E10N lineaments
+      - great circle segments
+      - synthetic NSR lineaments
+
+    """
+
+    numsets = len(lins_list)
+    scale_factor=3
+    the_fig = figure(figsize=(numsets*scale_factor,3*scale_factor))
+
+    # how many stats are we going to collect?
+    numstats=3
+
+    # The (number) fraction of lineaments kept
+    num_frac = zeros((numsets,len(deltas),len(dbars)))
+    # The (length) fraction of lineaments kept
+    len_frac = zeros((numsets,len(deltas),len(dbars)))
+    # The fraction of B values that are "good enough"
+    fit_prop = zeros((numsets,len(deltas),len(dbars)))
+
+    # iterate over the lineament sets, and the space of possible delta_max, and
+    # dbar_max values
+    for lins,i in zip(lins_list,range(numsets)):
+        for delta,j in zip(deltas,range(len(deltas))):
+            for dbar,k in zip(dbars,range(len(dbars))):
+
+                goodlins, badlins, goodlengths, badlengths, fitprop = cache_linstats(lins, name=labels[i], delta_max=delta, dbar_max=dbar)
+
+                num_frac[i,j,k] = float(len(goodlins))/float((len(badlins)+len(goodlins)))
+                len_frac[i,j,k] = sum(goodlengths)/(sum(goodlengths+badlengths))
+                fit_prop[i,j,k] = mean(fitprop)
+
+        num_frac_ax = the_fig.add_subplot(numstats, numsets, (i+1)) # i=(0,1) => (1,2) 
+        num_frac_ax.imshow(num_frac[i,:,:], interpolation='nearest', vmin=0.0, vmax=1.0, origin='lower', cmap=cm.gray)
+        num_frac_ax.set_title("N frac kept")
+        num_frac_ax.set_xlabel(r'max($\bar{D}$)')
+        num_frac_ax.set_ylabel(r'max($\delta_{rms}$)')
+        # need to effectively label x and y axes with good ticklabels
+
+        len_frac_ax = the_fig.add_subplot(numstats, numsets, numsets+(i+1)) # i=(0,1) => (3,4)
+        len_frac_ax.imshow(len_frac[i,:,:], interpolation='nearest', vmin=0.0, vmax=1.0, origin='lower', cmap=cm.gray)
+        len_frac_ax.set_title("km frac kept")
+        len_frac_ax.set_xlabel(r'max($\bar{D}$)')
+        len_frac_ax.set_ylabel(r'max($\delta_{rms}$)')
+        # need to effectively label x and y axes with good ticklabels
+
+        fit_prop_ax = the_fig.add_subplot(numstats, numsets, 2*numsets+(i+1)) # i(0,1) => (5,6)
+        fit_prop_ax.imshow(fit_prop[i,:,:], interpolation='nearest', vmin=0.0, vmax=1.0, origin='lower', cmap=cm.gray)
+        fit_prop_ax.set_title("fit frac")
+        fit_prop_ax.set_xlabel(r'max($\bar{D}$)')
+        fit_prop_ax.set_ylabel(r'max($\delta_{rms}$)')
+        # need to effectively label x and y axes with good ticklabels
+
+        the_fig.show()
+
+    return(num_frac,len_frac,fit_prop)
+
+# end DbarDeltaCorr }}}
+
+def LinLatLonStats(goodlins=[], badlins=[], label=""): #{{{
+    """
+    Shows the distribution of latitudes and longitudes of the lineament
+    segments over the surface of the satellite, relative to an expected random
+    distribution.
+
+    """
+
+    # TODO:
+    #   - compare derotated "good" lins from each dataset vs. the synthetics?
+
+    good_lat_pile = []
+    good_lon_pile = []
+    bad_lat_pile  = []
+    bad_lon_pile  = []
+    sat_radius_km = 1561
+
+    try:
+        delta_max = max([ max(lin.good_fits()[:,1]) for lin in goodlins if lin.good_fits() ])
+        dbar_max = max([ max(lin.good_fits()[:,2]) for lin in goodlins if lin.good_fits() ])
+    except ValueError:
+        delta_max = pi/2
+        dbar_max = 0.5
+
+    good_length = sum([ lin.length for lin in goodlins ])*sat_radius_km
+    bad_length = sum([ lin.length for lin in badlins ])*sat_radius_km
+
+    total_length = good_length + bad_length
+
+    for goodlin in goodlins:
+        goodsegments  = goodlin.segments()
+        goodmidpoints = goodlin.midpoints()
+        good_seg_lens = [ int(round(sat_radius_km*seg.calc_length())) for seg in goodsegments ]
+
+        for mp,seg_len in zip(goodmidpoints,good_seg_lens):
+            good_lon_pile += [mp[0],]*seg_len
+            good_lat_pile += [mp[1],]*seg_len
+
+    for badlin in badlins:
+        badsegments   = badlin.segments()
+        badmidpoints  = badlin.midpoints()
+        bad_seg_lens = [ int(round(sat_radius_km*seg.calc_length())) for seg in badsegments ]
+
+        for mp,seg_len in zip(badmidpoints,bad_seg_lens):
+            bad_lon_pile += [mp[0],]*seg_len
+            bad_lat_pile += [mp[1],]*seg_len
+
+    the_fig = figure()
+    lon_ax = the_fig.add_subplot(2,1,1)
+    lon_ax.set_title(r'%s max($\delta_{rms}$)=%.0f$^\circ$ max($\bar{D}$)=%.0g' % (label, degrees(delta_max), dbar_max) )
+    if len(bad_lon_pile) > 0:
+        lins_n, lin_bins, lins_patches = lon_ax.hist([mod(degrees(good_lon_pile),180),mod(degrees(bad_lon_pile),180)],\
+                                                     bins=180, range=(0,180), label="passed", histtype='barstacked', rwidth=1.0)
+        lins_patches[1][0].set_label("failed")
+    else:
+        lon_ax.hist(mod(degrees(good_lon_pile),180), bins=180, range=(0,180), label="passed", histtype='barstacked', rwidth=1.0)
+
+    lon_ax.set_xlim(0,180)
+    lon_ax.axhline(y=total_length/180.0, color='red', linewidth=2, label="random")
+    lon_ax.set_xticks(linspace(0,180,7))
+    lon_ax.set_xlabel("longitude (modulo $\pi$)")
+    lon_ax.set_ylabel("length [km]")
+    lon_ax.legend()
+
+    lat_ax = the_fig.add_subplot(2,1,2)
+    if len(bad_lat_pile) > 0:
+        lins_n, lin_bins, lins_patches = lat_ax.hist([abs(degrees(good_lat_pile)),abs(degrees(bad_lat_pile))],\
+                                                     bins=90, range=(0,90), label="passed", histtype='barstacked', rwidth=1.0)
+        lins_patches[1][0].set_label("failed")
+    else:
+        lat_ax.hist(abs(degrees(good_lat_pile)), bins=90, range=(0,90), label="passed", histtype='barstacked', rwidth=1.0)
+    lat_ax.set_xlim(0,90)
+    lats = linspace(0,pi/2,100)
+    lat_ax.plot(degrees(lats), (total_length/90)*(cos(lats))*pi/2, color='red', linewidth=2, label="random")
+    lat_ax.set_xticks(linspace(0,90,7))
+    lat_ax.set_xlabel("abs(latitude)")
+    lat_ax.set_ylabel("length [km]")
+    lat_ax.legend()
+
+    the_fig.show()
+
+# end LinStats }}}
+
+########################################
+#         Not Yet Implemented          #
+########################################
+
+def LinLatLonStats2D(lins, label=""): #{{{
+    """
+    Create a map of lineament km per unit area over the surface of the
+    satellite, and the deviation that represents from a random distribution
+    having the same cumulative length.
+    
+    A correlation between this deviation and the resolution of coverage map can
+    be calculated, showing how much of the spatial distribution is the result
+    of our uneven coverage.
+
+    """
+    # Need the lats and lons of every lineament segment midpoint, and the
+    # length of each segment, but we don't care what order it's all in,
+    # or whether lineament
+
+    pass
+#}}}
+
+def LinStats(lins, label=""): #{{{
+    """
+    Creates several histograms, showing information about the statistical
+    distribution and morphologies of the lineaments used in the analysis.
+    Several of these can be shown in each individual bar chart, showing
+    side-by-side comparisons.
+
+    Possibilities include:
+
+    A1: Number weighted length distribution of all included lineaments
+    A2: Number weighted length distribution of all excluded lineaments
+        (barstacked histogram, so that total bar heights show the distribution
+        of the entire mapped dataset)
+
+    B1: Length weighted length distribution of all included lineaments
+    B2: Length weighted length distribution of all excluded lineaments
+        (barstacked histogram, so that total bar heights show the distribution
+        of the entire mapped dataset)
+
+    C1: Length weighted sinuosity distribution of included lineaments
+    C2: Length weighted sinuosity distribution of excluded lineaments
+        (barstacked histogram, so that total bar heights show the distribution
+        of the entire mapped dataset)
+    C3: Length weighted sinuosity distribution of a synthetic population with
+        the same length distribution as the included features.
+
+    D1: Latitude and longitude biases present in the resolution of images that
+        went into the 500 meter global mosaic, as captured by the number of image
+        pixels present at each latitude and longitude, compared to the number that
+        there would have been if the entire surface had been imaged at 500 m/px.
+    D2: Correlation between lat/lon biases in mapped lineaments, and resolution
+        of images.
+
+    """
+#}}}
+
+def FitCurveExamples(example_lins, delta_max, dbar_max): #{{{
+    """
+    Several archetypal fit curves (delta_rms(b) and dbar(b)), showing a
+    selection of different behaviors, for different lineament morphologies.
+
+    Possibly to include:
+    
+    A: An "obviously" NSR related lineament (long, arcuate, good best fit).
+    B: An "obviously" non-NSR lineament (long E-W near equator?).
+    C: Cycloidal lineament.
+    D: High sinuosity, non-cycloidal lineament.
+    E: Short lineament at high latitude.
+    F: Short lineament at low latitude.
+
+    """
+# end FitCurveExamples }}}
+
+def DoppelgangerExamples(example_lins): #{{{
+    """
+    A close up of the example lineaments shown in the fit curve examples, with
+    a whole range of their doppelganger lineaments plotted, color coded by the
+    value of b that was used to generate them, labeled with the value of dbar
+    that they result in.
+
+    """
+# end DoppelgangerExamples }}}
+
+
