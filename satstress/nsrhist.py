@@ -214,15 +214,15 @@ def browse_fits(lins, delta_max=radians(20), dbar_max=0.05): #{{{
         delta_ax.xaxis.set_major_formatter(degree_formatter)
         delta_ax.set_ylabel(r'$\delta_{rms}$')
         delta_ax.yaxis.set_major_formatter(degree_formatter)
-        delta_ax.plot(b_vals, delta_vals, c='black', ls='-', lw=2)
-        delta_ax.plot(b_vals, [degrees(delta_max),]*len(b_vals), color='green', lw=2)
+        delta_ax.plot(b_vals, delta_vals, c='black', ls='-', linewidth=2)
+        delta_ax.plot(b_vals, [degrees(delta_max),]*len(b_vals), color='green', linewidth=2)
         delta_ax.fill_between(b_vals, 90, 0, where=delta_vals<=degrees(delta_max), color='green', alpha=0.5)
         delta_ax.set_ylim(0,90)
 
         dbar_ax.axis([0,180,0,0.6])
         dbar_ax.invert_xaxis()
-        dbar_ax.plot(b_vals, dbar_vals, c='black', ls='--', lw=2)
-        dbar_ax.plot(b_vals, [dbar_max,]*len(b_vals), color='green', lw=2, ls='--')
+        dbar_ax.plot(b_vals, dbar_vals, c='black', ls='--', linewidth=2)
+        dbar_ax.plot(b_vals, [dbar_max,]*len(b_vals), color='green', linewidth=2, ls='--')
         dbar_ax.fill_between(b_vals, 0.6, 0, where=dbar_vals<=dbar_max, color='green', alpha=0.5)
         dbar_ax.set_ylabel(r'$\bar{D}$')
         dbar_ax.set_yticks(unique(sort(hstack([arange(0,0.61,0.1),round(dbar_max,2)]))))
@@ -699,12 +699,14 @@ def cache_linstats(lins, name="", delta_max=radians(20), dbar_max=0.10): #{{{
 #         Routines that generate plots in support of the TPW paper:           #
 ###############################################################################
 
-def makefigs(delta_max=radians(20), dbar_max=0.10, faildir=False, maps=False, hists=False, examples=False, stats=False): #{{{
+def makefigs(delta_max=radians(20), dbar_max=0.10, maps=False, hists=False, examples=False, stats=False): #{{{
     """
     A wrapper that takes input parameters for the figures, and calls all of the
     individual figure plotting routines, below.
 
     """
+    from osgeo import gdal
+
     # These are the lineaments in their modern locations, compared to an
     # elastic NSR stress field, with Delta ~ 0.001.
     nsrlins = load_lins("output/map_nsrfit")
@@ -737,9 +739,15 @@ def makefigs(delta_max=radians(20), dbar_max=0.10, faildir=False, maps=False, hi
     gc_goodlins,   gc_badlins,  gc_goodlins_lengths,  gc_badlins_lengths,  gc_fitprop = cache_linstats(gclins,  name="Great Circle",   delta_max=delta_max, dbar_max=dbar_max)
     syn_goodlins, syn_badlins, syn_goodlins_lengths, syn_badlins_lengths, syn_fitprop = cache_linstats(synlins, name="Synthetic NSR",  delta_max=delta_max, dbar_max=dbar_max)
 
-    if faildir is True:
-        # the stresscalc object has information about the satellite buried in it.
-        NSRFailDirByLat(nsr_stresscalc, lats=linspace(20,36,9))
+    # Read in the resolution/coverage map from USGS:
+    # The data cube has 4 bands:
+    # 1. resolution [km/px]
+    # 2. emission angle [degrees]
+    # 3. incident angle [degrees]
+    # 4. phase angle [degrees]
+    EuropaGrid = gdal.Open("input/europa_coverage_simpcyl.cub")
+    # changing it to m/px here
+    resolution_map = 1000*EuropaGrid.GetRasterBand(1).ReadAsArray()
 
     if maps is True:
         FitMap(goodlins=nsr_goodlins, badlins=nsr_badlins, nbins=9, titlestr="global lins, fit to NSR")
@@ -751,7 +759,8 @@ def makefigs(delta_max=radians(20), dbar_max=0.10, faildir=False, maps=False, hi
         FitMap(goodlins=synlins, titlestr="Perfect Synthetic NSR Lineaments", nbins=9)
 
         # This shows the resolution of coverage we've got to work with:
-        EuropaCoverageMap()
+        EuropaCoverageMap(resolution_map)
+        LinDensityMap(nsrlins, resolution_map, 250, label="Mapped Lineaments")
 
     if hists is True:
         ActHist_NSRvTPW(nsr_goodlins, nsr_badlins, tpw_goodlins, tpw_badlins, nbins=18)
@@ -796,6 +805,8 @@ def makefigs(delta_max=radians(20), dbar_max=0.10, faildir=False, maps=False, hi
 #}}}2
 
     if stats is True:
+        # the stresscalc object has information about the satellite buried in it.
+        #NSRFailDirByLat(nsr_stresscalc, lats=linspace(20,36,9))
         MinDeltaRMSCorr(nsrlins)
         #DbarDeltaStats(nsrlins)
         LinLatLonStats(goodlins=nsr_goodlins, badlins=nsr_badlins, label="Mapped Lineaments")
@@ -804,9 +815,12 @@ def makefigs(delta_max=radians(20), dbar_max=0.10, faildir=False, maps=False, hi
         LinLatLonStats(goodlins=syn_goodlins, badlins=syn_badlins, label="Synthetic NSR Lineaments")
         # This is the pool of 12,000 synthetic NSR lineaments from which the
         # above control dataset was drawn.  We can use it to show what dense
-        # "perfect" coverage of the surface would look like, 
-        synlins_pool = load_lins("output/synth_pool")
-        LinLatLonStats(goodlins=synlins_pool, badlins=[],          label="All Synthetic NSR Lineaments")
+        # "perfect" coverage of the surface would look like, takes a while though... don't do it
+        # every time:
+        #synlins_pool = load_lins("output/synth_pool")
+        #LinLatLonStats(goodlins=synlins_pool, badlins=[],          label="All Synthetic NSR Lineaments")
+
+        LinDensityMap(nsrlins, maxdist=250, label="Density of Mapped Features")
 
 # end makefigs }}}
 
@@ -1086,22 +1100,9 @@ def NSRFailDirByLat(nsr_stresscalc, lats=linspace(0,80,9), lons=linspace(0,180,1
 
 # end NSRFailDirByLat }}}
 
-def EuropaCoverageMap(worst_res=2000): #{{{
-    from osgeo import gdal
+def EuropaCoverageMap(resolution_map, worst_res=2000): #{{{
     import matplotlib.colors as colors
     from mpl_toolkits import basemap
-
-    # Incredibly, I can just read in the whole raster dataset like this!
-    EuropaGrid = gdal.Open("input/europa_coverage_simpcyl.cub")
-
-    # The data cube has 4 bands:
-    # 1. resolution [km/px]
-    # 2. emission angle [degrees]
-    # 3. incident angle [degrees]
-    # 4. phase angle [degrees]
-
-    # changing it to m/px here
-    res_arr = 1000*EuropaGrid.GetRasterBand(1).ReadAsArray()
 
     the_fig = figure(figsize=(12,8))
 
@@ -1113,7 +1114,7 @@ def EuropaCoverageMap(worst_res=2000): #{{{
     palette.set_under(palette(0))
 
     # mask the array so that the "bad" values disappear
-    res_masked = ma.masked_where(res_arr < 0, res_arr)
+    res_masked = ma.masked_where(resolution_map < 0, resolution_map)
     res_norm = colors.Normalize(vmin=500,vmax=worst_res)
 
     #res_ax = the_fig.add_subplot(1,1,1)
@@ -1283,27 +1284,142 @@ def LinLatLonStats(goodlins=[], badlins=[], label=""): #{{{
 
 # end LinStats }}}
 
+def LinDensityMap(lins, maxdist=500, N=0, label="", cmap=cm.jet): #{{{
+    """
+    Calculate an interpolated grid showing the density of lineaments on the
+    surface, as reflected by the sum of the lengths of the lineament segments
+    within the given distance maxdist, of N sample points on the surface of the
+    satellite.
+
+    Compare that lineament density to the resolution of coverage we have from
+    the USGS mosaic that was used to make the lineament map, determining to
+    what degree the resolution of coverage determines the density of mapped
+    lineaments.
+
+    """
+    import matplotlib.colors as colors
+    from osgeo import gdal
+
+    # The number of points we need to sample the distribution at scales
+    # proportional to the surface area that each point is sampling.  This
+    # number works well for Europa anyway.
+    if N==0:
+        N = 5.0e8/(maxdist**2)
+
+    randlons, randlats = lineament.random_lonlatpoints(N)
+    reglats = linspace(-90,90,180)
+    reglons = linspace(0,360,360)
+
+    # adding these corner points makes sure that the griddata goes to the edges of the map
+    semireglons, semireglats = meshgrid(linspace(0,2*pi,13), linspace(-pi/2,pi/2,7))
+    randlons = hstack([randlons, ravel(semireglons)])
+    randlats = hstack([randlats, ravel(semireglats)])
+    seglons, seglats, seglens = lineament.get_segs(lins)
+
+    # For each point (lon,lat) defined by randlons, randlats, calculate the sum
+    # of the lengths of the segments closer than dist radians of arc away:
+    nsegs = len(seglens)
+    lensums = array([])
+
+    print("Calculating lineament density map with d=%d km and N=%d" % (maxdist, N) )
+    for lon,lat in zip(randlons, randlats):
+        lon_arr = array(lon)
+        lat_arr = array(lat)
+        newsum = sum(where(lineament.spherical_distance(lon_arr.repeat(nsegs),lat_arr.repeat(nsegs),seglons,seglats) < maxdist/1561.0, seglens, zeros(nsegs)))
+        lensums = hstack([lensums,newsum])
+
+    # convert these values of radians per footprint, into m/km^2
+    lindensity = lensums*1561*1000/(pi*maxdist**2)
+
+    lindensity_grid = griddata(degrees(randlons), degrees(randlats), lindensity, reglons, reglats)
+    lindens_fig = figure(figsize=(15,10))
+    lindens_ax = lindens_fig.add_subplot(1,1,1)
+    lindens_ax.contourf(reglons, reglats, lindensity_grid, 64, cmap=cmap)
+    lindens_ax.scatter(degrees(randlons), degrees(randlats), marker='o', color='white', s=2, edgecolor='white', alpha=0.5, linewidth=0)
+    lindens_ax.scatter(mod(degrees(seglons),360), degrees(seglats), marker='o', color='black', s=200*seglens, edgecolor='black', alpha=0.375, linewidth=0)
+
+    lindens_ax.set_xlim(0,360)
+    lindens_ax.set_xticks(linspace(0,360,13))
+    lindens_ax.set_ylim(-90,90)
+    lindens_ax.set_yticks(linspace(-90,90,7))
+    lindens_ax.set_title(label+" N=%d, d=%g km" % (N,maxdist) )
+
+    lindensnorm = colors.Normalize(vmin=0,vmax=lindensity.max())
+    cb_ax,kw = colorbar.make_axes(lindens_ax, pad=0.05, orientation='horizontal', shrink=0.5)
+    colorbar.ColorbarBase(cb_ax, cmap=cmap, norm=lindensnorm, orientation='horizontal')
+    cb_ax.set_xlabel(r"mapped lineament density [ m/km$^2$]")
+
+    print("Reading in USGS mosaic raster data")
+    # Read in the resolution/coverage map from USGS:
+    # The data cube has 4 bands:
+    # 1. resolution [km/px]
+    # 2. emission angle [degrees]
+    # 3. incident angle [degrees]
+    # 4. phase angle [degrees]
+    EuropaGrid = gdal.Open("input/europa_coverage_simpcyl.cub")
+    raster_numlons = EuropaGrid.RasterXSize
+    raster_numlats = EuropaGrid.RasterYSize
+    raster_lonidx = raster_numlons*(randlons/(2*pi))-1.0
+    raster_lonidx = raster_lonidx.round().astype(int)
+    raster_latidx = (raster_numlats*(pi/2-(randlats))/pi)-1.0
+    raster_latidx = raster_latidx.round().astype(int)
+
+    # changing resolution to [px/km]:
+    resolution_raster = 1.0 / EuropaGrid.GetRasterBand(1).ReadAsArray()
+    # mask the raster to remove extreme polar distortions, nodata values
+    resolution_raster = ma.masked_outside(resolution_raster, 0.0, 6.0)
+
+    emission_angle_raster = EuropaGrid.GetRasterBand(2).ReadAsArray()
+    emission_angle_raster = ma.masked_where(emission_angle_raster < 0, emission_angle_raster)
+    incident_angle_raster = EuropaGrid.GetRasterBand(3).ReadAsArray()
+    incident_angle_raster = ma.masked_where(incident_angle_raster < 0, incident_angle_raster)
+    phase_angle_raster    = EuropaGrid.GetRasterBand(4).ReadAsArray()
+    phase_angle_raster    = ma.masked_where(phase_angle_raster < 0, phase_angle_raster)
+
+    rasters   = [resolution_raster, emission_angle_raster, incident_angle_raster, phase_angle_raster]
+    rastnames = ['Resolution', 'Emission Angle', 'Incidence Angle', 'Phase Angle']
+    rastunits = ['[km/px]', '[degrees]', '[degrees]', '[degrees]']
+    rastfigs = [ figure(figsize=(9,12)), figure(figsize=(9,12)), figure(figsize=(9,12)), figure(figsize=(9,12)) ]
+
+    for raster,rastname,rastunit,rastfig, in zip(rasters, rastnames, rastunits, rastfigs):
+        rast_ax = rastfig.add_subplot(2,1,1)
+        rast_ax.imshow(raster, extent=(0,360,-90,90))
+        rast_ax.scatter(mod(degrees(seglons),360), degrees(seglats), marker='o', color='black', s=200*seglens, edgecolor='black', alpha=0.375, linewidth=0)
+
+        rast_ax.set_xlim(0,360)
+        rast_ax.set_xticks(linspace(0,360,13))
+        rast_ax.set_ylim(-90,90)
+        rast_ax.set_yticks(linspace(-90,90,7))
+        rast_ax.set_title("USGS Europa Mosaic: %s" % (rastname,) )
+        rast_norm = colors.Normalize(vmin=0,vmax=raster.max())
+        cb_ax,kw = colorbar.make_axes(rast_ax, pad=0.05, orientation='horizontal', shrink=0.5)
+        colorbar.ColorbarBase(cb_ax, cmap=cmap, norm=rast_norm, orientation='horizontal')
+        cb_ax.set_xlabel(rastunit)
+
+        # The array lindensity contains values of lineament density for the N
+        # (lon,lat) points defined by (randlons, randlats).  I need a similar
+        # set of values for the same (lon,lat) points, but corresponding to the
+        # values stored within various rasters we're comparing to:
+        randsamples = ma.masked_less(raster[raster_latidx, raster_lonidx],0)
+        # Calculate the correlation between lindensity and the raster in question:
+        lindensity_raster_corrcoef = ma.corrcoef(randsamples, lindensity)[0,1] 
+        print("lindensity v. %s: R=%g" % (rastname, lindensity_raster_corrcoef) )
+
+        # Make a scatter plot showing the correlation (or lack thereof):
+        lin_rast_corr_ax = rastfig.add_subplot(2,1,2)
+        lin_rast_corr_ax.scatter(randsamples, lindensity, s=10, linewidth=0, marker='o', color='black', alpha=0.375)
+        lin_rast_corr_ax.set_xlabel("USGS Mosaic %s, %s" % (rastname, rastunit) )
+        lin_rast_corr_ax.set_ylabel(r'Lineament density [m/km$^2$]')
+        lin_rast_corr_ax.set_title(r'd=%g km, N=%d, r=%.4g' % (maxdist, N, lindensity_raster_corrcoef) )
+        lin_rast_corr_ax.set_ylim(0,lindensity.max())
+        lin_rast_corr_ax.set_xlim(0,randsamples.max())
+
+        show()
+#}}}
+
 ########################################
 #         Not Yet Implemented          #
 ########################################
-
-def LinLatLonStats2D(lins, label=""): #{{{
-    """
-    Create a map of lineament km per unit area over the surface of the
-    satellite, and the deviation that represents from a random distribution
-    having the same cumulative length.
-    
-    A correlation between this deviation and the resolution of coverage map can
-    be calculated, showing how much of the spatial distribution is the result
-    of our uneven coverage.
-
-    """
-    # Need the lats and lons of every lineament segment midpoint, and the
-    # length of each segment, but we don't care what order it's all in,
-    # or whether lineament
-
-    pass
-#}}}
 
 def LinStats(lins, label=""): #{{{
     """
@@ -1367,5 +1483,3 @@ def DoppelgangerExamples(example_lins): #{{{
 
     """
 # end DoppelgangerExamples }}}
-
-

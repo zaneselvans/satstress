@@ -1,5 +1,4 @@
 from numpy import *
-from scipy.stats.mmorestats import idealfourths
 from pylab import *
 from mpl_toolkits.basemap import Basemap
 
@@ -153,33 +152,6 @@ class Lineament(object): #{{{1
         else:
             return( [ v[0] for v in self.vertices ] )
 # }}}2
-
-    def fixed_longitudes(self): # {{{2
-        """
-        Return a list of the longitude values from the lineament's vertices,
-        without discontinuities, and shifted to lie within -pi < lon < pi.
-    
-        """
-        lons = self.longitudes()
-        if lons is not None and len(lons) > 1:
-            # Get rid of any discontinuities introduced during mapping
-            for i in range(len(lons)-1):
-                if abs(lons[i]-lons[i+1]) > abs(lons[i]-(lons[i+1]+2*pi)):
-                    lons[i+1] += 2*pi
-                elif abs(lons[i]-lons[i+1]) > abs(lons[i]-(lons[i+1]-2*pi)):
-                    lons[i+1] -= 2*pi
-
-            # Ensure that -pi < lon < pi
-            while max(lons) > pi or min(lons) < -pi:
-                if max(lons) > pi:
-                    pi_sign = -1
-                else:
-                    pi_sign = +1
-
-                lons = [ lon+(pi_sign*pi) for lon in lons ]
-
-        return(lons)
-    # }}}2
 
     def latitudes(self): # {{{2
         """
@@ -438,7 +410,7 @@ class Lineament(object): #{{{1
         return(plotted_lines)
     #}}}2
 
-    def plotdoppels(self, bs=[], backrot=True, map=None, fixlon=False, color='black', alpha=0.5, linewidth=1.0): #{{{2
+    def plotdoppels(self, bs=[], backrot=True, map=None, color='black', alpha=0.5, linewidth=1.0): #{{{2
         """
         Produce a plot showing a lineament's doppelgangers, in association with
         the lineament itself.
@@ -463,11 +435,11 @@ class Lineament(object): #{{{1
             dops2plot = [ d.lonshift(-d.backrot) for d in dops2plot ]
 
         if len(dops2plot) > 0:
-            lines_out, map_out = plotlinmap(dops2plot, map=map, fixlon=fixlon, color=color, alpha=alpha, linewidth=linewidth)
+            lines_out, map_out = plotlinmap(dops2plot, map=map, color=color, alpha=alpha, linewidth=linewidth)
         else:
             lines_out, map_out = None, map
 
-        self.plot(map=map_out, fixlon=fixlon, linewidth=2.0)
+        self.plot(map=map_out, linewidth=2.0)
 
         return(lines_out, map_out)
     # }}}2
@@ -1284,6 +1256,35 @@ def paleopole_transform(paleo_npole_lon, paleo_npole_lat, lon_in, lat_in): #{{{
 
     return(lon_out, lat_out)
 #}}}
+
+def get_segs(lins): #{{{
+    """
+    For a list of lineaments, lins, return three arrays, containing the
+    longitudes and latitutes of the midpoints of the lineament segments making
+    up the lineaments, and the lengths associated with those segments.
+    """
+
+    seglons = array([])
+    seglats = array([])
+    seglens = array([])
+    for lin in lins:
+        lonsA = lin.vertices[:-1,0]
+        latsA = lin.vertices[:-1,1]
+        lonsB = lin.vertices[1:,0]
+        latsB = lin.vertices[1:,1]
+        mplons,mplats = spherical_midpoint(lonsA,latsA,lonsB,latsB)
+        seglons = hstack([seglons,mplons])
+        seglats = hstack([seglats,mplats])
+        seglens = hstack([seglens,spherical_distance(lonsA,latsA,lonsB,latsB)])
+
+    return(seglons, seglats, seglens)
+#}}}
+
+def random_lonlatpoints(N):
+    randlats = pi/2 - arccos(2*rand(N)-1)
+    randlons = 2*pi*rand(N)
+
+    return(randlons,randlats)
 
 ################################################################################
 # NOT YET IMPLEMENTED:
