@@ -1493,8 +1493,7 @@ class StressCalc(object): #
         """
 
         # This naming is just to make things a little more readable.
-        tau = numpy.array([ [0.0, 0.0],\
-                            [0.0, 0.0] ])
+        tau = numpy.zeros((2,2))
 
         # Build up each component of the stress tensor, adding the contributions
         # of each forcing listed in self.stresses one at a time:

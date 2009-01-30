@@ -843,13 +843,13 @@ def plotlinmap(lins, map=None, color='black', alpha=1.0, linewidth=1.0, lon_cyc=
         map.drawmeridians(range(-180,181,30), labels=[1,0,0,1])
         map.drawparallels(range(-90,91,30), labels=[1,0,0,1])
 
+    wasinteractive = isinteractive()
     interactive(False)
     lines = []
 
     lines += [ lin.plot(map, color=color, alpha=alpha, linewidth=linewidth, lon_cyc=lon_cyc, lat_mirror=lat_mirror) for lin in lins ]
 
-    interactive(True)
-    show()
+    interactive(wasinteractive)
 
     return([line for line in flatten(lines)], map)
 #}}} end plotlinmap

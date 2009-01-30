@@ -50,14 +50,12 @@ A plot showing:
     scale.
     
 """
-
-import satstress as ss
+from numpy import *
+from pylab import *
+from satstress import *
+from mpl_toolkits.basemap import Basemap
 import netCDF3
-import numpy
-import pylab
-from mpl_toolkits import basemap
 import sys
-from numpy import linalg
 from optparse import OptionParser
 
 def main(argv=sys.argv):
