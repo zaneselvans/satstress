@@ -1,0 +1,270 @@
+Notes on fitting lineaments to NSR stresses:
+==============================================
+
+================================================================================
+Fri Aug  1 13:28:13 PDT 2008 {{{
+================================================================================
+I mapped 661 lineaments in ArcGIS, ranging in length from ~100 km to ~2000 km.
+They were selected for prominence and continuity, attempting to ignore their
+orientation and planform, so as not to bias the sample of lineaments toward
+those that would fit well to the NSR stress field.
+
+I compared them to a nearly elastic NSR stress field, in order to try and
+reproduce previously published results (which assumed the shell was elastic).
+I weighted the error contributions of each segment making up a lineament
+according to its length as a proportion of the lineament, and built up an RMS
+error for the lineament as a whole, using the angle between the predicted and
+observed orientation of the lineaments, assuming tensile fracture parallel to
+the least tensile stress.  Stresses were calculated at the midpoints of the
+line segments making up the lineaments.  If stresses were found to be
+compressive, the maximum error (pi/2) was assigned to that segment.  No
+weighting was done for the magnitude or anisotropy of the stresses calculated.
+
+Comparisons were done for the lineament over the entire range of possible
+locations in longitude, relative to the NSR stress field - over 180 degrees of
+longitude - taking a measurement each 5 degrees of shift.  The best fit was
+recorded, as well as the amount of longitudinal translation required to obtain
+that best fit.
+
+For each lineament, I then generated two synthetic "doppelgangers", one
+starting at the east end, and propagating westward, the other starting at the
+west end, and propagating east, at a longitude corresponding to the lineament's
+best fit backrotation.  Fit curves (backrotation vs. RMS error) for both
+doppelgangers were then calculated.  All three lineaments, and all three fit
+curves were then plotted, allowing me to page through them and get some idea of
+what was going on.
+
+Several generalities:
+  - The long, arcuate, east-west symmetric lineaments seem to have a particular
+    fit-curve shape, with a deep V shaped area around the best fit, and a
+    heart-like indentation at the top of the worst fitting portion of the
+    curve.  The sides of the deep V have slope +/- 1.0, pretty uniformly.  This
+    makes me suspect that the narrowness of the fit minimum is really not a
+    good metric to use in deciding which histogram bins to add the lineament
+    to.
+
+  - As the arcuate lineament becomes less east-west symmetric, the indentation
+    at the top of the fit curve gets deeper and more asymmetric.
+
+  - Any relatively short lineament in the lower latitudes goes though a period
+    of extremely bad fits, when it's in the equitorial compressive zones - in
+    the extreme case, when the entire lineament is in compression, it maxes out
+    at pi/2.
+
+  - Short lineaments, predictably, fit better than long lineaments.
+
+  - Concavity is often not matchable - many of the doppelgangers will have the
+    opposite sense of curvature as their prototype.
+
+  - Occasionally a fit curve will have two local minima which are actually
+    similar in magnitude.  Sometimes in these cases, the doppelgangers will not
+    match the planform of the prototype mapped lineament at all, striking off
+    almost perpendicular to the lineament's trend from its ends.  It seems
+    likely that in the other local minima, the planforms would match, while at
+    the same time maintaining a very good overall fit.
+
+  - Maybe the backrotations we should really be using for building up the
+    histogram are any within, say, the top 10% of the fit distribution.  This
+    would add some width around the best fit minimum, and also possibly include
+    secondary local minima, if they were very close to being the best fit.
+
+  - The mismatch between the planforms of the synthetic and mapped lineaments
+    in some places may be a metric we can use to choose which minimum is the
+    "real" best fit.  Should implement the SHMD algorithm... e.g.
+
+    if (lin.fit(b) is in best 10%) and (lin.SMHD(doppels) < threshold):
+        add lineament to bin representing formation at B
+
+  - This still leaves us with the question of what a "good enough" fit is, and
+    how "good enough" changes with the length of the lineament.
+}}}
+
+================================================================================
+Mon Aug  4 12:16:05 PDT 2008 {{{
+================================================================================
+Issues to work on:
+  - which fit bins do we add lineaments to?
+  - what is a "good enough" fit?
+}}}
+
+================================================================================
+Wed Aug  6 13:48:50 PDT 2008 {{{
+================================================================================
+Requested and received image metadata coverages from Trent at USGS.  Should be
+able to pull it into ArcGIS when the machine frees up.
+
+More robust and flexible lingen:
+  - deal with time-variable stress fields
+  - imperfect lineaments
+    - vertex jitter
+    - add some power spectrum to the lineament
+
+Instead of a single "doppelganger" method, we really need a variety of
+different lineament generators:
+  - segment of a best fit great circle having the same length as the lineament
+
+  - lineament having the same power spectrum as the prototype, but different
+    phase information, and arbitrary orientation.
+
+  - lineament due to a particular stress field, and sharing one endpoint with
+    the prototype lineament.
+}}}
+
+================================================================================
+Fri Aug  8 10:11:19 PDT 2008 {{{
+================================================================================
+Using the SMHD between the East and West end doppelgangers on the global lineaments does a great job of discriminating between different local minimal in the fit curves.  Threshold of 100km seemed to be picking out pretty much only 
+}}}
+
+================================================================================
+Sun Aug 10 12:17:34 PDT 2008 {{{
+================================================================================
+Things to do today:
+
+  - Fix lineament.best_fit() to use doppelgangers to differentiate between
+    different local minima within the fit curve, instead of just using the
+    minimum fit.
+
+  - Left it running overnight to recalculate the best fits for all the
+    lineaments.
+}}}
+
+================================================================================
+Mon Aug 11 09:29:52 PDT 2008 {{{
+================================================================================
+Surprisingly, fixing fits by looking at the SMHD of the doppelgangers had
+virtually no effect on the overall histogram of activity.
+
+So what's going on with the lineaments that have fit curves with a couple of
+similar local minima?  What do the stresses and the doppelgangers look like in
+the other local minimum?
+
+Would be nice to be able to:
+  - calculate the fit curve for the lineament
+  - create doppelgangers at each local minimum
+  - color code them in a plot such that I can see which doppelgangers
+    correspond to which local minimum
+
+But overall, it looks like this doesn't actually allow much refinement of fit.
+
+It is a step in the direction of being able to say what a "good enough" fit is.
+No matter how good the fit is, if the synthetic lineaments don't look at all
+like the mapped lineament, I think it's a pretty bad fit, given how smoothly
+and slowly the stress field varies overall.
+
+It would be interesting to see what adding a little noise to the propagation
+direction does - it might allow lineaments to jump over into other portions of
+the stress regime sometimes... across hemispheres, etc. but that's another
+thing to work on.
+
+Another realization: IQR (the interquartile range... kind of a median of the
+median...) which describes the width of the distribution (i.e. of a histogram)
+of lin.fits, is actually describing the width of the distribution of fits - not
+the width of what I'm calling the fit curve (which is the line described by
+plotting x=backrot, and y=misfit).  Which maybe is not what I was thinking
+before, and it's not clear whether it's what Oded was thinking of either.
+
+Actually, it's almost the opposite of what I want!  If I had a lineament that
+fit exactly the same everywhere (regardless of whether it was a good or a bad
+fit) it would have a very small IQR, because the variation in the fit values
+would be small.
+
+I think the right thing to do is:
+    - draw the fit curve
+    - draw a line horizontally across it, starting at fit=0.0
+    - Move that line upward by some increment X
+    - For each 0 < X < pi/2
+      - count what proportion P of the fits lie between X[i] and X[i+1]
+    - Use the IQR of P(X) to describe the uniqueness of the best fit.
+}}}
+
+================================================================================
+Tue Aug 12 12:02:40 PDT 2008 {{{
+================================================================================
+Left lineament fit curves calculating overnight at high (1 degree) resolution,
+since what I'm mostly interested in at the moment is the fit curve.  Better to
+have something with more information when thinking about it.
+
+Oded suggested fitting a sine curve to the fit curve, and using the width of
+the confidence interval on the fit as a measure of its uniquenss.  The problem
+with this is that many of the fit curves really don't look like sine curves
+(even though they do have pi periodicity), and so the residuals are going to be
+all over the place, except for those lineaments that are roughly sinusoidal.  I
+talked to Aaron Wolf about it and he agreed.  So I'm going ahead and
+implementing the method I listed above.
+}}}
+
+================================================================================
+Thu Aug 14 11:18:39 PDT 2008 {{{
+================================================================================
+Re-working the fit plotting (nsrhist.plot_fits())- I want it to be a tool for
+browsing a set of features one by one, displaying the relevant data about each
+one and its fits to the stress field in question.  Things it should show:
+
+  x A map view of the lineament itself
+  x A map view of any doppelgangers the lineament has
+  x The fit curve
+  x The fit curves of the doppelgangers, if they've been fit
+  x Which local minima within the fit curve are plausibly good
+    x plausibly good could mean, within a certain percentage band
+      of the fits... say, any local minimum that's within 10% of
+      the best local minimum
+
+Also, instead of just having doppel_E and doppel_W, I want to have a list of
+possible doppelgangers (since there are other ways to generate doppelgangers),
+and plot all of them at the same time.
+    x self.doppels will be a list of non-None lineaments
+}}}
+
+================================================================================
+Thu Aug 14 20:27:28 PDT 2008 {{{
+================================================================================
+Now successfully discriminating plausible NSR fits by:
+    - calculating several "good" fits, that is, any local minimum in the
+      fit curve that is within 10% of the overall curve's amplitude, of the
+      minimum fit.
+    - screening these good fits based on whether or not endpoint doppelgangers
+      generated at those amounts of backrotation are with in an MHD of less
+      than 0.1*lin.length() of lin.
+
+This screening process:
+    - almost always results in a unique best fit
+    - screens out many bad fits (because even at their minima, they can't
+      create synthetic lineaments)
+    - occasionally permits more than one fit to be included as good enough
+
+I think it's good enough to be able to avoid doing the monte carlo thing for
+now.
+
+Need to try, additionally:
+    - looking to see whether lineaments within certain length bands (e.g.
+      100-200km) have any signal in them, or whether their best fits
+      are spread evenly throughout backrotational space.
+
+I suspect that the shortest lineaments (maybe up to 300km?) will be primarily
+noise, but we'll see.
+
+It would also be good to create a map of the lineaments, color coded by where
+their good fits occur, and compare that to the map of resolution and
+illumination angle that I got from Trent, just to see if there's any kind of
+correlation.
+
+Once that's all been done, I need to perform the re-orientation of the
+lineaments into the paleo-orientation suggested by Schenk and Nimmo, and re-run
+the analysis, to see if, magically, that shell orientation gives a good story.
+}}}
+
+================================================================================
+Fri Aug 15 13:28:51 PDT 2008 {{{
+================================================================================
+I plotted the good_fit histogram and aggregate fit curves for short lineaments,
+and even going down to 150km or less, they don't become *just* noise - though
+the smoothness and amplitude of the curve suffers, and the aggregate fit out
+around 130 degrees of backrotation becomes just as good as around 20-30
+degrees.
+
+So again, no really strong statement can be made about whether the short
+features are actually contributing significantly to the overall fit.
+}}}
+
+

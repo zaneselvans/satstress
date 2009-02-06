@@ -1,0 +1,45 @@
+Lineament: {{{
+==========
+}}}
+
+GridCalc: {{{
+=========
+Input/output:
+  - Output frequency-dependent variables in meta-data
+  - Connect python satstress to the web interface
+    - Add web-specific fields to the .nc file headers
+      - RUN_ID!!!
+      - Username/IP address of the person who did the run
+    - Convert all old .in files to .ssrun files for gridcalc
+    - remove all the old output files
+}}}
+
+Plotting: {{{
+=========
+Given a NetCDF file containing variables Ttt_*, Tpt_*, Tpp_* representing the
+tensor components of the surface membrane stresses:
+  - For a given time/orbital location slice
+  - And a given value of NSR_period
+  - Display the principal components of the surface stresses
+    - tensile stresses as outward arrows, scaled to magnitude
+    - compressive stresses as inward arrows, scaled to magnitude
+  - Display the magnitude of one of the tensor components
+  - Display the magnitude of one of the principal components
+}}}
+
+Analysis of Geological Superposition Networks: {{{
+==============================================
+Questions the paper seeks to answer:
+  1.) Given a set of geologic features, and their superposition relationships,
+  what can be inferred about their relative orders of formation, if:
+      A.) reactivation of portions of the features may occur, and
+      B.) superposition relationships are somewhat uncertain.
+  
+  2.) What is the relationship between frequency of re-activation, and the
+      fidelity with which the formation history can be recovered?
+
+  3.) What is the relationship between the degree of uncertainty in feature
+      superposition relationships, and the fideleity with which their formation
+      history can be recovered?
+
+}}}
