@@ -43,3 +43,86 @@ Questions the paper seeks to answer:
       history can be recovered?
 
 }}}
+
+TODO:
+====
+
+Plots and Programming:
+----------------------
+  - re-write/organize stressplot and gridcalc
+    - Several different contexts:
+      - regular grid
+      - random samples evenly distributed on the sphere, within a certain
+        (lon,lat) range (conserves computation time by not oversampling the
+        high-latitude areas)
+      - string of particular (lon,lat) values, e.g. along a lineament
+    - For each of these contexts, need to be able to:
+      - perform stress calculation
+      - display results graphically
+      - store results for later retrieval
+    - Can convert from a sufficiently dense random calculation to a gridded
+      calculation using griddata interpolation... 1deg = 64800 points - that's
+      a pretty dense sampling, which will interpolate smoothly.
+    - Look into geodesic gridding - there must be a spherical gridding function
+      in numpy, more efficient than random sampling, with same proportional
+      speedup.
+    - How does NetCDF deal with this kind of grid?  It's made for global
+      calculations, it must know how to do it at some level.
+    - How would NetCDF work for storing the results of a calculation along a
+      lineament?
+      - LinNum coordinate dimension, one per feature
+      - 1D lat and lon dimensions for each feature, containing the list of
+        lineament vertex locations?
+      - 1D 'b' coordinate dimension, with one calculation at each one
+      - how to deal with doing the calculations at the midpoints, but wanting
+        to store the lon/lat values of the vertices?
+      - Somehow need to develop a unique hash for the lineaments, that depends
+        only on their Geometry, so we can link via the hash the calculation
+        results, and a separate lineament object (this will also prevent having
+        to deal with re-orderings, or subsets of the features, etc...)
+      - This will be a pain in the ass, because the vertex locations are
+        floating point values - need to convert them to integers for the
+        hashing.
+
+  - SatStress Vectorization:
+    - satstress.NSR.{Ttt,Tpt,Tpp}() (might already be okay... test)
+    - satstress.Diurnal.{Ttt,Tpt,Tpp}() (might already be okay... test)
+    - satstress.tensor()
+    - satstress.principal_components()
+    - mean_global_stressmag()
+    - mean_global_stressdiff()
+    - Lineament.stresscomp()
+    - GridCalc (duh)
+    - Need to look for everything that calls the stresscalc methods
+      with t=0.0, and make sure that it's actually zeros()
+    - What's the right way to return the results of a vectorized calculation?
+      - given 1D arrays of length N: theta, phi, t
+      - return an Nx(2x2) array of results
+
+  - other speed issues:
+    - frequency dependent quantities should be cached
+      - need to update them if the StressDef object is changed
+      - look at "attributes", are they the right thing to use?
+    - symmetries in the stress calculation should be exploited:
+      - stress(phi,theta) == stress(phi,pi-theta)
+      - stress(phi,theta) == ymirrior(stress(phi+n*pi,theta))
+
+  - Do viscoelastic fits with Delta(nsr_upper)=logspace(-1,3,N)
+
+Plotting for Later:
+-------------------
+  - A lin.showlinfit(b=X) type routine:
+
+    - show map of lineament in context with one of:
+      - USGS mosaic raster data (image, resolution, emission angle, etc.)
+      - stress vectors (both, or either)
+      - one of the stress scalar fields
+
+    - graphically annotate lineament itself:
+      - arrows showing most tensile stress orientations/magnitudes along the
+        lineament's length.
+      - Allow coloring of lineament segments by their delta values
+      - Show doppelgangers for given b.
+
+    - show fit curves, as with current browse_fits()
+      - ideally, there would be some way to re-set b graphically...

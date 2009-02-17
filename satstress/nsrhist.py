@@ -177,7 +177,7 @@ def fitcurve_map(lin, lin_label="Lineament", delta_max=radians(20), dbar_max=0.1
 
     sat_radius_km = lin.stresscalc.stresses[0].satellite.radius()/1000
 
-    if doppels > 0:
+    #if doppels > 0:
         # Calculate N=doppels doppelganger lineaments, evenly spread across b=(0,pi)
         # Draw doppelgangers on the map, colored by b
         # mark b-values on fitcurve plot w/ vertical lines, colored as in map
@@ -733,7 +733,8 @@ def makefigs(delta_max=radians(20), dbar_max=0.10, maps=False, hists=False, exam
                     'ActHist_ByLength',\
                     'ActHist_MappedRandom',\
                     'ActHist_NSRvTPW',\
-                    'LinStats_DeltaCorr',\
+                    'LinStats_DeltaSinCorr',\
+                    'LinStats_DeltaLenCorr',\
                     'LinStats_Mapped',\
                     'LinStats_GreatCircle',\
                     'LinStats_PreTPW',\
@@ -887,7 +888,8 @@ def makefigs(delta_max=radians(20), dbar_max=0.10, maps=False, hists=False, exam
         LinLengthDist(gclins,  label="Great Circle Segment", outfile=figure_outfiles['LinLengthDist_GreatCircle'])
         LinLengthDist(tpwlins, label="pre-TPW (pole=80E10N) Lineament", outfile=figure_outfiles['LinLengthDist_PreTPW'])
 
-        MinDeltaRMSCorr(nsrlins, outfile=figure_outfiles['LinStats_DeltaCorr'])
+        DeltaSinuosityCorr(nsrlins, outfile=figure_outfiles['LinStats_DeltaSinCorr'])
+        DeltaLengthCorr(gclins, outfile=figure_outfiles['LinStats_DeltaLenCorr'])
         #DbarDeltaStats(nsrlins)
         LinLatLonStats(goodlins=nsr_goodlins, badlins=nsr_badlins, label="Mapped Lineaments", outfile=figure_outfiles['LinStats_Mapped'])
         LinLatLonStats(goodlins=gc_goodlins,  badlins=gc_badlins,  label="Great Circle Segments", outfile=figure_outfiles['LinStats_GreatCircle'])
@@ -1162,55 +1164,87 @@ def FitMap(goodlins=[], badlins=[], titlestr="Features colored by fit", lin_cm=c
         fig.savefig(outfile)
 # end FitMap }}}
 
-def MinDeltaRMSCorr(lins, outfile=None): #{{{
+def DeltaLengthCorr(lins, outfile=None): #{{{
     """
     Several scatter plots showing the correlation (or lack thereof) between
-    min(delta_rms) and other lineament characteristics, including:
+    min(delta_rms) and lineament length, in equatorial and non-equatorial
+    regions.
 
-    A: lineament.sinuosity()
-    B: lineament.length
-    C: min(lineament.latitudes()), color coded by length?
     """
 
-    goodlins = [ lin for lin in lins if len(lin.good_fits()) > 0 ]
-    delta_max = max([lin.best_fit()[1] for lin in goodlins])
-    dbar_max  = max([lin.best_fit()[2] for lin in goodlins])
-
-    linlens  = [ lin.length for lin in goodlins ]
-    meanlats = [ mean(fabs(lin.latitudes())) for lin in goodlins ]
-    best_deltas = [ lin.best_fit()[1] for lin in goodlins ]
-    sins = [ lin.sinuosity() for lin in goodlins ]
-
     the_fig = figure(figsize=(12,8))
-    
     ax1 = the_fig.add_subplot(1,1,1)
 
-    lat_cols = [ cm.jet(lat/max(meanlats)) for lat in meanlats ]
+    hilatlins = [ lin for lin in lins if degrees(min(fabs(lin.latitudes()))) > 30 ]
+    hilat_best_deltas = array([ lin._Lineament__fits[:,1].min() for lin in hilatlins ])
+    hilat_lengths = array([ lin.length for lin in hilatlins ])*1561
+    hilat_r2 = corrcoef(hilat_lengths, hilat_best_deltas)[0,1]**2
+    hilat_symbs = scatter(hilat_lengths, degrees(hilat_best_deltas), c='blue', marker='s', label=r'$|\theta_{min}|>30^\circ R^2=%.3g$' % ( hilat_r2, ) )
 
-    symbols = scatter( sins, degrees(best_deltas), c=lat_cols, s=300*array(linlens) )
-    symbols.set_alpha(0.75)
-    
-    ax1.set_xlabel('sinuosity (S)')
-    ax1.set_ylabel(r'best fit ($\delta_{rms}$)')
-    ax1.set_ylim(0,degrees(delta_max))
-    ax1.set_xlim(1,1.08)
+    lolatlins = [ lin for lin in lins if degrees(min(fabs(lin.latitudes()))) <= 30 ]
+    lolat_best_deltas = array([ lin._Lineament__fits[:,1].min() for lin in lolatlins ])
+    lolat_lengths = array([ lin.length for lin in lolatlins ])*1561
+    lolat_r2 = corrcoef(lolat_lengths,lolat_best_deltas)[0,1]**2
+    lolat_symbs = scatter(lolat_lengths, degrees(lolat_best_deltas), c='red', marker='^', label=r'$\|\theta_{min}|\leq30^\circ R^2=%.3g$' % ( lolat_r2, ) )
 
+    ax1.legend(loc='lower right')
+    ax1.set_xlabel('lineament length [km]')
+    ax1.set_ylabel(r'$\min(\delta_{rms}(b))$')
+    ax1.set_ylim(0,30)
+    ax1.set_xlim( min((hilat_lengths.min(),lolat_lengths.min())),\
+                  max((hilat_lengths.max(),lolat_lengths.max())) )
     degree_formatter = matplotlib.ticker.FormatStrFormatter(r'%.0f$^\circ$')
     ax1.yaxis.set_major_formatter(degree_formatter)
-
-    cb_ax,kw = colorbar.make_axes(ax1, pad=0.05)
-    colorbar.ColorbarBase(cb_ax, cmap=cm.jet, norm=colors.Normalize(vmin=0,vmax=degrees(max(meanlats))), format=r'%.0f$^\circ$')
-    cb_ax.set_ylabel(r'mean latitude ($\bar{\theta}$)')
-
-    ax1.set_title(r'N=%d, $\bar{D}\leq$%.3g, $R^2(S-\delta_{rms})$=%.3g, $R^2(\bar{\theta}-\delta_{rms})$=%.3g, $R^2(L-\delta_{rms})$=%.3g'\
-                   % (len(goodlins),dbar_max,corrcoef(sins,best_deltas)[0,1]**2,corrcoef(meanlats,best_deltas)[0,1]**2,corrcoef(linlens,best_deltas)[0,1]**2) )
+    ax1.set_title('Effects of length and latitude on fit to NSR for great circle segments, N=%d'\
+                   % (len(hilatlins)+len(lolatlins)) )
 
     if outfile is None:
         the_fig.show()
     else:
         the_fig.savefig(outfile)
 
-# end MinDeltaRMSCorr }}}
+# end DeltaLengthCorr}}}
+
+def DeltaSinuosityCorr(lins, outfile=None): #{{{
+    """
+    Several scatter plots showing the correlation (or lack thereof) between
+    min(delta_rms) and other lineament characteristics, including:
+
+    A: lineament.sinuosity()
+    B: min(abs(lineament.latitudes()))
+    """
+
+    the_fig = figure(figsize=(12,8))
+    ax1 = the_fig.add_subplot(1,1,1)
+
+    hilatlins = [ lin for lin in lins if degrees(min(fabs(lin.latitudes()))) > 30 ]
+    hilat_best_deltas = array([ lin._Lineament__fits[:,1].min() for lin in hilatlins ])
+    hilat_sins = array([ lin.sinuosity() for lin in hilatlins ])
+    hilat_r2 = corrcoef(hilat_sins,hilat_best_deltas)[0,1]**2
+    hilat_symbs = scatter(hilat_sins, degrees(hilat_best_deltas), c='blue', marker='s', label=r'$|\theta_{min}|>30^\circ R^2=%.3g$' % ( hilat_r2, ) )
+
+    lolatlins = [ lin for lin in lins if degrees(min(fabs(lin.latitudes()))) <= 30 ]
+    lolat_best_deltas = array([ lin._Lineament__fits[:,1].min() for lin in lolatlins ])
+    lolat_sins = array([ lin.sinuosity() for lin in lolatlins ])
+    lolat_r2 = corrcoef(lolat_sins,lolat_best_deltas)[0,1]**2
+    lolat_symbs = scatter(lolat_sins, degrees(lolat_best_deltas), c='red', marker='^', label=r'$\|\theta_{min}|\leq30^\circ R^2=%.3g$' % ( lolat_r2, ) )
+
+    ax1.legend(loc='lower right')
+    ax1.set_xlabel('sinuosity')
+    ax1.set_ylabel(r'$\min(\delta_{rms}(b))$')
+    ax1.set_ylim(0,30)
+    ax1.set_xlim(1,1.10)
+    degree_formatter = matplotlib.ticker.FormatStrFormatter(r'%.0f$^\circ$')
+    ax1.yaxis.set_major_formatter(degree_formatter)
+    ax1.set_title('Effects of sinuosity and latitude on fit to NSR for all mapped features, N=%d'\
+                   % (len(hilatlins)+len(lolatlins)) )
+
+    if outfile is None:
+        the_fig.show()
+    else:
+        the_fig.savefig(outfile)
+
+# end DeltaSinuosityCorr }}}
 
 def NSRFailDirByLat(nsr_stresscalc, lats=linspace(0,80,9), lons=linspace(0,180,1000)): #{{{
     """
@@ -1600,56 +1634,6 @@ def LinDensityMap(lins, maxdist=500, N=0, label="", cmap=cm.jet,\
 ########################################
 #         Not Yet Implemented          #
 ########################################
-
-def LinStats(lins, label=""): #{{{
-    """
-    Creates several histograms, showing information about the statistical
-    distribution and morphologies of the lineaments used in the analysis.
-    Several of these can be shown in each individual bar chart, showing
-    side-by-side comparisons.
-
-    Possibilities include:
-
-    A1: Number weighted length distribution of all included lineaments
-    A2: Number weighted length distribution of all excluded lineaments
-        (barstacked histogram, so that total bar heights show the distribution
-        of the entire mapped dataset)
-
-    B1: Length weighted length distribution of all included lineaments
-    B2: Length weighted length distribution of all excluded lineaments
-        (barstacked histogram, so that total bar heights show the distribution
-        of the entire mapped dataset)
-
-    C1: Length weighted sinuosity distribution of included lineaments
-    C2: Length weighted sinuosity distribution of excluded lineaments
-        (barstacked histogram, so that total bar heights show the distribution
-        of the entire mapped dataset)
-    C3: Length weighted sinuosity distribution of a synthetic population with
-        the same length distribution as the included features.
-
-    """
-
-    sat_radius_km = lins[0].stresscalc.stresses[0].satellite.radius()/1000.0
-    lineament_lengths = array([ lin.length for lin in lins])*sat_radius_km
-    lineament_sinuosities = array([ lin.sinuosity() for lin in lins])
-#}}}
-
-def FitCurveExamples(example_lins, delta_max, dbar_max): #{{{
-    """
-    Several archetypal fit curves (delta_rms(b) and dbar(b)), showing a
-    selection of different behaviors, for different lineament morphologies.
-
-    Possibly to include:
-    
-    A: An "obviously" NSR related lineament (long, arcuate, good best fit).
-    B: An "obviously" non-NSR lineament (long E-W near equator?).
-    C: Cycloidal lineament.
-    D: High sinuosity, non-cycloidal lineament.
-    E: Short lineament at high latitude.
-    F: Short lineament at low latitude.
-
-    """
-# end FitCurveExamples }}}
 
 def DoppelgangerExamples(example_lins): #{{{
     """
