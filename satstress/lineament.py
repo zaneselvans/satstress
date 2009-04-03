@@ -11,64 +11,45 @@ class Lineament(object): #{{{1
 
     """
 
-    def __init__(self, vertices=None, stresscalc=None, failure_mode="tens_frac", fits=None, good_fits=None, is_doppel=False, proto_lin=None, proto_mhd=None, backrot=0): #{{{2
+    def __init__(self, lons=None, lats=None, stresscalc=None, nsrdeltas=None, nsrdbars=None, nsrstresswts=None): #{{{2
         """
         Create a lineament from a given list of (lon,lat) points.
 
-        vertices is a list of (lon,lat) tuples in radians, representing the
-        vertices making up a polyline.  East and North are taken to be
-        positive.
+        lons and lats are arrays of longitudes and latitudes, having equal
+        length, defining the vertices making up a polyline.  East and North are
+        taken to be positive.  Units are radians
         
         stresscalc is a L{satstress.StressCalc} object defining the field we
         are going to be comparing the lineament to.
         
-        failure_mode describes the mechanism we are assuming.  Currently only
-        tensile fracture is accepted.
-
-        fits is an array or list of (b, delta_rms(b), dbar(b)) tuples defining
-        how well the lineament matches its stresscalc, assuming failure_mode as
-        the formation mechanism.
-
-        is_doppel indicates whether this Lineament itself is a doppelganger.
-
-        proto_lin defines the prototype lineament this Lineament is based on,
-        if it is a doppelganger.
-
-        proto_mhd is the MHD from the prototype lineament to this lineament, in
-        degrees of arc on the surface of the satellite, if it is a
-        doppelganger.
-
-        backrot is the amount of longitudinal translation that at which the
-        doppelganger was created, if it is a doppelganger.
+        If all of bs, nsrdeltas, nsrdbars, and nsrstresswts are set, and have
+        the same length, then we have a complete NSR fit and we can go ahead
+        and set those values for the feature.  Otherwise, set these attributes
+        to None.
 
         """
 
-        # This data is intrinsic, for the purposes of NSR comparisons
-        if vertices is None:
-            self.vertices = array([])
-            self.length = 0
+        # make sure we've got good input points...
+        assert (len(lons) == len(lats))
+        assert (len(lons) > 0)
+
+        self.lons = array(lons)
+        self.lats = array(lats)
+        self.length = self.calc_length()
+        self.stresscalc = stresscalc
+
+        # All or nothing baby:
+        if bs is None or nsrdeltas is None or nsrdbars is None or nsrstresswts is None:
+            self.bs = None
+            self.nsrdeltas = None
+            self.nsrdbars = None
+            self.nsrdstresswts = None
         else:
-            self.vertices = array(vertices)
-            self.length = self.calc_length()
-
-        self.stresscalc   = stresscalc
-        self.failure_mode = failure_mode
-
-        if fits is None:
-            self.__fits = array([])
-        else:
-            self.__fits = array(fits)
-
-        if good_fits is None:
-            self.__good_fits = array([])
-        else:
-            self.__good_fits = array(good_fits)
-
-        # Extra info for the doppelgangers:
-        self.is_doppel = is_doppel
-        self.proto_lin = proto_lin
-        self.proto_mhd = proto_mhd
-        self.backrot   = backrot
+            assert(len(bs) == len(nsrdeltas) == len(nsrdbars) == len(nsrstresswts)):
+            self.bs = array(bs)
+            self.nsrdeltas = array(nsrdeltas)
+            self.nsrdbars = array(nsrdbars)
+            self.nsrstresswts = array(nsrstresswts)
     #}}}2
 
     def __str__(): #{{{2
@@ -83,16 +64,12 @@ class Lineament(object): #{{{1
         the surface of the sphere.
 
         """
-        sph_len = 0
+        if len(self.lons) > 1:
+            return(sum(self.seg_lengths()))
+        else:
+            return(0.0)
 
-        if len(self.vertices) > 1:
-            for i in range(len(self.vertices)-1):
-                lon1, lat1 = self.vertices[i]
-                lon2, lat2 = self.vertices[i+1]
-                sph_len += spherical_distance(lon1, lat1, lon2, lat2)
-
-        return sph_len
-    #}}}2 end length
+    #}}}2 end calc_length
     
     def sinuosity(self): #{{{2
         """
@@ -103,253 +80,77 @@ class Lineament(object): #{{{1
         endpoints.
 
         """
-        lon1, lat1 = self.eastend()
-        lon2, lat2 = self.westend()
-        return (self.length / spherical_distance(lon1, lat1, lon2, lat2))
+        # If the two endpoints are the same, we'll get a divide by zero error...
+        assert( (self.lons[0],self.lats[0]) != (self.lons[-1], self.lats[-1]))
+        return (self.length / spherical_distance(self.lons[0], self.lats[0], self.lons[-1], self.lats[-1]))
 
     #}}}2
 
-    def segments(self): #{{{2
-        """
-        Return a list of line segments making up the L{Lineament}
-
-        """
-        seglist = []
-
-        if len(self.vertices) > 1:
-            for i in range(len(self.vertices)-1):
-                lon1, lat1 = self.vertices[i]
-                lon2, lat2 = self.vertices[i+1]
-                seglist.append(Segment(lon1, lat1, lon2, lat2))
-
-        return(seglist)
-    #}}}2 end segments
-
-    def midpoints(self): #{{{2
-        """
-        Return a list of the midpoints of each line segment in the Lineament.
-
-        """
-        mp = None
-
-        if len(self.vertices) == 0:
-            mp = None
-        elif len(self.vertices) == 1:
-            mp = self.vertices
-        elif len(self.vertices) > 1:
-            mp = [ seg.midpoint() for seg in self.segments() ]
-
-        return(mp)
-    #}}}2
-
-    def longitudes(self): # {{{2
-        """
-        Return a list of the latitude values from the lineament's vertices
-
-        """
-        if len(self.vertices) == 0:
-            return None
-        else:
-            return( [ v[0] for v in self.vertices ] )
-# }}}2
-
-    def latitudes(self): # {{{2
+    def colats(self): # {{{2
         """
         Return a list of the latitude values from the lineament's vertices"
 
         """
-        if len(self.vertices) == 0:
+        if len(self.lats) == 0:
             return None
         else:
-            return( [ v[1] for v in self.vertices ] )
+            return(pi/2.0-self.lats)
     #}}}2
 
-    def lonshift(self, b, keepfits=False): #{{{2
+    def seg_midpoints(self): #{{{2
         """
-        Return the lineament shifted in longitude by 'b'.
-
-        If keepfits is True, also preserve the fitcurves, by shifting the
-        values of delta_rms and dbar associated with a given value of b, in
-        effect entirely changing the apparent formation longitude of the
-        feature.
-
-        If keepfits is False (the default), then all the fit information will
-        be discarded.
+        Return a list of the midpoints of each line segment in the Lineament.
 
         """
-        new_vertices = [ (v[0]+b, v[1]) for v in self.vertices ]
-
-        if keepfits is True:
-            # TODO: some amazing Numpy shit here!
-            pass
-        else:
-            new_fits = None
-
-        return(Lineament(new_vertices, stresscalc=self.stresscalc, failure_mode=self.failure_mode, fits=new_fits))
+        return(spherical_midpoint(self.lons[:-1], self.lats[:-1], self.lons[1:], self.lats[1:])
     #}}}2
 
-    def poleshift(self, paleo_npole_lon, paleo_npole_lat): #{{{2
+    def seg_azimuths(self): #{{{2
+        """
+        Calculate the lineament azimuths (orientations) at the midpoints of the
+        segments making up the lineament.  Because these segments are not
+        directional, this will be an angle between 0 and pi.
+
+        """
+
+        mplons, mplats = self.seg_midpoints()
+        return(mod(spherical_azimuth(mplons, mplats, self.lons[:-1], self.lats[:-1]), pi))
+    # }}}2 end midpoint_azimuths
+
+    def seg_lengths(self): #{{{2
+        """
+        Calculate the lengths (in radians of arc) of the line segments making
+        up the lineament.
+
+        """
+
+        return(spherical_distance(self.lons[:-1], self.lats[:-1], self.lons[1:], self.lats[1:]))
+
+    #}}}2 end seg_lengths
+
+    def lonshift(self, b): #{{{2 TODO: Allow preservation of fit curves
+        """
+        Return the lineament shifted in longitude by 'b' radians.
+
+        Currently this discards the lineament's NSR fits.  This could be
+        avoided by shifting all the b values, and re-sorting the delta and dbar
+        values according to the new ordering of b values, e.g. by using a
+        record array.  The hope is that by vectorizing all of the fitting, it
+        will become so fast that saving these things isn't necessary... 
+
+        """
+        return(Lineament(lons=self.lons+b, lats=self.lats, stresscalc=self.stresscalc))
+    #}}}2
+
+    def poleshift(self, pnp_lon=0.0, pnp_lat=pi/2): #{{{2
         """
         Return a Lineament object representing the location and orientation of
         self, when the point defined in modern lon,lat terms by paleo_npole_lon
         paleo_npole_lat was the north pole.
 
         """
-        transformed_vertices = [ paleopole_transform(paleo_npole_lon, paleo_npole_lat, v[0], v[1]) for v in self.vertices ]
-        return(Lineament(vertices=transformed_vertices, stresscalc=self.stresscalc, failure_mode=self.failure_mode) )
-    #}}}2
-
-    def eastend(self): #{{{2
-        """
-        Return a tuple representing the easternmost endpoint of the L{Lineament}.
-
-        If only one vertex, report it.  If no vertices, return None.
-
-        """
-
-        # if we don't have any vertices, there's no end to report:
-        if len(self.vertices) == 0:
-            return None
-        else:
-            (lon1, lat1) = self.vertices[0]
-            (lon2, lat2) = self.vertices[-1]
-
-        # if we have more than one point, then a direction makes sense:
-        if len(self.vertices) > 1 and spherical_azimuth(lon1, lat1, lon2, lat2) < pi:
-            return(lon2, lat2)
-        # if we only have one point, it doesn't matter which end we report
-        else:
-            return(lon1, lat1)
-    # }}}2
-
-    def westend(self): #{{{2
-        """
-        Return a tuple representing the westernmost endpoint of the L{Lineament}.
-
-        If only one vertex, report it.  If no vertices, return None.
-
-        """
-        # if we don't have any vertices, there's no end to report:
-        if len(self.vertices) == 0:
-            return None
-        else:
-            (lon1, lat1) = self.vertices[0]
-            (lon2, lat2) = self.vertices[-1]
-
-        # if we have more than one point, then a direction makes sense:
-        if len(self.vertices) > 1 and spherical_azimuth(lon1, lat1, lon2, lat2) < pi:
-            return(lon1, lat1)
-        # if we only have one point, it doesn't matter which end we report
-        else:
-            return(lon2, lat2)
-    #}}}2
-
-    def bs(self, delta_rms=None, dbar=None, delta_ismin=False, dbar_ismin=False, delta_max=None, dbar_max=None, winwidth=18): #{{{2
-        """
-        Return a sorted array of all the b values for which fits have been
-        calculated, and which satisfy the keyword requirements.
-
-        delta_ismin and dbar_ismin, if True, require that the b values returned
-        represent local minima within the delta_rms(b) and dbar(b) curves,
-        respectively.
-
-        delta_max and dbar_max, if not None, represent maximum acceptable
-        values of those variables for which to return b values.  delta_max is
-        measured in radians, and dbar_max is a fraction of the overall length
-        of the lineament.
-
-        """
-        # special cases:
-        # find b values associated with a particular value of delta_rms or dbar
-        if delta_rms is not None:
-            return(self.fit()[find(self.delta_rms()==delta_rms)[0],0])
-        if dbar is not None:
-            return(self.fit()[find(self.dbar()==dbar)[0],0])
-
-        fits = self.__fits
-
-        # Because the local minima function still expects an evenly
-        # distributed array of points, we need to find the delta minima
-        # and the dbar minima separately...
-
-        if len(fits) > 0:
-            if delta_ismin:
-                b_delta_mins, delta_mins = local_minima(self.bs(),self.delta_rms(), winwidth=winwidth)
-            else:
-                b_delta_mins, delta_mins = self.__fits[:,0], self.__fits[:,1]
-
-            if dbar_ismin:
-                b_dbar_mins, dbar_mins = local_minima(self.bs(),self.dbar(), winwidth=winwidth)
-            else:
-                b_dbar_mins, dbar_mins = self.__fits[:,0], self.__fits[:,2]
-
-            fits = array([ f for f in fits if f[1] in delta_mins and f[2] in dbar_mins ])
-
-            # Now that we've got only the fits that meet the local minima requirements,
-            # we can go ahead and filter by their magnitudes:
-            if delta_max is not None:
-                fits = array([ f for f in fits if f[1] < delta_max ])
-            if dbar_max is not None:
-                fits = array([ f for f in fits if f[2] < dbar_max ])
-
-            if len(fits) > 0:
-                return(sort(fits[:,0]))
-
-        return(array([]))
-    #}}}2
-
-    def delta_rms(self, bs=[], w_length=True, w_stress=True): #{{{2
-        """
-        Calculate the root mean square (RMS) angle between observed and
-        predicted orientations of failure, assuming the lineament is shifted in
-        longitude by b radians from it's present location, with expected
-        failure orientations determined by the L{StressCalc} object, time_sec,
-        and the specified failure mode.  Optionally, weight by lineament
-        segment length (if w_length=True) and importance of that location
-        within the stress field (if w_stress=True)
-
-        """
-
-        if bs == []:
-            bs = self.bs()
-
-        for x in bs:
-            if x not in self.bs():
-                self.fit(bs=[x,])
-
-        deltas = []
-        for b in bs:
-            idx = find(b==self.__fits[:,0])[0]
-            deltas.append(self.__fits[idx,1])
-
-        return(ravel(deltas))
-    #}}}2
-
-    def doppel(self, bs=[]): #{{{2
-        """
-        Calculate and return a list containing doppelgangers for the specified
-        values of b.  Each entry in the list will contain the doppelgangers for
-        a single value of b.  If only a single value of b is given as an
-        integer, return a flat list of the doppelgangers at that backrotation.
-
-        """
-
-        if bs == []:
-            bs = self.bs()
-
-        doplist = []
-        for x in bs:
-            # create a list of all doppelgangers at b=x:
-            dops = []
-            # Generate two new endpoint doppelgangers:
-            new_east_doppel = self.doppelgen_endpoint(propagation="east", lonshift=x)
-            new_west_doppel = self.doppelgen_endpoint(propagation="west", lonshift=x)
-            dops = [ new_east_doppel, new_west_doppel ]
-
-            # add the doppelgangers to the list that we're returning:
-            doplist += [ dops ]
-
-        return(doplist)
+        tpw_lons, tpw_lats = paleopole_transform(lons=self.lons, lats=self.lats, pnp_lon=pnp_lon, pnp_lat=pnp_lat)
+        return(Lineament(lons=tpw_lons, lats=tpw_lats, stresscalc=self.stresscalc))
     #}}}2
 
     def plot(self, map, lon_cyc=2*pi, lat_mirror=False, color='black', alpha=1.0, linewidth=1.0): #{{{2
@@ -410,158 +211,266 @@ class Lineament(object): #{{{1
         return(plotted_lines)
     #}}}2
 
-    def plotdoppels(self, bs=[], backrot=True, map=None, color='black', alpha=0.5, linewidth=1.0): #{{{2
+    def mhd(self, linB): #{{{2
         """
-        Produce a plot showing a lineament's doppelgangers, in association with
-        the lineament itself.
-        
-        Show only those doppelgangers whose backrot is contained in the list b.
-        If b is [], plot all of them.  If b is a single value, show only the
-        doppelgangers having backrot==b.
+        Calculate the mean Hausdorff Distance between linA and linB.
 
-        If backrot is True, shift all of the doppelgangers in longitude such
-        that they share their initial starting point with one of the prototype
-        lineament's endpoints.  If false, show them at the longitude where they
-        were generated.
+        Use the midpoints of the line segments making up the lineament, instead of
+        the verticies, and weight by the lengths of the line segments.
+
+        (See: http://en.wikipedia.org/wiki/Hausdorff_distance)
 
         """
+        return(mhd(self, linB))
 
-        if bs == []:
-           bs = self.bs()
+    #}}}2 end mhd()
 
-        dops2plot = self.doppel(bs=bs)
+    def bfgcseg_endpoints(self): #{{{2 TODO: Test/Debug
+        """
+        Find the points on the lineament's best fit great circle which are
+        closest to the endpoints of the lineament.
 
-        if backrot is True:
-            dops2plot = [ d.lonshift(-d.backrot) for d in dops2plot ]
+        """
 
-        if len(dops2plot) > 0:
-            lines_out, map_out = plotlinmap(dops2plot, map=map, color=color, alpha=alpha, linewidth=linewidth)
+        mplons, mplats = self.seg_midpoints()
+        bfgcpole_lon, bfgcpole_lat = bestfit_greatcircle(lons=mplons, lats=mplats, weights=self.seg_lengths())
+
+        # find points on the great circle nearest to the lineament endpoints.
+        # Go mod((pi/2)-(distance to gcpole),pi/2) radians away from the pole if closer than pi/2
+        # and toward the pole if further away than pi/2.
+        dist_to_bfgcpole1 = spherical_distance(self.lons[0], self.lats[0], bfgcpole_lon, bfgcpole_lat)
+        az_to_bfgcpole1   = spherical_azimuth(self.lons[0], self.lats[0], bfgcpole_lon, bfgcpole_lat)
+
+        # if further than pi/2 from the gc_pole, go mod(dist,pi/2) toward it.
+        if(dist_to_bfgcpole1 > pi/2):
+            bfgcseg_lon1, bfgcseg_lat1 = spherical_reckon(self.lons[0], self.lats[0], az_to_bfgcpole1, mod(dist_to_bfgcpole1, pi/2))
+        # otherwise, go pi/2-dist away from it.
         else:
-            lines_out, map_out = None, map
+            bfgcseg_lon1, bfgcseg_lat1 = spherical_reckon(self.lons[0], self.lats[0], az_to_bfgcpole1+pi, pi/2-dist_to_bfgcpole1)
 
-        self.plot(map=map_out, linewidth=2.0)
+        dist_to_bfgcpole2 = spherical_distance(self.lons[-1], self.lats[-1], bfgcpole_lon, bfgcpole_lat)
+        az_to_bfgcpole2   = spherical_azimuth(self.lons[-1], self.lats[-1], bfgcpole_lon, bfgcpole_lat)
 
-        return(lines_out, map_out)
-    # }}}2
-        
-    def dbar(self, bs=[]): #{{{2
-        """
-        Return the mean L{mhd} from the L{Lineament} to its doppelgangers
-        having the given backrotation.
-
-        """
-
-        if bs == []:
-           bs = self.bs()
-
-        for x in bs:
-            if x not in self.bs():
-                self.fit(bs=[x,])
-
-        dbars=[]
-        for b in bs:
-            idx = find(b==self.__fits[:,0])[0]
-            dbars.append(self.__fits[idx,2])
-
-        return(ravel(dbars))
-    #}}}2
-
-    def fit(self, bs=[], w_length=True, w_stress=True): #{{{2
-        """
-        Return a list of tuples (b, delta_rms(b), dbar(b)) describing how well
-        the lineament matches the stress field in question (self.stresscalc)
-        given the chosen failure mode (self.failure_mode - limited to tens_frac
-        currently), at the given value, or values, of b.  If only a single
-        value of b is given, return a tuple, not a list of tuples.
-        
-        If a fit has not been calculated at a given value of b, calculate it.
-
-        if bs=[], return all fits.
-
-        """
-
-        if bs == []:
-            bs = self.bs()
-
-        for x in bs:
-            # if we have no fit at this value of b, calculate it:
-            if x not in self.bs():
-                # first we need delta_rms
-                newdelta = self.lonshift(x).stresscomp(self.stresscalc)
-                # doppelgangers are required to calculate dbar
-                dops = self.doppel(bs=[x,])
-                newdbar = mean([ d.proto_mhd for d in dops[0] if d.backrot == x])/self.length
-
-                # Add the first fit by itself, instead of vstacking
-                if len(self.__fits) == 0:
-                    self.__fits = array([(x,newdelta,newdbar)])
-                else:
-                    self.__fits = vstack([self.__fits,(x,newdelta,newdbar)])
-
-        fits = array([])
-        for b in bs:
-            idx = find(b==self.__fits[:,0])[0]
-            if len(fits) == 0:
-                fits = array([self.__fits[idx],])
-            else:
-                fits = vstack([fits,self.__fits[idx]])
-
-        return(fits)
-    #}}}2
-
-    def cache_good_fits(self, delta_max=radians(20), dbar_max=0.05): #{{{2
-        """
-        Save good fits for future reference...
-
-        """
-        self.__good_fits = self.__fits[intersect1d_nu(where(self.__fits[:,1] < delta_max), where(self.__fits[:,2] < dbar_max)) ]
-    #}}}2
-
-    def good_fits(self): #{{{2
-        """
-        Return the cached good fits.  They may be empty though...
-        """
-        return(self.__good_fits)
-    #}}}2
-
-    def best_fit(self): #{{{2
-        """
-        Return the cached good fit with the lowest value of delta_rms.
-        """
-        best_fit = []
-        if len(self.__good_fits) > 0:
-            best_idx = int(find(self.__good_fits[:,1]==min(self.__good_fits[:,1])))
-            best_fit = self.__good_fits[best_idx]
-
-        return(best_fit)
-    #}}}2
-
-    def doppelgen_endpoint(self, time_sec=0.0, propagation="east", lonshift=0.0): #{{{2
-        """
-        Synthesize and return a new lineament consistent with the given
-        stresscalc object and failure mode, of the same length, and having one
-        of the same endpoints as self (the same west endpoint if propagation is
-        "east", and the same east endpoint if propagation is "west")
-
-        """
-
-        if propagation=="east":
-            (init_lon, init_lat) = self.westend()
+        # if further than pi/2 from the gc_pole, go mod(dist,pi/2) toward it.
+        if(dist_to_bfgcpole2 > pi/2):
+            bfgcseg_lon2, bfgcseg_lat2 = spherical_reckon(self.lons[-1], self.lats[-1], az_to_bfgcpole2, mod(dist_to_bfgcpole2, pi/2))
+        # otherwise, go pi/2-dist away from it.
         else:
-            assert (propagation=="west")
-            (init_lon, init_lat) = self.eastend()
+            bfgcseg_lon2, bfgcseg_lat2 = spherical_reckon(self.lons[-1], self.lats[-1], az_to_bfgcpole2+pi, pi/2-dist_to_bfgcpole2)
 
-        init_lon += lonshift 
-
-        newdoppel = lingen(self.stresscalc, init_lon=init_lon, init_lat=init_lat, max_length=self.length, time_sec=time_sec, propagation=propagation, failure=self.failure_mode)
-
-        newdoppel.backrot = lonshift
-        newdoppel.is_doppel = True
-        newdoppel.proto_lin = self
-        newdoppel.proto_mhd = self.mhd(newdoppel.lonshift(-newdoppel.backrot))
-
-        return(newdoppel)
+        return(bfgcseg_lon1, bfgcseg_lat1, bfgcseg_lon2, bfgcseg_lat2)
     #}}}2
+
+    def bfgcseg_midpoint(self): #{{{2 TODO: Test/debug
+        """
+        Find the lon,lat point which lies on the lineament's best fit great
+        circle, and is halfway between points on the great circle which are
+        closest to the endpoints of the lineament.  This point represents a
+        kind of geometric center of the feature, which can be used to
+        approximate its location for a variety of purposes, including
+        generating doppelgangers.
+
+        """
+        bfgcseg_lon1, bfgcseg_lat1, bfgcseg_lon2, bfgcseg_lat2 = self.bfgcseg_endpoints()
+
+        # find and return the midpoint between these endpoints
+        return(spherical_midpoint(bfgcseg_lon1, bfgcseg_lat1, bfgcseg_lon2, bfgcseg_lat2))
+    #}}}2
+
+    def doppelgen_bfgcseg_midpoint(self): #{{{2 TODO: Test/debug
+        """
+        Generate a synthetic lineament starting at the midpoint of the feature,
+        as approximated by the point on its best fit great circle, halfway
+        between the points on the great circle which are closest to the
+        lineament endpoints.
+
+        """
+        init_lon, init_lat = self.bfgcseg_midpoint()
+        return(lingen_nsr(stresscalc=self.stresscalc, init_lon=init_lon, init_lat=init_lat, max_length=self.length, prop_dir="both")
+    #}}}2
+
+    def nsrfits(self, delta_max=radians(45), dbar_max=0.125, use_delta=True, use_dbar=True, use_stress=True): #{{{2
+        """
+        Given arrays of dbar, delta_rms, and stress weighting values, figure
+        out what weights should be associated with the lineament (i.e. what
+        proportion of its length should be added to the bin for the values of b
+        corresponding to those delta values)
+
+        Only use metrics indicated by the use_* flags.  Set others to unity.
+        
+        """
+
+        assert(self.bs is not None and self.nsrdeltas is not None and self.nsrdbars is not None and self.nsrstresswts is not None)
+
+        if use_delta is True:
+            delta_wt = where(self.nsrdeltas < delta_max, 1-(self.nsrdeltas/delta_max), zeros(shape(self.nsrdeltas)))
+        else:
+            delta_wt = 1.0
+
+        if use_dbar is True:
+            dbar_wt = where(self.nsrdbars < dbar_max, 1-(self.nsrdbars/dbar_max), zeros(shape(self.nsrdbars)))
+        else:
+            dbar_wt = 1.0
+
+        if use_stress is True:
+            stress_wt = self.nsrstresswts
+        else:
+            stress_wt = 1.0
+
+        return(delta_wt * dbar_wt * stress_wt)
+
+    #}}}2
+
+    def nsrbestfit(self, delta_max=radians(45), dbar_max=0.125, use_delta=True, use_dbar=True, use_stress=True): #{{{2
+        """
+        Return the greatest value of the combined delta and dbar fit metric,
+        defined in nsrfits, and the index within the array of fits at which it
+        occurs (allowing one to look up the associated delta, dbar, and b
+        values, if need be)
+
+        """
+        nsrfits = self.nsrfits(delta_max=delta_max, dbar_max=dbar_max, use_delta=use_delta, use_dbar=use_dbar, use_stress=use_stress)
+        bestfit = max(nsrfits)
+
+        return(bestfit, where(fabs(nsrfits-bestfit) < 1e-9)[0] )
+    #}}}2
+
+################################################################################
+# Things that still need work
+################################################################################
+
+    def calc_nsrfits(self, nb=180, stresscalc=None): #{{{2
+        """
+        For nb evenly spaced values of longitudinal translation, b, ranging
+        from 0 to pi, calculate the fit metrics delta and dbar for the
+        lineament, compared to its stresscalc object.
+
+        Store the resulting values of b, delta, and dbar in the lineament's
+        attributes bs, deltas, dbars for later reference.
+
+        This only works for a purely NSR stress field.
+
+        Calculate the delta_rms values for all backrotations implied by the
+        lineament's list of b values, and store them in self.nsrdeltas.  Weight
+        the delta_rms values by segment length.
+
+        If stresscalc is None, use the stresscalc object stored within the
+        lineament (the default).
+
+        Calculate a metric of the significance of the feature's location within
+        the stress field, based on its magnitude and anisotropy relative to
+        the global average, and store it for later use in weighting the
+        feature's contribution to the overall results.  This is
+        self.nsrstresswts
+
+        Generate a synthetic lineament meant to replicate the feature (a
+        doppelganger) by using the NSR stress field, and a starting point near
+        the center of the feature (at the midpoint of a great circle segment
+        approximating the feature).  Calculate the mean Hausdorff distance
+        (MHD) between the prototype (self) and this doppelganger as a secondary
+        metric of how well the feature matches the stresses in the region.  Do
+        this for every value of b, and store the results in self.nsrdbars.
+
+        """
+
+        if stresscalc is None:
+            stresscalc = self.stresscalc
+
+        # set the b values first, so that the fit metrics can refer to them.
+        self.bs = linspace(0,pi,nb,endpoint=False)
+
+        # Create vectors of non-stress and non-b dependent values:
+        mp_az = self.seg_azimuths()
+        mp_lons, mp_lats = self.seg_midpoints()
+        w_length = self.seg_lengths()/self.length
+
+        nsegs = len(mp_az)
+
+        # Create vectors containing all of the lons and lats at which stresses
+        # will need to be calculated, based on the locations of the vertices
+        # making up the lineament and the values of b at which we are doing
+        # calculations
+        calc_thetas = tile((pi/2)-mp_lats, nb)
+        calc_phis = ravel(array( [linspace(lon,lon+pi,nb,endpoint=False) for lon in mp_lons ]).transpose())
+
+        # use SatStress to perform the stress calculations at those locations
+        # (and t=0, since NSR is not a time-variable potential field).  Each
+        # element of the resulting array will contain the principal components
+        # of a stress as [tens_max, tens_az, comp_mag, comp_az] where tens_*
+        # represents the more tensile (less compressive) of the two stresses,
+        # and comp_* is the more compressive (less tensile).  Tension is
+        # positive.  mag and az are the magnitude in Pa and azimuth as radians
+        # clockwise from north.
+        stress_pc = self.stresscalc.principal_components(calc_thetas, calc_phis, zeros(shape(calc_thetas)))
+
+        # Create an (nsegs x nb) array of w_stress values
+        # stress_pc[:,0] == magnitude of most tensile PC
+        # stress_pc[:,1] == azimuth of most tensile PC
+        # stress_pc[:,2] == magnitude of most compressive PC
+        # stress_pc[:,3] == azimuth of most compressive PC (must be stress_pc[:,1] +/- (pi/2))
+        w_stress = (stress_pc[:,0] - stress_pc[:,2])/stresscalc.mean_global_stressdiff()
+
+        # There's a problem here with the weighting functions.  We want
+        # delta_rms to reflect the average angle between a feature and the
+        # expected orientation of failure given the underlying stresses we've
+        # calcualted.  Doing a 'local' weighting according to the fraction of
+        # the length of the overall lineament that a particular segment makes
+        # up is fine, because if there's a short segment that's way out of
+        # whack (say, a jog in the otherwise straight feature), we don't want
+        # that big angle to create much of a change in the overall value of
+        # delta for the feature.  If it's a big angle, but it only increases
+        # the overall delta_rms a little bit, that's fine.
+        
+        # On the other hand, with w_stress, where we're comparing the
+        # importance of the location at which the feature finds itself,
+        # relative to the rest of the stress field, globally, we can end up
+        # screwing up the metric.  In perverse cases, where the entire feature
+        # finds itself in an "unimportant" isotropic or low-stress region, the
+        # value of delta_rms that gets reported for it will be very small,
+        # which normally we take to be an indication of a good fit, but in this
+        # case simply means that the fit (however good or bad it is) is
+        # unimportant.  The quantity that we've been using to do this kind of
+        # "importance" weighting in the overall fits up until now has just been
+        # the feature length.  That's the quantity that really needs to be
+        # modulated as a result of the significance of the region of the stress
+        # field in which the feature finds itself.
+
+        # This means that we need another nb-length array, containing weights
+        # to be applied to the feature's length, depending on what value of b
+        # it is associated with (and thus, what stress region it found itself
+        # within).  This weighting needs to be externally available so that we
+        # can construct a stress weighted length when we need it, and use the
+        # geographic length when we need that.  It should be a length weighted
+        # mean of the w_stress values for each segment.
+
+        self.nsrstresswts = array([ sum((w_length*w_stress)[:,N]) for N in range(nb) ])
+
+        # Create an (nsegs x nb) array of raw delta values using mp_az and
+        # stress_pc.  We are implicitly assuming here that failure is taking
+        # place as tensile fracture, perpendicular to the most tensile stress,
+        # which also happens to be the orientation of the most compressive
+        # stress:
+        raw_deltas = mod(fabs(stress_pc[:,3] - mp_az), pi/2)
+
+        # If only compressive stresses are encountered, set delta for the
+        # segment to the highest meaningful value (pi/2).
+        pi_over_two = array([pi/2,]).repeat(nsegs*nb).reshape(shape(raw_deltas))
+        raw_deltas = raw_deltas[where(stress_pc[:,0] > 0, raw_deltas, pi_over_two)]
+
+        # Take the length weighted mean of the raw deltas for each value of b:
+        self.nsrdeltas = array([ sum((w_length*raw_deltas)[:,N]) for N in range(nb) ])
+
+        # TODO: This is just a placeholder, while I test other stuff, and get
+        # BFGC working:
+        self.nsrdbars = zeros(shape(self.bs))
+
+        # This is commented out until I get the best fit great circles working...
+        #bfgc_mp_lon, bgfc_mp_lat = self.bfgcseg_midpoint()
+        #doppel_init_lons = self.bs + bfgc_mp_lon
+        #bfgc_doppels = [ lingen_nsr(stresscalc=self.stresscalc, init_lon=init_lon, init_lat=bfgc_mp_lat, max_length=self.length, prop_dir="both") for init_lon in self.bs+bfgc_mp_lon ]
+        #self.nsrdbars = array([ self.mhd(doppel) for doppel in bfgc_doppels ]) / self.length
+
+    #}}}2 end calc_nsrfits
 
     def stresscomp(self, stresscalc, time_sec=0.0, failure = "tens_frac", w_length=True, w_stress=True): # {{{2
         """
@@ -688,148 +597,316 @@ class Lineament(object): #{{{1
 
     # }}}2 end stresscomp
 
-    def mhd(self, linB): #{{{2
-        """
-        Calculate the mean Hausdorff Distance between linA and linB.
-
-        Use the midpoints of the line segments making up the lineament, instead of
-        the verticies, and weight by the lengths of the line segments.
-
-        (See: http://en.wikipedia.org/wiki/Hausdorff_distance)
-
-        """
-        return(mhd(self, linB))
-    #}}}2 end mhd()
-
-    def smhd(self, linB): #{{{2
-        """
-        Calculate the symmetric mean Hausdorff Distance between linA and
-        linB - this is just (mhd(linA, linB) + mhd(linB, linA))/2
-
-        """
-        return( (mhd(self, linB) + mhd(linB, self))/2.0 )
-    #}}}2 end smhd()
-
-################################################################################
-# NOT YET IMPLEMENTED:
-################################################################################
-    def bfgc(self): #{{{2
-        """
-        Returns two (lon,lat) tuples defining the great circle that best fits the
-        L{Lineament} object.
-
-        """
-        pass
-    #}}}2 end bfgc()
-
-    def power_spectrum(self): #{{{2
-        """
-        Returns the power spectrum of the L{Lineament} object's distances from the
-        great circle which best fits it.
-
-        """
-        pass
-    #}}}2 end power_spectrum
-
-    def centroid(self): #{{{2
-        """
-        Returns the spherical centroid of the lineament, defined as the lon,lat
-        point which minimizes the sum of the distances from itself to the midpoints
-        of all the line segments making up the lineament, weighted by the lengths
-        of those line segments.
-
-        """
-        pass
-    #}}}2 end centroid()
-
-    def fit_percentile(self, stress=None, nb=19, num_lins=100): #{{{2
-        """
-        Calculate and return the proportion of synthetic lineaments similar to self
-        (generated using doppelganger_power_spectrum) which self does better at
-        fitting to the given stress.
-
-        I.e. a fit_percentile of 0.95 would mean that self's best fit to the given
-        stress is better than the best fits of 95% of the synthetic lineaments, and
-        would ghus be a very robustly significant fit.
-
-        This also sets self.fit_percentile to this value, for later reference.
-
-        """
-        pass
-    #}}}2 end fit_percentile()
-
-    def doppelganger_power_spectrum(self): #{{{2
-        """
-        Generate and return a lineament whose centroid has the same latitude as self,
-        and which has the same power spectrum relative to its best-fit great circle
-        as self, but random overall orientation, and random phase information.
-
-        Such synthetic lineaments are used to test the statistical significance of
-        a given lineament's fit to a given stress field.
-
-        """
-        pass
-    #}}}2 end doppelganger_power_spectrum()
-
-    def doppelganger_centroid(self, stress=None, seg_len=0.05): #{{{2
-        """
-        Generate and return a L{Lineament} object whose midpoint is
-        self.centroid(), which has the same length as self, which is consistent with
-        the given stress.
-
-        """
-        pass
-    #}}}2 end doppelganger_centroid()
-
-    def doppelganger_bfgc(): #{{{2
-        """
-        Generate and return a L{Lineament} object which is a segment of self's best
-        fit great circle, has the same length as self, and whose midpoint is the
-        point closest to self.centroid() on the great circle path.
-
-        """
-        pass
-    #}}}2 end doppelganger_bfgc()
-
 #}}}1 end of the Lineament class
 
-class Segment(object): #{{{
+################################################################################
+# Helpers having to do with fit metrics or lineament generation.
+################################################################################
+def lingen_nsr(stresscalc, init_lon=None, init_lat=None, max_length=2*pi, prop_dir="both", segment_length=0.01): # {{{
     """
-    A great-circle path line defined by two end points on the surface of a sphere.
+    Generate a synthetic NSR feature, given a starting location, maximum
+    length, propagation direction, and a step size on the surface.
+
+    Assumes tensile fracture, perpendictular to the most tensile principal
+    component of the stresses.
 
     """
 
-    def __init__(self, lon1, lat1, lon2, lat2, parent_lin=None):
-        self.lon1 = lon1
-        self.lat1 = lat1
-        self.lon2 = lon2
-        self.lat2 = lat2
+    # Make a note of the fact that we've got to do the other half too
+    if prop_dir == "both":
+        max_length = max_length/2.0
+        prop_dir = "east"
+        done = False
+    else:
+        done = True
 
-    def calc_length(self):
-        return(spherical_distance(self.lon1, self.lat1, self.lon2, self.lat2))
+    lons = array([init_lon,])
+    lats = array([init_lat,])
+    # Calculate the stresses at the given time and initial location
+    (tens_mag, tens_az, comp_mag, comp_az) = stresscalc.principal_components(theta=(pi/2.0)-lats[0], phi=lons[0], t=0.0)
 
-    def midpoint(self):
-        """
-        Find the point halfway between the segment's endpoints, along a great
-        circle route.
+    lin_length = 0.0
+    ice_strength = stresscalc.stresses[0].satellite.layers[-1].tensile_str
 
-        """
-        return(spherical_midpoint(self.lon1, self.lat1, self.lon2, self.lat2))
+    # This can't be vectorized because we don't know where we'll end up until
+    # we get there.
+    while lin_length < max_length and tens_mag > ice_strength:
+        # Choose which direction to go based on prop_dir, knowing that comp_az
+        # is always an angle clockwise from north, between 0 and pi
+        if prop_dir == "east":
+            prop_az = comp_az
+        else:
+            assert(prop_dir == "west")
+            prop_az = comp_az + pi
 
-    def midpoint_azimuth(self):
-        """
-        Calculate the azimuth (orientation) at the midpoint of the segment.
+        newlon, newlat = spherical_reckon(lons[-1], lats[-1], prop_az, segment_length)
 
-        Because the segment is not directional, this will be an angle between 0 and pi.
-        """
+        # Make sure that our new longitude is within 2*pi in longitude of the
+        # previous point in the feature, i.e. don't allow any big
+        # discontinuities (this is a hack to deal with longitude cyclicity)
+        while (abs(newlon - lons[-1]) > abs((newlon - 2*pi) - lons[-1])):
+            newlon = newlon - 2*pi
+        while (abs(newlon - lons[-1]) > abs((newlon + 2*pi) - lons[-1])):
+            newlon = newlon + 2*pi
+        
+        lons = concatenate([lons,array([newlon,])])
+        lats = concatenate([lats,array([newlat,])])
 
-        return(mod(spherical_azimuth(self.midpoint()[0], self.midpoint()[1], self.lon2, self.lat2), pi))
-    
-    # }}} end segment
+        lin_length += segment_length
+
+        # Calculate the stresses at the new location
+        (tens_mag, tens_az, comp_mag, comp_az) = stresscalc.principal_components(theta=(pi/2.0)-lats[-1], phi=lons[-1], t=0.0)
+
+    # if we only got a single point, then we failed to initiate a fracture, and
+    # should not even try to make the second half.
+    if not done and len(lons) > 1:
+        second_half = lingen_nsr(stresscalc, init_lon=init_lon, init_lat=init_lat, max_length=max_length, prop_dir="west")
+        # the second_half lat/lon arrays are in reversed order here to preserve
+        # the overall directionality of the vertices (see Numpy fancy slicing):
+        lons = concatenate([second_half.lons[:0:-1], lons])
+        lats = concatenate([second_half.lats[:0:-1], lats])
+
+    return(Lineament(lons=lons, lats=lats, stresscalc=stresscalc))
+
+#}}} end lingen_nsr
+
+def lingen_greatcircle(init_lon, init_lat, fin_lon, fin_lat, seg_len=0.01): #{{{
+    """
+    Return a L{Lineament} object closely approximating the shortest great
+    circle route between (lon1,lat1) and (lon2,lat2).
+
+    """
+
+    gc_length  = spherical_distance(init_lon, init_lat, fin_lon, fin_lat)
+    init_az    = spherical_azimuth(init_lon, init_lat, fin_lon, fin_lat)
+    lons, lats = spherical_reckon(init_lon, init_lat, init_az, linspace(0,gc_length,1+(gc_length/seg_len)))
+    return(Lineament(lons=lons, lats=lats))
+
+#}}} end lingen_greatcircle
+
+def bestfit_greatcircle(lons=None, lats=None, weights=None): #{{{ TODO: Get Aaron's help here...
+    """
+    Given a set of lon,lat points (vertices) on the surface of a sphere, and
+    weights representing their relative importances (magnitudes) return the
+    location of one of the two poles defining the great circle (the points pi/2
+    away from the circle itself on the sphere)
+
+    """
+    pass
+#}}} end fit_greatcircle
+
+def mhd(linA, linB): #{{{ TODO: Debug/Test make sure indexing/axes are correct
+    """
+    Calculate the mean Hausdorff Distance between linA and linB.
+
+    Use the midpoints of the line segments making up the lineament, instead of
+    the verticies, and weight by the lengths of the line segments, because
+    we're really trying to compare linear features, not sets of points.
+
+    (See: http://en.wikipedia.org/wiki/Hausdorff_distance)
+
+    """
+    mp_lonsA, mp_latsA = linA.seg_midpoints()
+    mp_lonsB, mp_latsB = linB.seg_midpoints()
+    lenWt = linA.seg_lengths()/linA.length
+
+    # Create a matrix of lat/lon points such that pairwise calculations in
+    # spherical_distance do the entire grid of possible distances between
+    # points in linA and linB:
+    distmatrix = spherical_distance(repeat(mp_lonsA,len(mp_lonsB)), repeat(mp_latsA,len(mp_latsB)),\
+                                      tile(mp_lonsB,len(mp_lonsA)),   tile(mp_latsB,len(mp_latsA)))
+
+    # reshape distmatrix such that each column corresponds to a point in linA
+    distmatrix.reshape((len(mp_lonsA), len(mp_lonsB)))
+    # find the minimum distances for each point in A:
+    mindists = min(distmatrix, axis=0)
+
+    # Weight distances by segment lengths and sum them:
+    return(sum(mindists*lenWt))
+
+#}}} end mhd
 
 ################################################################################
-# Helper functions that aren't part of any object class:
+# Helpers having to do with spherical geometry
 ################################################################################
+def spherical_distance(lon1, lat1, lon2, lat2): #{{{
+    """
+    Calculate the distance between two points on a sphere, in radians.
+
+    """
+
+    sph_len = 0.0
+    sph_len += sin((lat1-lat2)/2)**2 
+    sph_len += cos(lat1)*cos(lat2)*(sin((lon1-lon2)/2)**2)
+    sph_len =  2.0*arcsin(sqrt(sph_len))
+    return(sph_len)
+# }}} end spherical_distance
+
+def spherical_azimuth(lon1, lat1, lon2, lat2): # {{{
+    """
+    Calculate the azimuth between one point and another.
+
+    The returned azimuth angle is the initial heading (angle clockwise from
+    north) to set out on along a great-circle route in order to travel from
+    point 1 to point 2.
+
+    """
+    lon1 = 2.0*pi - lon1
+    lon2 = 2.0*pi - lon2
+
+    return(mod(arctan2(sin(lon1-lon2)*cos(lat2), cos(lat1)*sin(lat2)-sin(lat1)*cos(lat2)*cos(lon1-lon2)), 2.0*pi))
+
+# }}} end spherical_azimuth
+
+def spherical_reckon(lon1, lat1, az12, ang_dist): # {{{
+    """
+    Calculate current location given a starting point, heading, and distance
+    traveled.
+
+    """
+    # This formula uses WEST positive longitude... so we need to adjust.
+    lon1 = 2.0*pi - lon1
+
+    lat2 = arcsin( sin(lat1)*cos(ang_dist) + cos(lat1)*sin(ang_dist)*cos(az12) )
+    dlon = arctan2( sin(az12)*sin(ang_dist)*cos(lat1), cos(ang_dist) - sin(lat1)*sin(lat2) )
+    lon2 = mod( lon1 - dlon + pi, 2.0*pi ) - pi
+
+    # This formula used WEST positive longitude... so we need to re-adjust.
+    lon2 = 2.0*pi - lon2
+    return(array([lon2,lat2]))
+
+# }}} end spherical_reckon
+
+def spherical_midpoint(lon1, lat1, lon2, lat2): #{{{
+    """
+    Given two points on the surface of a sphere, return the point that lies
+    halfway between them on a great circle route.
+
+    """
+
+    ang_dist = spherical_distance(lon1, lat1, lon2, lat2)
+    az12     = spherical_azimuth(lon1, lat1, lon2, lat2)
+
+    return(spherical_reckon(lon1, lat1, az12, ang_dist/2.0))
+
+# }}}
+
+def random_lonlatpoints(N): #{{{
+    """
+    Generate N evenly distributed random points on a sphere.
+
+    """
+
+    return(2*pi*rand(N), (pi/2)-arccos(2*rand(N)-1))
+#}}}
+
+def sphere2xyz(r, theta, phi): #{{{
+    """
+    Takes a point in spherical coordinates and returns its cartesian
+    equivalent.
+
+    r is the distance from the origin.
+
+    theta is south positive co-latitude (zero at the north pole)
+
+    phi is the east positive longitude.
+
+    Assumes that the z-axis is the rotation axis.
+
+    """
+
+    x = r * sin(theta) * cos(phi)
+    y = r * sin(theta) * sin(phi)
+    z = r * cos(theta)
+
+    return(x, y, z)
+#}}}
+
+def xyz2sphere(x, y, z): #{{{
+    """
+    Takes a Cartesian (x,y,z) point and returns the equivalent point in terms
+    of spherical (r, theta, phi), where:
+
+    r is the radial distance from the origin.
+
+    theta is co-latitude.
+
+    phi is east-positive longitude.
+
+    And the z-axis is taken to be the same as the rotation axis.
+
+    """
+
+    r     = sqrt(x**2 + y**2 + z**2)
+    theta = arctan2(sqrt(x**2 + y**2), z)
+    phi   = arctan2(y, x)
+
+    return(r, theta, phi)
+#}}}
+
+def paleopole_transform(paleo_npole_lon, paleo_npole_lat, lon_in, lat_in): #{{{ TODO: VECTORIZE THIS PoS
+    """
+    Transforms the location of a point on the surface of a sphere, defined by
+    (lon_in,lat_in) in east-positive longitude, returning the (lon,lat)
+    location that point would be located at if the point defined by
+    (paleo_npole_lon,paleo_npole_lat) is moved directly north until it is at
+    the north pole.
+
+    """
+
+    # First we convert the point to be transformed into Cartesian coords.
+    # Since we only care about the lon,lat position in the end, we'll treat the
+    # the body as a unit sphere.  Remember that sphere2xyz needs CO-latitude:
+    colat_in = pi/2 - lat_in
+    xyz_in = array(sphere2xyz(1.0, colat_in, lon_in))
+
+    # Now, remember that what we're doing is bringing a wayward pole back to
+    # the top of the sphere... which means the angles we're interested in are
+    # actually -colat, -lon:
+    alpha = pi/2 + paleo_npole_lon
+    beta  = pi/2 - paleo_npole_lat
+    gamma = 0
+
+    # The definition of the X-Z rotation matrix:
+    rot_mat = array([ [ cos(alpha)*cos(gamma)-sin(alpha)*cos(beta)*sin(gamma), -cos(alpha)*sin(gamma)-sin(alpha)*cos(beta)*cos(gamma),  sin(beta)*sin(alpha) ],\
+                      [ sin(alpha)*cos(gamma)+cos(alpha)*cos(beta)*sin(gamma), -sin(alpha)*sin(gamma)+cos(alpha)*cos(beta)*cos(gamma), -sin(beta)*cos(alpha) ],\
+                      [                 sin(beta)*sin(gamma),                                     sin(beta)*cos(gamma),                       cos(beta)      ] ])
+
+    # Do the matrix multiplication using dot():
+    x_out, y_out, z_out = dot(xyz_in, rot_mat)
+
+    # Transform back to spherical coordinates:
+    r_out, theta_out, phi_out = xyz2sphere(x_out, y_out, z_out)
+
+    # and back to lon/lat from colon/lat:
+    lon_out = mod(phi_out + alpha,2*pi)
+    lat_out = pi/2 - theta_out # co-lat to lat
+
+    return(lon_out, lat_out)
+#}}}
+
+################################################################################
+# Helpers for input/output/saving/updating: (TODO: portable output...)
+################################################################################
+def update_lins(lins): # {{{
+    """
+    Just a quick and easy way to remember what all has to be done in order to
+    update a set of lineaments to include all the newest and bestest
+    functionality from the module.
+
+    Can also be used to update the "good fit" threshold, if both delta_max and
+    dbar_max are provided.
+
+    """
+
+    newlins = []
+    linlen=len(lins)
+    for lin,N in zip(lins,range(linlen)):
+        newlin = Lineament(lin.vertices, stresscalc=lin.stresscalc, fits=lin._Lineament__fits)
+        newlins.append(newlin)
+
+    return(newlins)
+#}}} end update_lins
 
 def plotlinmap(lins, map=None, color='black', alpha=1.0, linewidth=1.0, lon_cyc=2*pi, lat_mirror=False): #{{{
     """
@@ -890,406 +967,16 @@ def shp2lins(shapefile, stresscalc=None): #{{{
     return linlist
 # }}} end shp2lins
 
-def spherical_distance(lon1, lat1, lon2, lat2): #{{{
+def lins2kml(lins=[], kmlfile=None): #{{{ TODO: WRITE IT!
     """
-    Calculate the distance between two points on a sphere, in radians.
-
-    """
-
-    sph_len = 0.0
-    sph_len += sin((lat1-lat2)/2)**2 
-    sph_len += cos(lat1)*cos(lat2)*(sin((lon1-lon2)/2)**2)
-    sph_len =  2.0*arcsin(sqrt(sph_len))
-    return(sph_len)
-# }}} end spherical_distance
-
-def spherical_azimuth(lon1, lat1, lon2, lat2): # {{{
-    """
-    Calculate the azimuth between one point and another.
-
-    The returned azimuth angle is the initial heading (angle clockwise from
-    north) to set out on along a great-circle route in order to travel from
-    point 1 to point 2.
+    Create a KML file from a list of L{Lineament} objects, defining their
+    shapes.
 
     """
-    lon1 = 2.0*pi - lon1
-    lon2 = 2.0*pi - lon2
+    pass
+#}}} end lins2kml
 
-    return(mod(arctan2(sin(lon1-lon2)*cos(lat2), cos(lat1)*sin(lat2)-sin(lat1)*cos(lat2)*cos(lon1-lon2)), 2.0*pi))
-
-# }}} end spherical_azimuth
-
-def spherical_reckon(lon1, lat1, az12, ang_dist): # {{{
-    """
-    Calculate current location given a starting point, heading, and distance
-    traveled.
-
-    """
-    # This formula uses WEST positive longitude... so we need to adjust.
-    lon1 = 2.0*pi - lon1
-
-    lat2 = arcsin( sin(lat1)*cos(ang_dist) + cos(lat1)*sin(ang_dist)*cos(az12) )
-    dlon = arctan2( sin(az12)*sin(ang_dist)*cos(lat1), cos(ang_dist) - sin(lat1)*sin(lat2) )
-    lon2 = mod( lon1 - dlon + pi, 2.0*pi ) - pi
-
-    # This formula used WEST positive longitude... so we need to re-adjust.
-    lon2 = 2.0*pi - lon2
-    return((lon2,lat2))
-
-# }}} end spherical_reckon
-
-def spherical_midpoint(lon1, lat1, lon2, lat2): #{{{
-    """
-    Given two points on the surface of a sphere, return the point that lies
-    halfway between them on a great circle route.
-
-    """
-
-    ang_dist = spherical_distance(lon1, lat1, lon2, lat2)
-    az12     = spherical_azimuth(lon1, lat1, lon2, lat2)
-
-    return(spherical_reckon(lon1, lat1, az12, ang_dist/2.0))
-
-# }}}
-
-def lingen(stresscalc, init_lon="rand", init_lat="rand", max_length="rand",\
-           time_sec=0.0, propagation="rand", failure="tens_frac",\
-           segment_length=0.01, lonshift=0.0): # {{{
-    """
-    Generate a "perfect" lineament, given initial crack location, final length,
-    and the stress field and failure mode.
-
-    """
-    lin_length = 0.0
-
-    # If we're choosing a random point on the surface... let's make sure that
-    # the points are evenly distributed all over the sphere:
-
-    if init_lon == "rand":
-        init_lon = 2*pi*rand()
-    if init_lat == "rand":
-        init_lat = arccos(2*rand()-1)-pi/2
-    if max_length == "rand":
-        max_length = pi*rand()
-
-    vertices = [(init_lon, init_lat),]
-
-    ice_strength = stresscalc.stresses[0].satellite.layers[-1].tensile_str
-
-    # Calculate the stresses at the given time and initial location
-    (tens_mag, tens_az, comp_mag, comp_az) = stresscalc.principal_components(theta = (pi/2.0)-vertices[-1][1],\
-                                                                               phi = vertices[-1][0],\
-                                                                                 t = time_sec )
-
-    if propagation == "rand":
-        if rand() > 0.5:
-            propagation="east"
-        else:
-            propagation="west"
-
-    # Make a note of the fact that we've got to do the other half too
-    if propagation == "both":
-        done = False
-        propagation = "east"
-    else:
-        done = True
-
-    while lin_length < max_length and tens_mag > ice_strength:
-        # Choose which direction to go based on "propagation", and which
-        # half of the lineament we are synthesizing
-        if propagation == "east":
-            prop_az = comp_az
-        else:
-            assert(propagation == "west")
-            prop_az = comp_az + pi
-
-        newlon, newlat = spherical_reckon(vertices[-1][0], vertices[-1][1], prop_az, segment_length)
-
-        while (abs(newlon - vertices[-1][0]) > abs((newlon - 2*pi) - vertices[-1][0])):
-            newlon = newlon - 2*pi
-
-        while (abs(newlon - vertices[-1][0]) > abs((newlon + 2*pi) - vertices[-1][0])):
-            newlon = newlon + 2*pi
-        
-        vertices.append((newlon, newlat))
-
-        lin_length += segment_length
-
-        # Calculate the stresses at the given time and initial location
-        (tens_mag, tens_az, comp_mag, comp_az) = stresscalc.principal_components(theta = (pi/2.0)-vertices[-1][1],\
-                                                                                   phi = vertices[-1][0],\
-                                                                                     t = time_sec )
-
-    # if vertices is only one long, then we failed to initiate a fracture, and
-    # should not even try to make the second half.
-
-    if not done and len(vertices) > 1:
-        second_half = lingen(stresscalc, init_lon=init_lon, init_lat=init_lat, max_length=max_length, time_sec=time_sec, propagation="west", failure=failure)
-        second_half_reversed = second_half.vertices[:0:-1]
-        vertices = vstack([second_half_reversed, array(vertices)])
-
-    newlin = Lineament(vertices=vertices, stresscalc=stresscalc)
-
-    if lonshift:
-        if lonshift == "rand":
-            lonshift = 2*pi*(rand()-0.5)
-
-        newlin = newlin.lonshift(lonshift)
-
-    return newlin
-
-#}}} end lingen
-
-def lingen_greatcircle(init_lon, init_lat, fin_lon, fin_lat, seg_len=0.01): #{{{
-    """
-    Return a L{Lineament} object closely approximating the shortest great
-    circle route between (lon1,lat1) and (lon2,lat2).
-
-    """
-    verts = [(init_lon,init_lat),]
-
-    # while the distance from the last point in the list of vertices to our
-    # final destination is less than our step size, keep calculating new points
-    while(spherical_distance(verts[-1][0],verts[-1][1], fin_lon, fin_lat) > seg_len):
-        new_az = spherical_azimuth(verts[-1][0],verts[-1][1], fin_lon, fin_lat)
-        new_vert = spherical_reckon(verts[-1][0],verts[-1][1], new_az, seg_len)
-        verts.append(new_vert)
-
-    # add on the second endpoint for completeness...
-    verts.append((fin_lon,fin_lat))
-
-    return(Lineament(verts))
-
-#}}} end lingen_greatcircle
-
-def update_lins(lins): # {{{
-    """
-    Just a quick and easy way to remember what all has to be done in order to
-    update a set of lineaments to include all the newest and bestest
-    functionality from the module.
-
-    Can also be used to update the "good fit" threshold, if both delta_max and
-    dbar_max are provided.
-
-    """
-
-    newlins = []
-    linlen=len(lins)
-    for lin,N in zip(lins,range(linlen)):
-        newlin = Lineament(lin.vertices, stresscalc=lin.stresscalc, failure_mode=lin.failure_mode, fits=lin._Lineament__fits)
-        newlins.append(newlin)
-
-    return(newlins)
-#}}} end update_lins
-
-def aggregate_length(lins): #{{{
-    """
-    Return the sum of the lengths of the L{Lineaments} in lins, in radians of
-    arc on the surface of the body.
-
-    """
-    return(sum([lin.length for lin in lins]))
-#}}} end aggregate_length()
-
-def mhd(linA, linB): #{{{
-    """
-    Calculate the mean Hausdorff Distance between linA and linB.
-
-    Use the midpoints of the line segments making up the lineament, instead of
-    the verticies, and weight by the lengths of the line segments, because
-    we're really trying to compare linear features, not sets of points.
-
-    (See: http://en.wikipedia.org/wiki/Hausdorff_distance)
-
-    """
-    if linA is None or linB is None:
-        return None
-
-    midpoints = linA.midpoints()
-    linlen = linA.length
-
-    # the proportion of the overall metric that will come from each point...
-    length_weights = [ seg.calc_length()/linlen for seg in linA.segments() ]
-
-    mhd = 0.0
-    for pt,wt in zip(midpoints, length_weights):
-        mhd += wt*min( [ spherical_distance(pt[0], pt[1], v[0], v[1]) for v in linB.midpoints() ] )
-
-    return(mhd)
-
-#}}} end mhd
-
-def smhd(linA, linB): #{{{
-    """
-    Calculate the symmetric mean Hausdorff Distance between linA and
-    linB - this is just (mhd(linA, linB) + mhd(linB, linA))/2
-
-    """
-    if linA is None or linB is None:
-        return None
-    else:
-        return( (mhd(linA, linB) + mhd(linB, linA))/2.0 )
-
-#}}} end smhd
-
-def local_minima(x_in, y_in, winwidth=15): #{{{
-    """
-    Given two arrays x and y(x), find the values of x which correspond to the
-    smallest local minima within the function y(x), within a window winwidth
-    wide.  winwidth=0 will return all local minima, no matter how local.
-
-    Returns two arrays, x_out, y_out, corresponding to the x and y values that
-    match the given criteria.
-
-    Returns a list of indices at which the minima were found, and a list of the
-    minima, sorted in order of increasing minimum.  The keyword argument deg_win
-    determines how close two local minima are allowed to be to one another.  If
-    two local minima are found less than deg_win degrees apart, then the lowest
-    of them is taken as the real minimum.
-
-    For now this is hacked to assume that the x values are evenly distributed
-    across the entire range of possible values, from 0-180 degrees (or 0-pi
-    radians).
-
-    """
-    from scipy.ndimage.filters import minimum_filter as min_filter
-
-    # winwidth as passed in is in degrees, but the 'size' that min_filter needs
-    # is a number of neighboring points to use.  First we need to convert from
-    # degrees to indices, rounding up
-    deg_win = int(round(winwidth/(180.0/(len(y_in)-1))))
-
-    # then we can calculate the minima using min_filter
-    y_mins = min_filter(y_in, size=deg_win, mode="wrap")
-
-    # but really we just want the values where y(x) = y_min
-    y_out = [ y for y,y_min in zip(y_in,y_mins) if y == y_min ]
-
-    # we need extract the x values that correspond do these y values:
-    good_indices = ravel([ find(y_in==y) for y in y_out ])
-    x_out = [ y_in[idx] for idx in good_indices ]
-
-    return(x_out, y_out)
-#}}}
-
-def sphere2xyz(r, theta, phi): #{{{
-    """
-    Takes a point in spherical coordinates and returns its cartesian
-    equivalent.
-
-    r is the distance from the origin.
-
-    theta is south positive co-latitude (zero at the north pole)
-
-    phi is the east positive longitude.
-
-    Assumes that the z-axis is the rotation axis.
-
-    """
-
-    x = r * sin(theta) * cos(phi)
-    y = r * sin(theta) * sin(phi)
-    z = r * cos(theta)
-
-    return(x, y, z)
-#}}}
-
-def xyz2sphere(x, y, z): #{{{
-    """
-    Takes a Cartesian (x,y,z) point and returns the equivalent point in terms
-    of spherical (r, theta, phi), where:
-
-    r is the radial distance from the origin.
-
-    theta is co-latitude.
-
-    phi is east-positive longitude.
-
-    And the z-axis is taken to be the same as the rotation axis.
-
-    """
-
-    r     = sqrt(x**2 + y**2 + z**2)
-    theta = arctan2(sqrt(x**2 + y**2), z)
-    phi   = arctan2(y, x)
-
-    return(r, theta, phi)
-#}}}
-
-def paleopole_transform(paleo_npole_lon, paleo_npole_lat, lon_in, lat_in): #{{{
-    """
-    Transforms the location of a point on the surface of a sphere, defined by
-    (lon_in,lat_in) in east-positive longitude, returning the (lon,lat)
-    location that point would be located at if the point defined by
-    (paleo_npole_lon,paleo_npole_lat) is moved directly north until it is at
-    the north pole.
-
-    """
-
-    # First we convert the point to be transformed into Cartesian coords.
-    # Since we only care about the lon,lat position in the end, we'll treat the
-    # the body as a unit sphere.  Remember that sphere2xyz needs CO-latitude:
-    colat_in = pi/2 - lat_in
-    xyz_in = array(sphere2xyz(1.0, colat_in, lon_in))
-
-    # Now, remember that what we're doing is bringing a wayward pole back to
-    # the top of the sphere... which means the angles we're interested in are
-    # actually -colat, -lon:
-    alpha = pi/2 + paleo_npole_lon
-    beta  = pi/2 - paleo_npole_lat
-    gamma = 0
-
-    # The definition of the X-Z rotation matrix:
-    rot_mat = array([ [ cos(alpha)*cos(gamma)-sin(alpha)*cos(beta)*sin(gamma), -cos(alpha)*sin(gamma)-sin(alpha)*cos(beta)*cos(gamma),  sin(beta)*sin(alpha) ],\
-                      [ sin(alpha)*cos(gamma)+cos(alpha)*cos(beta)*sin(gamma), -sin(alpha)*sin(gamma)+cos(alpha)*cos(beta)*cos(gamma), -sin(beta)*cos(alpha) ],\
-                      [                 sin(beta)*sin(gamma),                                     sin(beta)*cos(gamma),                       cos(beta)      ] ])
-
-    # Do the matrix multiplication using dot():
-    x_out, y_out, z_out = dot(xyz_in, rot_mat)
-
-    # Transform back to spherical coordinates:
-    r_out, theta_out, phi_out = xyz2sphere(x_out, y_out, z_out)
-
-    # and back to lon/lat from colon/lat:
-    lon_out = mod(phi_out + alpha,2*pi)
-    lat_out = pi/2 - theta_out # co-lat to lat
-
-    return(lon_out, lat_out)
-#}}}
-
-def get_segs(lins): #{{{
-    """
-    For a list of lineaments, lins, return three arrays, containing the
-    longitudes and latitutes of the midpoints of the lineament segments making
-    up the lineaments, and the lengths associated with those segments.
-    """
-
-    seglons = array([])
-    seglats = array([])
-    seglens = array([])
-    for lin in lins:
-        lonsA = lin.vertices[:-1,0]
-        latsA = lin.vertices[:-1,1]
-        lonsB = lin.vertices[1:,0]
-        latsB = lin.vertices[1:,1]
-        mplons,mplats = spherical_midpoint(lonsA,latsA,lonsB,latsB)
-        seglons = hstack([seglons,mplons])
-        seglats = hstack([seglats,mplats])
-        seglens = hstack([seglens,spherical_distance(lonsA,latsA,lonsB,latsB)])
-
-    return(seglons, seglats, seglens)
-#}}}
-
-def random_lonlatpoints(N):
-    randlats = pi/2 - arccos(2*rand(N)-1)
-    randlons = 2*pi*rand(N)
-
-    return(randlons,randlats)
-
-################################################################################
-# NOT YET IMPLEMENTED:
-################################################################################
-def lins2shp(lins=[], shapefile=None): #{{{
+def lins2shp(lins=[], shapefile=None): #{{{ TODO: WRITE IT!
     """
     Create a shapefile from a list of L{Lineament} objects, including additions
     to the attribute tables that have been calculated so that those attributes
@@ -1298,31 +985,3 @@ def lins2shp(lins=[], shapefile=None): #{{{
     """
     pass
 #}}} end lins2shp
-
-def fit_greatcircle(vertices): #{{{
-    """
-    Given a set of lon,lat points (vertices) on the surface of a sphere, return
-    two points defining the great circle with the best least-squares fit to the
-    points (see U{http://doi.acm.org/10.1145/367436.367478}).
-
-    """
-    pass
-#}}} end fit_greatcircle
-
-def lingen_power_spectrum(v1, v2, num_steps=50, pow_spect=[]): #{{{
-    """
-    Given two (lon,lat) points v1 and v2 defining a unique great circle, and a
-    power spectrum, pow_spect, perturb the great circle using the power
-    spectrum.
-
-    Breaks the great circle arc defined by v1,v2 into num_steps segments, and
-    displaces each one perpendicular to the azimuth of the great circle, by an
-    amount equal to the sum of the power components at that distance from the
-    end of the great circle arc.
-
-    Returns the perturbed lineament, whose power_spectrum() method should
-    return a power spectrum equivalent to the pow_spect that was passed in.
-
-    """
-    pass
-#}}} end lingen_power_spectrum
