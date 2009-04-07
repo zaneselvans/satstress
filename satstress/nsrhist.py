@@ -12,6 +12,25 @@ from mpl_toolkits.basemap import Basemap
 import random
 import os
 
+def nsrvectest():
+    """
+    Short test routine to see if I've actually re-written this all right...
+
+    """
+
+    satfile="input/ConvectingEuropa_GlobalDiurnalNSR.ssrun"
+    europa = satstress.Satellite(open(satfile,'r'))
+    NSR = satstress.StressCalc([satstress.NSR(europa),])
+
+    linfile="input/GlobalLineaments"
+    maplins = lineament.shp2lins(linfile, stresscalc=NSR)
+
+    for lin,N in zip(maplins,range(len(maplins))):
+        print "%d" % (N+1,)
+        lin.calc_nsrfits()
+
+    return(maplins)
+
 def nsrfits(nb=180, nlins=0, save=100, name="linfits", nbins=20,\
             satfile="input/ConvectingEuropa_GlobalDiurnalNSR.ssrun",\
             mapped_lins=None, synthetic_lins=None,\
@@ -354,11 +373,11 @@ def fitcurve(lin, delta_max=radians(30), dbar_max=0.1, color='black', ax=None): 
     wt_ax.set_ylabel('length weighting')
     wt_ax.set_yticks(linspace(0,0.9,7))
     delta_ax.yaxis.set_major_formatter(degree_formatter)
-    delta_ax.plot(degrees(lin._Lineament__fits[:,0]), degrees(lin._Lineament__fits[:,1]),ls='-', linewidth=2, color=color)
+    delta_ax.plot(degrees(lin.bs), degrees(lin.nsrdeltas),ls='-', linewidth=2, color=color)
 
-    wt_ax.plot(degrees(lin._Lineament__fits[:,0]), lin._Lineament__fits[:,2],ls='--', linewidth=2, color=color)
+    wt_ax.plot(degrees(lin.bs), lin.nsrstresswts/2.0, ls='--', linewidth=2, color=color)
 
-    wt_ax.fill_between(degrees(lin._Lineament__fits[:,0]), fitWt(lin._Lineament__fits[:,1], lin._Lineament__fits[:,2], delta_max=delta_max, dbar_max=dbar_max), 0, color=color, alpha=0.4)
+    wt_ax.fill_between(degrees(lin.bs), lin.nsrfits(delta_max=delta_max, dbar_max=dbar_max), 0, color=color, alpha=0.4)
     delta_ax.set_ylim(0,100)
     wt_ax.set_ylim(0,1.0)
 
@@ -830,33 +849,6 @@ def DeltaSinuosityCorr(lins, outfile=None): #{{{
 
 # end DeltaSinuosityCorr }}}
 
-def NSRFailDirByLat(nsr_stresscalc, lats=linspace(0,80,9), lons=linspace(0,180,1000)): #{{{
-    """
-    Graphic display of how the range of possible failure orientations changes
-    with latitude in the NSR stress field, demonstrating that for any short
-    lineament above 30 degrees latitude, there will always be a good fit.
-
-    """
-    lats = radians(lats)
-    lons = radians(lons)
-
-    N = len(lats)
-    fail_orient = [ [] for n in range(N) ]
-    for lat,n in zip(lats,range(N)):
-        for lon in lons:
-            nsr_pcs = nsr_stresscalc.principal_components(pi/2-lat,lon,0)
-            if nsr_pcs[0] > 0:
-                fail_orient[n].append(nsr_pcs[3])
-
-    roses = figure()
-    rose_axes = [ roses.add_subplot(3,3,n, polar=True) for n in arange(9)+1 ]
-
-    for ax,n in zip(rose_axes,arange(len(rose_axes))):
-        ax.hist(fail_orient[n], range=(0,pi), bins=180, facecolor='gray', edgecolor='gray')
-        ax.set_title("lat = %g          " % (degrees(lats[n]),) )
-
-# end NSRFailDirByLat }}}
-
 def LinLatLonStats(goodlins=[], badlins=[], label="", outfile=None): #{{{
     """
     Shows the distribution of latitudes and longitudes of the lineament
@@ -1140,11 +1132,11 @@ def LinDensityMap(lins, maxdist=500, N=0, label="", cmap=cm.jet,\
             rastfig.savefig(outfile)
 #}}}
 
-def FitCurveExamples(lins, labels=[], delta_max=radians(30), dbar_max=0.1, outfile=None): #{{{
+def FitCurveExamples(lins, labels=[], delta_max=radians(45), dbar_max=0.125, outfile=None): #{{{
     # Create a full page plot, with the top half consisting of a map of the example lineaments,
     # with each one having a different color.  In the bottom half, show on individual subplots
     # the fitcurves for each of the features, color coded similarly.
-    the_fig= figure(figsize=(8.5,11))
+    the_fig= figure(figsize=(12,15))
 
     colors = cm.jet(linspace(0,1,len(lins)))
 
@@ -1194,16 +1186,11 @@ def FitCurveExamples(lins, labels=[], delta_max=radians(30), dbar_max=0.1, outfi
 # Code Revisions:
 ################################################################################
 # - Vectorization problem between Ttt,Tpt,Tpp and tensor/principal_components
-#    - given N-length arrays of (theta,phi,r,t)
 #
-#    - returns N-length array of stresses (PC, tensor, MagAz, etc)
-#    - vectorize stresscomp
+# - vectorize stresscomp
 #      - calc_thetas = tile((pi/2)-array(lin.midpoints())[:,1],nb)
 #      - calc_phis   = ravel(array( [linspace(lon,lon+pi,nb,endpoint=False) for lon in array(lin.midpoints())[:,0] ]).transpose())
 #      - calc_pc     = lin.stresscalc.principal_components(calc_thetas,calc_phis,zeros(shape(calc_thetas)))
-#    - internalize fitWt:
-#      - lin.nsrfits(delta_max, dbar_max) == (1-(lin.deltas/delta_max))*(1-(lin.dbars/dbar_max))
-#      - lin.nsrbestfit(delta_max, dbar_max) == max(lin.nsrfits(delta_max, dbar_max)), where(lin.nsrfits()==max(lin.nsrfits()))
 #    - Change dbar:
 #      - use single doppelganger propagated in both directions
 #      - start from midpoint of great circle segment approximating lineament

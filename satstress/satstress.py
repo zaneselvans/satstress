@@ -240,12 +240,17 @@ def nvf2dict(nvf, comment='#'):
     return params
 # end nvf2dict()
 
-def eigen2(tensor):
+def eigen2(a, b, c): #TODO: use numpy arrays for return values.
+    """
+    Calculate the normalized eigenvectors and eigenvalues for a 2x2 symmetric
+    matrix, where a, b, and c are:
 
-    a = tensor[0][0]
-    b = tensor[0][1]
-    c = tensor[1][1]
-    
+    A   B
+
+    B   C
+
+    """
+
     sqrt_thing = numpy.sqrt(a*a + 4.0*b*b - 2.0*a*c + c*c)
 
     lambda1   = (0.5)*(a + c - sqrt_thing)
@@ -264,7 +269,7 @@ def eigen2(tensor):
     eig2theta /= mag2
     eig2phi   /= mag2
 
-    return ((lambda1, lambda2), ((eig1theta, eig1phi), (eig2theta, eig2phi)))
+    return(numpy.array([lambda1, eig1theta, eig1phi, lambda2, eig2theta, eig2phi]))
 
 ##############################
 #          CLASSES           #
@@ -824,7 +829,7 @@ class LoveNum(object): #
 
 # end class LoveNum
 
-class StressDef(object): #
+class StressDef(object): #{{{
     """A base class from which particular tidal stress field objects descend.
 
     Different tidal forcings are specified as sub-classes of this superclass (one
@@ -1295,9 +1300,9 @@ class StressDef(object): #
         """
         pass
 
-#  end class StressDef
+#}}} end class StressDef
 
-class NSR(StressDef): #
+class NSR(StressDef): #{{{
     """An object defining the stress field which arises from the
     non-synchronous rotation (NSR) of a satellite's icy shell.
     
@@ -1387,9 +1392,9 @@ class NSR(StressDef): #
         TptN = TptN * (2.0*self.Z()/(self.satellite.surface_gravity()*self.satellite.radius()))
         return(TptN)
 
-#  end class NSR
+#}}} end class NSR
 
-class Diurnal(StressDef):
+class Diurnal(StressDef): #{{{
     """
     An object defining the stress field that arises on a satellite due to an
     eccentric orbit.
@@ -1452,9 +1457,9 @@ class Diurnal(StressDef):
         TptD = TptD.real*2.0*self.satellite.orbit_eccentricity*self.Z()/(self.satellite.surface_gravity()*self.satellite.radius())
         return(TptD)
 
-#  end class Diurnal
+#}}} end class Diurnal
 
-class StressCalc(object): #
+class StressCalc(object): #{{{
     """
     An object which calculates the stresses on the surface of a L{Satellite}
     that result from one or more stress fields.
@@ -1473,13 +1478,17 @@ class StressCalc(object): #
         @type stressdefs: list
         @return:
         @rtype: L{StressCalc}
+
         """
 
         self.stresses = stressdefs
 
-    def tensor(self, theta, phi, t): # 
+    def tensor(self, theta, phi, t): #{{{2
         """
-        Calculates surface stresses and returns them as a 2x2 stress tensor.
+        Calculates surface stresses and returns them as the elements of a
+        symmetric 2x2 membrane stress tensor, but in linear form:
+        (Ttt,Tpt,Tpp).
+
         @param theta: the co-latitude of the point at which to calculate the stress [rad].
         @type theta: float
         @param phi: the east-positive longitude of the point at which to
@@ -1488,27 +1497,27 @@ class StressCalc(object): #
         @param t: the time in seconds elapsed since pericenter, at which to perform the
         stress calculation [s].
         @type t: float
-        @return: symmetric 2x2 surface (membrane) stress tensor S{tau}
+        @return: The 3 elements of the symmetric 2x2 membrane stress tensor S{tau}
         @rtype: Numpy.array
+
         """
 
-        # This naming is just to make things a little more readable.
-        tau = numpy.zeros((2,2))
+        # First calculate all of the stresses, at all locations:
+        Ttt = numpy.array( [ stress.Ttt(theta, phi, t) for stress in self.stresses ] )
+        Tpt = numpy.array( [ stress.Tpt(theta, phi, t) for stress in self.stresses ] )
+        Tpp = numpy.array( [ stress.Tpp(theta, phi, t) for stress in self.stresses ] )
 
-        # Build up each component of the stress tensor, adding the contributions
-        # of each forcing listed in self.stresses one at a time:
-        for stress in self.stresses:
-            Ttt = stress.Ttt(theta, phi, t)
-            Tpt = Ttp = stress.Tpt(theta, phi, t)
-            Tpp = stress.Tpp(theta, phi, t)
+        # Now, if there are multiple stresses (e.g. NSR and Diurnal), sum
+        # across them to get the total stress from all fields:
+        Ttt = Ttt.sum(axis=0)
+        Tpt = Tpt.sum(axis=0)
+        Tpp = Tpp.sum(axis=0)
 
-            tau += numpy.array([ [Ttt, Tpt],\
-                                 [Ttp, Tpp] ])
+        return(Ttt,Tpt,Tpp)
 
-        return(tau)
-    #  end tensor
+    # }}}2 end tensor
 
-    def principal_components(self, theta, phi, t):
+    def principal_components(self, theta, phi, t): #{{{2
         """
         Calculates the principal components of the surface stresses and returns
         them as a tuple: (tens_mag, tens_az, comp_mag, comp_az), i.e. the
@@ -1518,42 +1527,68 @@ class StressCalc(object): #
         between 0 and pi, and are always separated by pi/2 radians.
 
         """
-        (eigval_A, eigval_B), ((theta_A, phi_A), (theta_B, phi_B)) = eigen2(self.tensor(theta, phi, t))
+        Ttt, Tpt, Tpp = self.tensor(theta,phi,t)
+
+        eigval_A, theta_A, phi_A, eigval_B, theta_B, phi_B = eigen2(Ttt, Tpt, Tpp)
+
         az_A = numpy.mod(numpy.arctan2(phi_A,-theta_A), numpy.pi)
         az_B = numpy.mod(numpy.arctan2(phi_B,-theta_B), numpy.pi)
 
-        if (eigval_A > eigval_B):
-            return( numpy.array([eigval_A, az_A, eigval_B, az_B]) )
-        else:
-            return( numpy.array([eigval_B, az_B, eigval_A, az_A]) )
+        tens_mag = numpy.where(eigval_A >  eigval_B, eigval_A, eigval_B)
+        tens_az  = numpy.where(eigval_A >  eigval_B, az_A, az_B)
+        comp_mag = numpy.where(eigval_A <= eigval_B, eigval_A, eigval_B)
+        comp_az  = numpy.where(eigval_A <= eigval_B, az_A, az_B)
 
-    def mean_global_stressmag(self, num_samples=1000, time_sec=0.0):
+        return(tens_mag, tens_az, comp_mag, comp_az)
+
+    #}}}2 end principal_components
+
+    def mean_global_stressmag(self, num_samples=10000, time_sec=0.0): #{{{2
         """
         Calculate the stresses on the surface of the satellite at num_samples
         randomly chosen locations, evenly distributed over the sphere, and
         return the mean values of both the more and less tensile stresses.
 
         """
-        pc = numpy.array([ self.principal_components(theta=numpy.arccos(2*numpy.random.rand()-1), phi=2*numpy.pi*numpy.random.rand(), t=time_sec) for N in range(num_samples) ])
-        return(pc[:,0].mean(),pc[:,2].mean())
 
-    def mean_global_stressdiff(self, num_samples=1000, time_sec=0.0):
+        rand_thetas, rand_phis = random_loncolatpoints(num_samples)
+        pc = self.principal_components(rand_thetas, rand_phis, time_sec)
+
+        return(pc[0].mean(),pc[2].mean())
+
+    #}}}2 end mean_global_stressmag
+
+    def mean_global_stressdiff(self, num_samples=10000, time_sec=0.0): #{{{2
         """
         Calculate the stresses on the surface of the satellite at num_samples
         randomly chosen locations, evenly distributed over the sphere, and
         return the mean values of both the more and less tensile stresses.
 
         """
-        pc = numpy.array([ self.principal_components(theta=numpy.arccos(2*numpy.random.rand()-1), phi=2*numpy.pi*numpy.random.rand(), t=time_sec) for N in range(num_samples) ])
-        return((pc[:,0]-pc[:,2]).mean())
 
-# end class StressCalc
+        rand_thetas, rand_phis = random_loncolatpoints(num_samples)
+        pc = self.principal_components(rand_thetas, rand_phis, time_sec)
 
-# Exception classes (for error handling):
+        return((pc[0]-pc[2]).mean())
+
+    #}}}2 end mean_global_stressdiff
+
+# end class StressCalc #}}}
+
+def random_loncolatpoints(N): #{{{
+    """
+    Generate N evenly distributed random points on a sphere.
+
+    """
+
+    return(2*numpy.pi*numpy.random.rand(N), numpy.arccos(2*numpy.random.rand(N)-1))
+
+#}}}
+
+# Exception classes (for error handling): #{{{
 # 
 # We're being pretty strict here: if we get anything dubious, we just raise the
 # exception and allow it to kill the program.
-
 
 class Error(Exception):
     """Base class for errors within the satstress module."""
@@ -1861,3 +1896,4 @@ specified in the input file:
 
 %s
 """ % (self.badparam, self.badparam, float(self.sat.satParams[self.badparam]), self.sat.sourcefilename))
+#}}}

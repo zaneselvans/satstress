@@ -11,7 +11,7 @@ class Lineament(object): #{{{1
 
     """
 
-    def __init__(self, lons=None, lats=None, stresscalc=None, nsrdeltas=None, nsrdbars=None, nsrstresswts=None): #{{{2
+    def __init__(self, lons=None, lats=None, stresscalc=None, bs=None, nsrdeltas=None, nsrdbars=None, nsrstresswts=None): #{{{2
         """
         Create a lineament from a given list of (lon,lat) points.
 
@@ -43,9 +43,9 @@ class Lineament(object): #{{{1
             self.bs = None
             self.nsrdeltas = None
             self.nsrdbars = None
-            self.nsrdstresswts = None
+            self.nsrstresswts = None
         else:
-            assert(len(bs) == len(nsrdeltas) == len(nsrdbars) == len(nsrstresswts)):
+            assert(len(bs) == len(nsrdeltas) == len(nsrdbars) == len(nsrstresswts))
             self.bs = array(bs)
             self.nsrdeltas = array(nsrdeltas)
             self.nsrdbars = array(nsrdbars)
@@ -102,7 +102,7 @@ class Lineament(object): #{{{1
         Return a list of the midpoints of each line segment in the Lineament.
 
         """
-        return(spherical_midpoint(self.lons[:-1], self.lats[:-1], self.lons[1:], self.lats[1:])
+        return(spherical_midpoint(self.lons[:-1], self.lats[:-1], self.lons[1:], self.lats[1:]))
     #}}}2
 
     def seg_azimuths(self): #{{{2
@@ -175,8 +175,6 @@ class Lineament(object): #{{{1
         """
 
         plotted_lines = []
-        lons  = array(self.vertices[:,0])
-        lats  = array(self.vertices[:,1])
 
         # What does it mean to have a longitude discontinuity?  It means
         # that two adjacent points in the lineament have longitude values
@@ -187,7 +185,7 @@ class Lineament(object): #{{{1
         # this can only be true if:
         # abs(lonA - lonB) > pi
 
-        lons = mod(lons,2*pi)
+        lons = mod(self.lons,2*pi)
 
         # if the difference in longitude between two adjacent points in the
         # lineament is ever greater than pi, we have a discontinuity:
@@ -199,13 +197,13 @@ class Lineament(object): #{{{1
         # portion of them will show up on the map...
         nrange = unique1d(floor((lons-radians(map.llcrnrlon))/lon_cyc))
         for N in nrange:
-            (x,y) = map(degrees(lons-N*lon_cyc), degrees(lats))
+            (x,y) = map(degrees(lons-N*lon_cyc), degrees(self.lats))
             plotted_lines.append(map.plot(x, y, color=color, alpha=alpha, linewidth=linewidth))
 
             # If we're mirroring across the equator, we need to plot all of the
             # lineaments with their anti-latitudes as well:
             if lat_mirror:
-                (x,y) = map(degrees(lons-N*lon_cyc), -degrees(lats))
+                (x,y) = map(degrees(lons-N*lon_cyc), -degrees(self.lats))
                 plotted_lines.append(map.plot(x, y, color=color, alpha=alpha, linewidth=linewidth))
 
         return(plotted_lines)
@@ -286,7 +284,7 @@ class Lineament(object): #{{{1
 
         """
         init_lon, init_lat = self.bfgcseg_midpoint()
-        return(lingen_nsr(stresscalc=self.stresscalc, init_lon=init_lon, init_lat=init_lat, max_length=self.length, prop_dir="both")
+        return(lingen_nsr(stresscalc=self.stresscalc, init_lon=init_lon, init_lat=init_lat, max_length=self.length, prop_dir="both"))
     #}}}2
 
     def nsrfits(self, delta_max=radians(45), dbar_max=0.125, use_delta=True, use_dbar=True, use_stress=True): #{{{2
@@ -401,14 +399,10 @@ class Lineament(object): #{{{1
         # and comp_* is the more compressive (less tensile).  Tension is
         # positive.  mag and az are the magnitude in Pa and azimuth as radians
         # clockwise from north.
-        stress_pc = self.stresscalc.principal_components(calc_thetas, calc_phis, zeros(shape(calc_thetas)))
+        tens_mag, tens_az, comp_mag, comp_az = self.stresscalc.principal_components(calc_thetas, calc_phis, 0.0)
 
-        # Create an (nsegs x nb) array of w_stress values
-        # stress_pc[:,0] == magnitude of most tensile PC
-        # stress_pc[:,1] == azimuth of most tensile PC
-        # stress_pc[:,2] == magnitude of most compressive PC
-        # stress_pc[:,3] == azimuth of most compressive PC (must be stress_pc[:,1] +/- (pi/2))
-        w_stress = (stress_pc[:,0] - stress_pc[:,2])/stresscalc.mean_global_stressdiff()
+        # Create an (nsegs*nb) length array of w_stress values
+        w_stress = (tens_mag - comp_mag)/stresscalc.mean_global_stressdiff()
 
         # There's a problem here with the weighting functions.  We want
         # delta_rms to reflect the average angle between a feature and the
@@ -442,23 +436,21 @@ class Lineament(object): #{{{1
         # can construct a stress weighted length when we need it, and use the
         # geographic length when we need that.  It should be a length weighted
         # mean of the w_stress values for each segment.
+        self.nsrstresswts = (tile(w_length,nb)*w_stress).reshape((nb,nsegs)).sum(axis=1)
 
-        self.nsrstresswts = array([ sum((w_length*w_stress)[:,N]) for N in range(nb) ])
-
-        # Create an (nsegs x nb) array of raw delta values using mp_az and
-        # stress_pc.  We are implicitly assuming here that failure is taking
-        # place as tensile fracture, perpendicular to the most tensile stress,
-        # which also happens to be the orientation of the most compressive
-        # stress:
-        raw_deltas = mod(fabs(stress_pc[:,3] - mp_az), pi/2)
+        # Create an (nsegs x nb) length array of raw delta values using mp_az
+        # and stress_pc.  We are implicitly assuming here that failure is
+        # taking place as tensile fracture, perpendicular to the most tensile
+        # stress, which also happens to be the orientation of the most
+        # compressive stress:
+        raw_deltas = mod(fabs(comp_az - tile(mp_az,nb)), pi/2)
 
         # If only compressive stresses are encountered, set delta for the
         # segment to the highest meaningful value (pi/2).
-        pi_over_two = array([pi/2,]).repeat(nsegs*nb).reshape(shape(raw_deltas))
-        raw_deltas = raw_deltas[where(stress_pc[:,0] > 0, raw_deltas, pi_over_two)]
+        raw_deltas = where(tens_mag > 0, raw_deltas, pi/2)
 
         # Take the length weighted mean of the raw deltas for each value of b:
-        self.nsrdeltas = array([ sum((w_length*raw_deltas)[:,N]) for N in range(nb) ])
+        self.nsrdeltas = (tile(w_length,nb)*raw_deltas).reshape((nb,nsegs)).sum(axis=1)
 
         # TODO: This is just a placeholder, while I test other stuff, and get
         # BFGC working:
@@ -471,131 +463,6 @@ class Lineament(object): #{{{1
         #self.nsrdbars = array([ self.mhd(doppel) for doppel in bfgc_doppels ]) / self.length
 
     #}}}2 end calc_nsrfits
-
-    def stresscomp(self, stresscalc, time_sec=0.0, failure = "tens_frac", w_length=True, w_stress=True): # {{{2
-        """
-        Return a metric of how likely it is this lineament resulted from a
-        given failure mode and stress field.
-        
-        Calculates the stresses at the midpoint of each line segment making up
-        the lineament, and compares the expected orientation of failure given
-        that stress and failure mode, to the observed orientation of the line
-        segment.
-
-        The difference between expected and observed orientations (an angle)
-        for each line segment may be weighted according to several factors:
-        
-            1. the proportion of the overall length of the lineament which that
-               line segment represents.
-
-            2. the magnitude of the stress, relative to the strength of the
-               material being stressed, or relative to the mean global stress
-               field on the body.
-
-            3. the anisotropy of the stress field (since the principal
-               components of an isotropic field can be re-oriented
-               significantly with only a small change in their relative
-               magnitudes)
-
-            4. the applicability of the stress to the failure mode being
-               considered (e.g. a compressive field is not applicable if we
-               are considering tensile fracture)
-        """
-        seglist = self.segments()
-        mean_global_stressdiff = stresscalc.mean_global_stressdiff()
-
-        for segment in seglist:
-            segment.delta = pi/2.0
-            segment.w_length = w_length
-            segment.w_stress = w_stress
-
-            (tens_mag, tens_az, comp_mag, comp_az) = stresscalc.principal_components(theta = (pi/2.0)-segment.midpoint()[1],\
-                                                                                       phi = segment.midpoint()[0],\
-                                                                                         t = time_sec )
-
-            # Delta = angle between observed and expected fractures
-            #   - this is the raw material for the fit-metric
-            #   - set to pi/2 if stress is inapplicable to failure mode
-            #   - will be scaled according to several weights below...
-            #   - will be different, depending on the failure mode
-            if (failure == "tens_frac"):
-                # If both PCs are compressive (negative), tensile fracture
-                # does not apply, and we assign the largest possible delta:
-                if comp_mag < 0 and tens_mag < 0:
-                    segment.delta = pi/2
-                # Otherwise, the angle between the segment at its midpoint,
-                # and the orientation of the most compressive stress is the
-                # difference between the observed and expected orientations
-                # for tensile fractures (both comp_az and midpoint_azimuth()
-                # should always be less than pi... and the biggest angle 
-                # you can get between two intersecting lines (not having
-                # directionality) is pi/2... hence the modulo)
-                else:
-                    mid_az = segment.midpoint_azimuth()
-                    assert(comp_az <= pi)
-                    assert(mid_az <= pi)
-                    segment.delta = mod(abs(comp_az - segment.midpoint_azimuth()), pi/2)
-            # Haven't worked this out for non-tensile failure yet.
-            else:
-                raise(UnimplementedFeatureError("Failure mode not defined"))
-
-            # W_{length}: 
-            #   - want the impact of a particular segment on the overall fit
-            #     to be linearly related to its length, as a fraction of the
-            #     overall length of the lineament
-            #   - thus, this is simply the fractional length of the segment.
-
-            if segment.w_length:
-                segment.w_length = segment.calc_length()/self.length
-        
-            # W_{stress}:
-            #   - want to reduce the weight of segments experiencing nearly
-            #     isotropic stresses, since small background perturbations can
-            #     significantly re-orient the principal compoents
-            #   - because the background perturbations have some finite amplitude,
-            #     presumably unrelated to the magnitude of the stresses we're
-            #     calculating, we can have this related linearly to the difference
-            #     between the magnitudes of the two principal components.
-            #   - May want to saturate at some threshold stress - possibly the
-            #     strength of the ice or some fraction thereof?
-            #   - should be linear with the magnitude of the stress relative to the
-            #     strength of the ice.
-            #   - Should possibly allow saturation at some threshold above the
-            #     strength of the ice... say 1x, or 2x?  Dunno.
-            #   - If we want to ignore the question of ice strength... since we
-            #     actually have no idea what it is, we can just use Francis'
-            #     suggestion:
-            #                    tens_mag - comp_mag
-            #     w_stress = ----------------------------------
-            #                  < tens_mag - comp_mag > (global)
-
-            if segment.w_stress:
-                segment.w_stress = (tens_mag - comp_mag)/mean_global_stressdiff
-
-        # Now that we have all of the error weighting functions set for each segment:
-        #    - segment.delta
-        #    - segment.w_length
-        #    - segment.w_stress
-        # we can run through the entire list of segments making up the
-        # lineament, and calculate the aggregate fit-metric.  This is done
-        # outside the loop that's calculating the per-segment statistics so
-        # that we can play around with various ways of combining them...
-
-        fit = 0
-        for segment in seglist:
-
-            segfit = segment.delta**2
-
-            if segment.w_length:
-                segfit *= segment.w_length
-            if segment.w_stress:
-                segfit *= segment.w_stress
-
-            fit += segfit
-        
-        return(sqrt(fit))
-
-    # }}}2 end stresscomp
 
 #}}}1 end of the Lineament class
 
@@ -797,7 +664,7 @@ def random_lonlatpoints(N): #{{{
 
     """
 
-    return(2*pi*rand(N), (pi/2)-arccos(2*rand(N)-1))
+    return(2*pi*random(N), (pi/2)-arccos(2*random(N)-1))
 #}}}
 
 def sphere2xyz(r, theta, phi): #{{{
@@ -957,13 +824,18 @@ def shp2lins(shapefile, stresscalc=None): #{{{
     # independently:
 
     ogr_lin_feat = lineaments.GetNextFeature()
+
     while ogr_lin_feat is not None:
         ogr_lin_geom = ogr_lin_feat.GetGeometryRef()
-        pointlist = [ ogr_lin_geom.GetPoint(i)[0:2] for i in range(ogr_lin_geom.GetPointCount()) ]
-        linlist.append(Lineament(radians(pointlist), stresscalc=stresscalc))
+        pointlist = array([ ogr_lin_geom.GetPoint(i)[0:2] for i in range(ogr_lin_geom.GetPointCount()) ])
+
+        if(len(pointlist) > 0):
+            newlats = radians(pointlist[:,1])
+            newlons = radians(pointlist[:,0])
+            linlist.append(Lineament(lons=newlons, lats=newlats, stresscalc=stresscalc))
+
         ogr_lin_feat = lineaments.GetNextFeature()
 
-    linlist = [ x for x in linlist if len(x.vertices) > 0 ]
     return linlist
 # }}} end shp2lins
 
