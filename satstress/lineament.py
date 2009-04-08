@@ -102,7 +102,12 @@ class Lineament(object): #{{{1
         Return a list of the midpoints of each line segment in the Lineament.
 
         """
-        return(spherical_midpoint(self.lons[:-1], self.lats[:-1], self.lons[1:], self.lats[1:]))
+        if len(self.lons) == 1:
+            mp_lons, mp_lats = self.lons, self.lats
+        else:
+            mp_lons,mp_lats = spherical_midpoint(self.lons[:-1], self.lats[:-1], self.lons[1:], self.lats[1:])
+
+        return(mp_lons, mp_lats)
     #}}}2
 
     def seg_azimuths(self): #{{{2
@@ -145,11 +150,11 @@ class Lineament(object): #{{{1
     def poleshift(self, pnp_lon=0.0, pnp_lat=pi/2): #{{{2
         """
         Return a Lineament object representing the location and orientation of
-        self, when the point defined in modern lon,lat terms by paleo_npole_lon
-        paleo_npole_lat was the north pole.
+        self, when the point defined in modern lon,lat terms by pnp_lon pnp_lat
+        was the north pole.
 
         """
-        tpw_lons, tpw_lats = paleopole_transform(lons=self.lons, lats=self.lats, pnp_lon=pnp_lon, pnp_lat=pnp_lat)
+        tpw_lons, tpw_lats = paleopole_transform(lon_in=self.lons, lat_in=self.lats, pnp_lon=pnp_lon, pnp_lat=pnp_lat)
         return(Lineament(lons=tpw_lons, lats=tpw_lats, stresscalc=self.stresscalc))
     #}}}2
 
@@ -301,12 +306,12 @@ class Lineament(object): #{{{1
         assert(self.bs is not None and self.nsrdeltas is not None and self.nsrdbars is not None and self.nsrstresswts is not None)
 
         if use_delta is True:
-            delta_wt = where(self.nsrdeltas < delta_max, 1-(self.nsrdeltas/delta_max), zeros(shape(self.nsrdeltas)))
+            delta_wt = where(self.nsrdeltas < delta_max, 1-(self.nsrdeltas/delta_max), 0.0)
         else:
             delta_wt = 1.0
 
         if use_dbar is True:
-            dbar_wt = where(self.nsrdbars < dbar_max, 1-(self.nsrdbars/dbar_max), zeros(shape(self.nsrdbars)))
+            dbar_wt = where(self.nsrdbars < dbar_max, 1-(self.nsrdbars/dbar_max), 0.0)
         else:
             dbar_wt = 1.0
 
@@ -318,24 +323,6 @@ class Lineament(object): #{{{1
         return(delta_wt * dbar_wt * stress_wt)
 
     #}}}2
-
-    def nsrbestfit(self, delta_max=radians(45), dbar_max=0.125, use_delta=True, use_dbar=True, use_stress=True): #{{{2
-        """
-        Return the greatest value of the combined delta and dbar fit metric,
-        defined in nsrfits, and the index within the array of fits at which it
-        occurs (allowing one to look up the associated delta, dbar, and b
-        values, if need be)
-
-        """
-        nsrfits = self.nsrfits(delta_max=delta_max, dbar_max=dbar_max, use_delta=use_delta, use_dbar=use_dbar, use_stress=use_stress)
-        bestfit = max(nsrfits)
-
-        return(bestfit, where(fabs(nsrfits-bestfit) < 1e-9)[0] )
-    #}}}2
-
-################################################################################
-# Things that still need work
-################################################################################
 
     def calc_nsrfits(self, nb=180, stresscalc=None): #{{{2
         """
@@ -399,7 +386,7 @@ class Lineament(object): #{{{1
         # and comp_* is the more compressive (less tensile).  Tension is
         # positive.  mag and az are the magnitude in Pa and azimuth as radians
         # clockwise from north.
-        tens_mag, tens_az, comp_mag, comp_az = self.stresscalc.principal_components(calc_thetas, calc_phis, 0.0)
+        tens_mag, tens_az, comp_mag, comp_az = stresscalc.principal_components(calc_thetas, calc_phis, 0.0)
 
         # Create an (nsegs*nb) length array of w_stress values
         w_stress = (tens_mag - comp_mag)/stresscalc.mean_global_stressdiff()
@@ -452,15 +439,27 @@ class Lineament(object): #{{{1
         # Take the length weighted mean of the raw deltas for each value of b:
         self.nsrdeltas = (tile(w_length,nb)*raw_deltas).reshape((nb,nsegs)).sum(axis=1)
 
-        # TODO: This is just a placeholder, while I test other stuff, and get
-        # BFGC working:
-        self.nsrdbars = zeros(shape(self.bs))
+        # Now generate synthetic NSR doppelgangers for the feature, at all
+        # values of b, and see how similar they are to the mapped shape:
 
-        # This is commented out until I get the best fit great circles working...
+        # find the midpoint of the best fit great circle (BFGC) segment
+        # representing the lineament.  This is the initiation point for the
+        # syntetic feature.  Until I get the BFGC linear algebra working, I'm
+        # just going to use the length weighted mean latitude and longitude,
+        # which is obviously wrong, but will do okay at low latitudes anyway:
         #bfgc_mp_lon, bgfc_mp_lat = self.bfgcseg_midpoint()
-        #doppel_init_lons = self.bs + bfgc_mp_lon
-        #bfgc_doppels = [ lingen_nsr(stresscalc=self.stresscalc, init_lon=init_lon, init_lat=bfgc_mp_lat, max_length=self.length, prop_dir="both") for init_lon in self.bs+bfgc_mp_lon ]
-        #self.nsrdbars = array([ self.mhd(doppel) for doppel in bfgc_doppels ]) / self.length
+
+        bfgc_mp_lon = (w_length*mp_lons).sum()
+        bfgc_mp_lat = (w_length*mp_lats).sum()
+
+        doppel_init_lons = self.bs + bfgc_mp_lon
+
+        # Generate the doppelgangers:
+        bfgc_doppels = [ lingen_nsr(stresscalc=stresscalc, init_lon=init_lon, init_lat=bfgc_mp_lat, max_length=self.length, prop_dir="both") for init_lon in doppel_init_lons ]
+
+        # Measure their shape similarities (MHDs), and normalize by the
+        # lineament length:
+        self.nsrdbars = array([ self.mhd(doppel.lonshift(-b)) for doppel,b in zip(bfgc_doppels,self.bs) ]) / self.length
 
     #}}}2 end calc_nsrfits
 
@@ -469,7 +468,7 @@ class Lineament(object): #{{{1
 ################################################################################
 # Helpers having to do with fit metrics or lineament generation.
 ################################################################################
-def lingen_nsr(stresscalc, init_lon=None, init_lat=None, max_length=2*pi, prop_dir="both", segment_length=0.01): # {{{
+def lingen_nsr(stresscalc, init_lon=None, init_lat=None, max_length=2*pi, prop_dir="both", segment_length=0.005): # {{{
     """
     Generate a synthetic NSR feature, given a starting location, maximum
     length, propagation direction, and a step size on the surface.
@@ -562,7 +561,7 @@ def bestfit_greatcircle(lons=None, lats=None, weights=None): #{{{ TODO: Get Aaro
     pass
 #}}} end fit_greatcircle
 
-def mhd(linA, linB): #{{{ TODO: Debug/Test make sure indexing/axes are correct
+def mhd(linA, linB): #{{{ TODO: what to return when lineament has no vertices?
     """
     Calculate the mean Hausdorff Distance between linA and linB.
 
@@ -583,10 +582,9 @@ def mhd(linA, linB): #{{{ TODO: Debug/Test make sure indexing/axes are correct
     distmatrix = spherical_distance(repeat(mp_lonsA,len(mp_lonsB)), repeat(mp_latsA,len(mp_latsB)),\
                                       tile(mp_lonsB,len(mp_lonsA)),   tile(mp_latsB,len(mp_latsA)))
 
-    # reshape distmatrix such that each column corresponds to a point in linA
-    distmatrix.reshape((len(mp_lonsA), len(mp_lonsB)))
-    # find the minimum distances for each point in A:
-    mindists = min(distmatrix, axis=0)
+    # reshape distmatrix such that each column corresponds to a point in linA and find the
+    # minimum distances for each point in A:
+    mindists = distmatrix.reshape((len(mp_lonsA), len(mp_lonsB))).min(axis=1)
 
     # Weight distances by segment lengths and sum them:
     return(sum(mindists*lenWt))
@@ -711,13 +709,12 @@ def xyz2sphere(x, y, z): #{{{
     return(r, theta, phi)
 #}}}
 
-def paleopole_transform(paleo_npole_lon, paleo_npole_lat, lon_in, lat_in): #{{{ TODO: VECTORIZE THIS PoS
+def paleopole_transform(pnp_lon, pnp_lat, lon_in, lat_in): #{{{
     """
     Transforms the location of a point on the surface of a sphere, defined by
     (lon_in,lat_in) in east-positive longitude, returning the (lon,lat)
     location that point would be located at if the point defined by
-    (paleo_npole_lon,paleo_npole_lat) is moved directly north until it is at
-    the north pole.
+    (pnp_lon,pnp_lat) is moved directly north until it is at the north pole.
 
     """
 
@@ -730,8 +727,8 @@ def paleopole_transform(paleo_npole_lon, paleo_npole_lat, lon_in, lat_in): #{{{ 
     # Now, remember that what we're doing is bringing a wayward pole back to
     # the top of the sphere... which means the angles we're interested in are
     # actually -colat, -lon:
-    alpha = pi/2 + paleo_npole_lon
-    beta  = pi/2 - paleo_npole_lat
+    alpha = pi/2 + pnp_lon 
+    beta  = pi/2 - pnp_lat 
     gamma = 0
 
     # The definition of the X-Z rotation matrix:
@@ -740,10 +737,10 @@ def paleopole_transform(paleo_npole_lon, paleo_npole_lat, lon_in, lat_in): #{{{ 
                       [                 sin(beta)*sin(gamma),                                     sin(beta)*cos(gamma),                       cos(beta)      ] ])
 
     # Do the matrix multiplication using dot():
-    x_out, y_out, z_out = dot(xyz_in, rot_mat)
+    xyz_out = dot(xyz_in.transpose(), rot_mat)
 
     # Transform back to spherical coordinates:
-    r_out, theta_out, phi_out = xyz2sphere(x_out, y_out, z_out)
+    r_out, theta_out, phi_out = xyz2sphere(xyz_out[:,0], xyz_out[:,1], xyz_out[:,2])
 
     # and back to lon/lat from colon/lat:
     lon_out = mod(phi_out + alpha,2*pi)
@@ -769,7 +766,7 @@ def update_lins(lins): # {{{
     newlins = []
     linlen=len(lins)
     for lin,N in zip(lins,range(linlen)):
-        newlin = Lineament(lin.vertices, stresscalc=lin.stresscalc, fits=lin._Lineament__fits)
+        newlin = Lineament(lons=lin.lons, lats=lin.lats, stresscalc=lin.stresscalc, bs=lin.bs, nsrdeltas=lin.nsrdeltas, nsrdbars=lin.nsrdbars, nsrstresswts=lin.nsrstresswts)
         newlins.append(newlin)
 
     return(newlins)

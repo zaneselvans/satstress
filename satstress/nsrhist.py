@@ -12,24 +12,53 @@ from mpl_toolkits.basemap import Basemap
 import random
 import os
 
-def nsrvectest():
+def calcfits(satfile="input/ConvectingEuropa_GlobalDiurnalNSR.ssrun",\
+             linfile="input/GlobalLineaments",
+             nb=180, pnp_lon=radians(80), pnp_lat=radians(10), nlins=0): #{{{
     """
-    Short test routine to see if I've actually re-written this all right...
+    Starting from scratch, read in the mapped features, calculate their fits,
+    and use them to generate TPW features with the given pole, and to subsample
+    the two sets of synthetic features (great circle segments and perfect NSR
+    lineaments)
 
     """
-
-    satfile="input/ConvectingEuropa_GlobalDiurnalNSR.ssrun"
+    print("Initializing satellite")
     europa = satstress.Satellite(open(satfile,'r'))
     NSR = satstress.StressCalc([satstress.NSR(europa),])
 
-    linfile="input/GlobalLineaments"
+    print("Loading mapped features")
     maplins = lineament.shp2lins(linfile, stresscalc=NSR)
 
-    for lin,N in zip(maplins,range(len(maplins))):
-        print "%d" % (N+1,)
-        lin.calc_nsrfits()
+    if nlins > 0:
+        maplins=maplins[:nlins]
+    print("Transforming to pre-TPW coordinates")
+    tpwlins = [ lin.poleshift(pnp_lon=pnp_lon, pnp_lat=pnp_lat) for lin in maplins ]
 
-    return(maplins)
+    print("Loading synthetic lineament pools")
+    gc_pool = load_lins("output/gc_pool")
+    synth_pool = load_lins("output/synth_pool")
+
+    print("Sampling synthetic lineament pools")
+    gclins = linsample(proto=maplins, pool=gc_pool)
+    synthlins = linsample(proto=maplins, pool=synth_pool)
+
+    lins_list = (maplins, tpwlins, gclins, synthlins)
+    labels = ("map_nsrfit", "tpw_nsrfit", "gc_nsrfit", "synth_nsrfit")
+
+    # now calculate the fits...
+    for lins,label in zip(lins_list, labels):
+        print("Calculating fits for %s..." % (label,) )
+        for lin,N in zip(lins,range(len(lins))):
+            if (mod(N+1,10)==0):
+                print("    N=%d" % (N+1,) )
+            lin.calc_nsrfits(nb=nb, stresscalc=NSR)
+        # only save if we're doing the whole dataset
+        if nlins == 0:
+            print("Saving %s" % (label,) )
+            save_lins(lins, name=label)
+
+    return(maplins, tpwlins, gclins, synthlins)
+#}}}
 
 def nsrfits(nb=180, nlins=0, save=100, name="linfits", nbins=20,\
             satfile="input/ConvectingEuropa_GlobalDiurnalNSR.ssrun",\
@@ -79,7 +108,7 @@ def nsrfits(nb=180, nlins=0, save=100, name="linfits", nbins=20,\
     from time import strftime
 
     europa = satstress.Satellite(open(satfile,'r'))
-    nsr_stresscalc = satstress.StressCalc([satstress.NSR(europa),])
+    NSR = satstress.StressCalc([satstress.NSR(europa),])
 
     # If both sets of lineaments are defined, we use the mapped as prototypes,
     # and fit the synthetics:
@@ -140,7 +169,7 @@ def nsrfits(nb=180, nlins=0, save=100, name="linfits", nbins=20,\
     # Now we calculate the fits:
     for n,lin in zip(range(numlins),lins2fit):
         print("    Fitting lin %d / %d from %s" % (n+1,numlins,name))
-        lin.stresscalc = nsr_stresscalc
+        lin.stresscalc = NSR
         fits = lin.fit(bs=linspace(0,pi,nb, endpoint=False))
         # If we're going to be saving our results, do it periodically so we don't 
         # lose a bunch of work when something goes wrong elsewhere, and so we can
@@ -203,15 +232,14 @@ def random_nsrlins(nsr_stresscalc=None, nlins=1000, minlen=0.0, maxlen=1.0): #{{
     if nsr_stresscalc is None:
         satfile   = "input/ConvectingEuropa_GlobalDiurnalNSR.ssrun"
         europa = satstress.Satellite(open(satfile,'r'))
-        nsr_stresscalc = satstress.StressCalc([satstress.NSR(europa),])
+        NSR = satstress.StressCalc([satstress.NSR(europa),])
 
     linlist = []
 
     while len(linlist) < nlins:
-        # Choose a target length, and divide by two... since the "both" direction
-        # propagation applies the target length to each half.
-        max_length = (minlen+(rand()*(maxlen-minlen)))/2.0
-        newlin = lineament.lingen(nsr_stresscalc, max_length=max_length, propagation='both')
+        max_length = minlen+(rand()*(maxlen-minlen))
+        init_lon, init_lat = lineament.random_lonlatpoints(nlins)
+        newlin = lineament.lingen_nsr(NSR, init_lon=init_lon, init_lat=init_lat, max_length=max_length, propagation='both')
         if newlin.length >= minlen:
             linlist.append(newlin)
 
@@ -276,18 +304,16 @@ def random_gclins(nlins=1000, minlen=0.0, maxlen=1.0): #{{{
     """
 
     # - pick a random endpoint v1 on the surface of the sphere
-    initial_points = array(zip(2*pi*rand(nlins), arccos(2*rand(nlins)-1)-pi/2))
+    init_lons, init_lats = lineament.random_lonlatpoints(nlins)
     # - pick a random azimuth, az
     azimuths = 2*pi*rand(nlins)
     # - pick a random length L between minlen and maxlen
     linlengths = (minlen+(rand(nlins)*(maxlen-minlen)))
     # - calculate the location of endpoint v2, L radians away
     #   from v1, along the initial heading az, from v1.
-    final_points = [ lineament.spherical_reckon(initial_points[N][0], initial_points[N][1], azimuths[N], linlengths[N]) for N in range(nlins) ]
+    fin_lons, fin_lats = lineament.spherical_reckon(init_lons, init_lats, azimuths, linlengths)
     # - use lingen_greatcircle() to calculate intermediary vertices.
-
-    return([ lineament.lingen_greatcircle(initial_points[N][0], initial_points[N][1],\
-                                          final_points[N][0],   final_points[N][1], seg_len=0.01) for N in range(nlins) ])
+    return([ lineament.lingen_greatcircle(init_lons, init_lats, fin_lons, fin_lats, seg_len=0.01) for N in range(nlins) ])
 
 #}}}
 
@@ -300,52 +326,32 @@ def regular_nsr_lingen(nlats=36): #{{{
     """
     satfile   = "input/ConvectingEuropa_GlobalDiurnalNSR.ssrun"
     europa = satstress.Satellite(open(satfile,'r'))
-    nsr_stresscalc = satstress.StressCalc([satstress.NSR(europa),])
+    NSR = satstress.StressCalc([satstress.NSR(europa),])
 
     linlist = []
     for lat in linspace(-pi/2,pi/2,nlats+2):
         if lat != pi/2 and lat != -pi/2 and lat != 0:
-            linlist.append(lineament.lingen(nsr_stresscalc, init_lon=0.0, init_lat=lat, max_length=2*pi, propagation='both'))
-            linlist.append(lineament.lingen(nsr_stresscalc, init_lon=-pi, init_lat=lat, max_length=2*pi, propagation='east'))
-            linlist.append(lineament.lingen(nsr_stresscalc, init_lon=pi, init_lat=lat, max_length=2*pi, propagation='west'))
+            linlist.append(lineament.lingen_nsr(NSR, init_lon=0.0, init_lat=lat, max_length=2*pi, propagation='both'))
+            linlist.append(lineament.lingen_nsr(NSR, init_lon=-pi, init_lat=lat, max_length=2*pi, propagation='east'))
+            linlist.append(lineament.lingen_nsr(NSR, init_lon=pi, init_lat=lat, max_length=2*pi, propagation='west'))
     return linlist
-    #}}}
+#}}}
 
-def fitWt(deltas, dbars, delta_max=radians(30.0), dbar_max=0.1): #{{{
+def aggregate_fitmetric(lins, delta_max=radians(45), dbar_max=0.125): #{{{
     """
-    Given arrays of dbar and delta_rms values, figure out what weights should be
-    associated with the lineament (i.e. what proportion of its length should be
-    added to the bin for the values of b corresponding to those delta values)
-    
+    An overall metric of how well a given set of features can be forced to fit
+    the NSR stresses, if each feature is allowed to translate freely in
+    longitude.
+
     """
-    delta_wt = where(deltas < delta_max, 1-(deltas/delta_max), zeros(shape(deltas)))
-    dbar_wt = where(dbars < dbar_max, 1-(dbars/dbar_max), zeros(shape(dbars)))
-    return((delta_wt*dbar_wt))
 
-    #}}}
-
-def aggregate_fitmetric(lins, delta_max=radians(45), dbar_max=0.25): #{{{
     linlengths  = array([ lin.length for lin in lins ])
-    linbestfits = array([ max(fitWt(lin._Lineament__fits[:,1], lin._Lineament__fits[:,2], delta_max=delta_max, dbar_max=dbar_max)) for lin in lins ])
+    linbestfits = array([ max(lin.nsrfits(delta_max=delta_max, dbar_max=dbar_max)) for lin in lins ])
     return(sum(linlengths*linbestfits)/sum(linlengths))
 
 #}}}
 
-
-def normalized_lengthweighted_bestdelta(lins): #{{{
-    """
-    Calculate a metric of how well an entire set of lineaments (lins) can be
-    forced to fit the NSR stress field by allowing longitudinal translation
-    of the features.
-
-    """
-    linlengths = array([lin.length for lin in lins])
-    bestdeltas = array([min(lin._Lineament__fits[:,1]) for lin in lins])
-    return( sum(linlengths*bestdeltas)/sum(linlengths) )
-
-    #}}}
-
-def fitcurve(lin, delta_max=radians(30), dbar_max=0.1, color='black', ax=None): #{{{
+def fitcurve(lin, delta_max=radians(45), dbar_max=0.125, color='black', ax=None): #{{{
     """
     Plot delta_rms as a function of b for lin, and show the value of the
     weighting function that results.
@@ -373,9 +379,10 @@ def fitcurve(lin, delta_max=radians(30), dbar_max=0.1, color='black', ax=None): 
     wt_ax.set_ylabel('length weighting')
     wt_ax.set_yticks(linspace(0,0.9,7))
     delta_ax.yaxis.set_major_formatter(degree_formatter)
-    delta_ax.plot(degrees(lin.bs), degrees(lin.nsrdeltas),ls='-', linewidth=2, color=color)
+    delta_ax.plot(degrees(lin.bs), degrees(lin.nsrdeltas), ls='-', linewidth=2, color=color)
 
-    wt_ax.plot(degrees(lin.bs), lin.nsrstresswts/2.0, ls='--', linewidth=2, color=color)
+    wt_ax.plot(degrees(lin.bs), lin.nsrstresswts/2.0, ls=':', linewidth=2, color=color)
+    wt_ax.plot(degrees(lin.bs), lin.nsrdbars*3.6, ls='--', linewidth=2, color=color)
 
     wt_ax.fill_between(degrees(lin.bs), lin.nsrfits(delta_max=delta_max, dbar_max=dbar_max), 0, color=color, alpha=0.4)
     delta_ax.set_ylim(0,100)
@@ -385,7 +392,7 @@ def fitcurve(lin, delta_max=radians(30), dbar_max=0.1, color='black', ax=None): 
         the_fig.show()
 #}}}
 
-def activity_history(lins_list, the_fig=None, labels=[], colors=[], lin_cm=cm.jet, norm_by_all=False, outfile=None, delta_max=radians(30), dbar_max=0.1): #{{{
+def activity_history(lins_list, the_fig=None, labels=[], colors=[], lin_cm=cm.jet, norm_by_all=False, outfile=None, delta_max=radians(45), dbar_max=0.125): #{{{
     """
     Plots apparent activity histories for one or several sets of lineaments,
     allowing visual comparison.
@@ -444,12 +451,8 @@ def activity_history(lins_list, the_fig=None, labels=[], colors=[], lin_cm=cm.je
 
     for lins,label,color,norm_length in zip(lins_list,labels,colors,norm_lengths):
         print("Calculating activity histories for %s" % (label,))
-        linlengths = array([lin.length for lin in lins])
-        lindeltas = array([lin._Lineament__fits[:,1] for lin in lins])
-        lindbars  = array([lin._Lineament__fits[:,2] for lin in lins])
-        lincontribs = array([linlengths[N]*fitWt(lindeltas[N], lindbars[N], delta_max=delta_max, dbar_max=dbar_max) for N in range(len(linlengths))])
-        linhists = array([ lincontribs[:,N].sum() for N in range(180)])/norm_length
-        hist_ax.plot(linhists, label=label, lw=3, c=color)
+        acthist = array([ lin.length*lin.nsrfits(delta_max=delta_max, dbar_max=dbar_max) for lin in lins ]).sum(axis=0)/norm_length
+        hist_ax.plot(degrees(lins[0].bs), acthist, label=label, lw=3, c=color)
 
     hist_ax.set_ylabel("retained length fraction")
     hist_ax.grid(True)
@@ -471,7 +474,7 @@ def activity_history(lins_list, the_fig=None, labels=[], colors=[], lin_cm=cm.je
 #         Routines that generate plots in support of the TPW paper:           #
 ###############################################################################
 
-def makefigs(delta_max=radians(30), dbar_max=0.1, maps=False, hists=False, examples=False, stats=False, stress=False, save_format=None): #{{{
+def makefigs(delta_max=radians(45), dbar_max=0.125, maps=False, hists=False, examples=False, stats=False, stress=False, save_format=None): #{{{
     """
     A wrapper that takes input parameters for the figures, and calls all of the
     individual figure plotting routines, below.
@@ -579,7 +582,6 @@ def makefigs(delta_max=radians(30), dbar_max=0.1, maps=False, hists=False, examp
         dbar_fail4   = nsrlins[115] # 1262 km, looks good, but dbar just doesn't quite get low enough... Grr.
         #}}}3
 
-
         eg_lins = [ good_nsr1, bad_nsr2, cycloid1, sinuous1, sinuous2, short_hilat1, short_lolat2, dbar_fail2 ]
 
         eg_labels = [ "Good NSR", "Bad NSR", "Cycloial", "Sinuous", "Sinuous",\
@@ -627,7 +629,7 @@ def makefigs(delta_max=radians(30), dbar_max=0.1, maps=False, hists=False, examp
 
 # end makefigs }}}
 
-def ActHist_ByLength(lins, delta_max=radians(30), dbar_max=0.1, outfile=None, norm_by_all=True): #{{{
+def ActHist_ByLength(lins, delta_max=radians(45), dbar_max=0.125, outfile=None, norm_by_all=True): #{{{
     sat_radius_km = lins[0].stresscalc.stresses[0].satellite.radius()/1000
     labels_by_length = []
     lins_by_length = []
@@ -645,7 +647,7 @@ def ActHist_ByLength(lins, delta_max=radians(30), dbar_max=0.1, outfile=None, no
     activity_history(lins_by_length, delta_max=delta_max, dbar_max=dbar_max, labels=labels_by_length, outfile=outfile, norm_by_all=norm_by_all)
     #}}}
 
-def ActHist_BySin(lins, delta_max=radians(30), dbar_max=0.1, outfile=None, norm_by_all=True): #{{{
+def ActHist_BySin(lins, delta_max=radians(45), dbar_max=0.125, outfile=None, norm_by_all=True): #{{{
     labels_by_sin = []
     lins_by_sin = []
     sins = [1.0, 1.02, 1.04, 1.06, 1.08, 1.10, 1.20]
@@ -662,7 +664,7 @@ def ActHist_BySin(lins, delta_max=radians(30), dbar_max=0.1, outfile=None, norm_
     activity_history(lins_by_sin, delta_max=delta_max, dbar_max=dbar_max, labels=labels_by_sin, outfile=outfile, norm_by_all=norm_by_all)
     #}}}
 
-def ActHist_DeltaRMS(nsrlins, dbar_max=0.1, outfile=None, norm_by_all=False): #{{{
+def ActHist_DeltaRMS(nsrlins, dbar_max=0.125, outfile=None, norm_by_all=False): #{{{
     """
     Show that the time variability is not sensitive to the particular value
     chosen for delta_max.
@@ -677,7 +679,7 @@ def ActHist_DeltaRMS(nsrlins, dbar_max=0.1, outfile=None, norm_by_all=False): #{
         activity_history([nsrlins,], labels=[r'$\max(\delta_{rms})=%d^\circ$'%(delta_max,),], outfile=outfile, norm_by_all=norm_by_all, the_fig=the_fig, delta_max=radians(delta_max), dbar_max=dbar_max, colors=[colors[N],])
     #}}}
 
-def ActHist_Compare(nsrlins, gclins, tpwlins, delta_max=radians(30), dbar_max=0.1, outfile=None, norm_by_all=False): #{{{
+def ActHist_Compare(nsrlins, gclins, tpwlins, delta_max=radians(45), dbar_max=0.125, outfile=None, norm_by_all=False): #{{{
     # the global lineaments, with anything in the E15REGMAP01 observation
     # excluded: i.e. any feature with a portion of its length between
     # 250E and 290E longitude.
@@ -688,7 +690,7 @@ def ActHist_Compare(nsrlins, gclins, tpwlins, delta_max=radians(30), dbar_max=0.
                      labels=['Mapped','Mapped Minus E15','Great Circles','Pre-TPW'], outfile=outfile, norm_by_all=norm_by_all)
     #}}}
 
-def FitMap(lins, titlestr="Features colored by fit", lin_cm=cm.jet, nbins=9, derotate=False, stresscentric=False, outfile=None, delta_max=radians(30), dbar_max=0.1, showbad=True): #{{{
+def FitMap(lins, titlestr="Features colored by fit", lin_cm=cm.jet, nbins=9, derotate=False, stresscentric=False, outfile=None, delta_max=radians(45), dbar_max=0.125, showbad=True): #{{{
     """
     Creates a global map of the lineaments, color coding them by what amount of
     backrotation (b) minimizes delta_rms(b) when compared to the NSR stress
@@ -729,20 +731,21 @@ def FitMap(lins, titlestr="Features colored by fit", lin_cm=cm.jet, nbins=9, der
     for lin in lins:
         if len(lin._Lineament__fits) > 0:
             # load some information about the lineament's best fit:
-            fit_weights = fitWt(lin._Lineament__fits[:,1], lin._Lineament__fits[:,2], delta_max=delta_max, dbar_max=dbar_max)
-            best_fit = max(fit_weights)
+
+            nsrfits = lin.nsrfits(delta_max=delta_max, dbar_max=dbar_max)
+            best_fit = max(nsrfits)
 
             if best_fit > 0.0:
-                best_b = float(where(fabs(fit_weights-best_fit) < 1e-6)[0])/(float(len(fit_weights))/pi)
+                best_b = float(lin.bs[where(fabs(nsrfits-best_fit) < 1e-9)[0]])
                 # Map the color of the lineament to its best_b
                 lin_color = lin_cm(int((lin_cm.N)*(best_b/pi)))
                 # use line width to indicate goodness of best_fit
                 lin_width = 1.0 + 5.0*best_fit
 
             elif showbad:
-                fit_weights = fitWt(lin._Lineament__fits[:,1], lin._Lineament__fits[:,2], delta_max=pi/2.0, dbar_max=0.5)
-                best_fit = max(fit_weights)
-                best_b = float(where(fabs(fit_weights-best_fit) < 1e-6)[0])/float(len(fit_weights))
+                nsrfits = lin.nsrfits(delta_max=pi/2.0, dbar_max=0.25)
+                best_fit = max(nsrfits)
+                best_b = float(lin.bs[where(fabs(nsrfits-best_fit) < 1e-9)[0]])
                 lin_width = 1.0
                 lin_color = 'black'
 
@@ -778,14 +781,14 @@ def DeltaLengthCorr(lins, outfile=None): #{{{
     the_fig = figure(figsize=(12,8))
     ax1 = the_fig.add_subplot(1,1,1)
 
-    hilatlins = [ lin for lin in lins if degrees(min(fabs(lin.latitudes()))) > 30 ]
-    hilat_best_deltas = array([ lin._Lineament__fits[:,1].min() for lin in hilatlins ])
+    hilatlins = [ lin for lin in lins if degrees(min(fabs(lin.lats))) > 30 ]
+    hilat_best_deltas = array([ lin.nsrdeltas.min() for lin in hilatlins ])
     hilat_lengths = array([ lin.length for lin in hilatlins ])*1561
     hilat_r2 = corrcoef(hilat_lengths, hilat_best_deltas)[0,1]**2
     hilat_symbs = scatter(hilat_lengths, degrees(hilat_best_deltas), c='blue', marker='s', label=r'$|\theta_{min}|>30^\circ R^2=%.3g$' % ( hilat_r2, ) )
 
-    lolatlins = [ lin for lin in lins if degrees(min(fabs(lin.latitudes()))) <= 30 ]
-    lolat_best_deltas = array([ lin._Lineament__fits[:,1].min() for lin in lolatlins ])
+    lolatlins = [ lin for lin in lins if degrees(min(fabs(lin.lats))) <= 30 ]
+    lolat_best_deltas = array([ lin.nsrdeltas.min() for lin in lolatlins ])
     lolat_lengths = array([ lin.length for lin in lolatlins ])*1561
     lolat_r2 = corrcoef(lolat_lengths,lolat_best_deltas)[0,1]**2
     lolat_symbs = scatter(lolat_lengths, degrees(lolat_best_deltas), c='red', marker='^', label=r'$\|\theta_{min}|\leq30^\circ R^2=%.3g$' % ( lolat_r2, ) )
@@ -820,14 +823,14 @@ def DeltaSinuosityCorr(lins, outfile=None): #{{{
     the_fig = figure(figsize=(12,8))
     ax1 = the_fig.add_subplot(1,1,1)
 
-    hilatlins = [ lin for lin in lins if degrees(min(fabs(lin.latitudes()))) > 30 ]
-    hilat_best_deltas = array([ lin._Lineament__fits[:,1].min() for lin in hilatlins ])
+    hilatlins = [ lin for lin in lins if degrees(min(fabs(lin.lats))) > 30 ]
+    hilat_best_deltas = array([ lin.nsrdeltas.min() for lin in hilatlins ])
     hilat_sins = array([ lin.sinuosity() for lin in hilatlins ])
     hilat_r2 = corrcoef(hilat_sins,hilat_best_deltas)[0,1]**2
     hilat_symbs = scatter(hilat_sins, degrees(hilat_best_deltas), c='blue', marker='s', label=r'$|\theta_{min}|>30^\circ R^2=%.3g$' % ( hilat_r2, ) )
 
-    lolatlins = [ lin for lin in lins if degrees(min(fabs(lin.latitudes()))) <= 30 ]
-    lolat_best_deltas = array([ lin._Lineament__fits[:,1].min() for lin in lolatlins ])
+    lolatlins = [ lin for lin in lins if degrees(min(fabs(lin.lats))) <= 30 ]
+    lolat_best_deltas = array([ lin.nsrdeltas.min() for lin in lolatlins ])
     lolat_sins = array([ lin.sinuosity() for lin in lolatlins ])
     lolat_r2 = corrcoef(lolat_sins,lolat_best_deltas)[0,1]**2
     lolat_symbs = scatter(lolat_sins, degrees(lolat_best_deltas), c='red', marker='^', label=r'$\|\theta_{min}|\leq30^\circ R^2=%.3g$' % ( lolat_r2, ) )
@@ -1016,7 +1019,16 @@ def LinDensityMap(lins, maxdist=500, N=0, label="", cmap=cm.jet,\
     eastlons = array(2.01*pi).repeat(edge_N)
     randlons = hstack([randlons, toplons, bottomlons, eastlons, westlons])
     randlats = hstack([randlats, toplats, bottomlats, eastlats, westlats])
-    seglons, seglats, seglens = lineament.get_segs(lins)
+
+    seglons = array([])
+    seglats = array([])
+    seglens = array([])
+    for lin in lins:
+        newlons, newlats = lin.seg_midpoints()
+        newlens = lin.seg_lengths()
+        seglons = concatenate([seglons, newlons])
+        seglats = concatenate([seglats, newlats])
+        seglens = concatenate([seglens, newlens])
 
     # For each point (lon,lat) defined by randlons, randlats, calculate the sum
     # of the lengths of the segments closer than dist radians of arc away:
@@ -1027,7 +1039,7 @@ def LinDensityMap(lins, maxdist=500, N=0, label="", cmap=cm.jet,\
     for lon,lat in zip(randlons, randlats):
         lon_arr = array(lon)
         lat_arr = array(lat)
-        newsum = sum(where(lineament.spherical_distance(lon_arr.repeat(nsegs),lat_arr.repeat(nsegs),seglons,seglats) < maxdist/1561.0, seglens, zeros(nsegs)))
+        newsum = sum(where(lineament.spherical_distance(lon_arr.repeat(nsegs),lat_arr.repeat(nsegs),seglons,seglats) < maxdist/1561.0, seglens, 0.0))
         lensums = hstack([lensums,newsum])
 
     # convert these values of radians per footprint, into m/km^2
@@ -1092,7 +1104,6 @@ def LinDensityMap(lins, maxdist=500, N=0, label="", cmap=cm.jet,\
     rastfigs = [ figure(figsize=(6,12)), figure(figsize=(6,12)), figure(figsize=(6,12)), figure(figsize=(6,12)) ]
     rastoutfiles = [ resolution_outfile, emission_outfile, incidence_outfile, phase_outfile ]
 
-    
     for raster,rastname,rastunit,rastfig,outfile in zip(rasters, rastnames, rastunits, rastfigs, rastoutfiles):
         rast_ax = rastfig.add_subplot(2,1,1)
         rast_ax.imshow(raster, extent=(0,360,-90,90))
@@ -1185,19 +1196,21 @@ def FitCurveExamples(lins, labels=[], delta_max=radians(45), dbar_max=0.125, out
 ################################################################################
 # Code Revisions:
 ################################################################################
-# - Vectorization problem between Ttt,Tpt,Tpp and tensor/principal_components
-#
-# - vectorize stresscomp
-#      - calc_thetas = tile((pi/2)-array(lin.midpoints())[:,1],nb)
-#      - calc_phis   = ravel(array( [linspace(lon,lon+pi,nb,endpoint=False) for lon in array(lin.midpoints())[:,0] ]).transpose())
-#      - calc_pc     = lin.stresscalc.principal_components(calc_thetas,calc_phis,zeros(shape(calc_thetas)))
-#    - Change dbar:
-#      - use single doppelganger propagated in both directions
-#      - start from midpoint of great circle segment approximating lineament
-#      - find that midpoint by minimizing the sum of |u \dot x_i|^2
-#        - where u is the vector representing the great circle
-#        - and x_i is the length weighted vector representing the midpoint
-#          of the i-th lineament segment
-#      - choose as endpoints for the great circle segment those points on the
-#        circle closest to the endpoints of the lineament
+# Look at sign on (b) in fit metrics... plus or minus?
+# get real BFGC working instead of average lat/lon hack
+#   - start from midpoint of great circle segment approximating lineament
+#   - find that midpoint by minimizing the sum of |u \dot x_i|^2
+#     - where u is the vector representing the great circle
+#     - and x_i is the length weighted vector representing the midpoint
+#       of the i-th lineament segment
+#   - choose as endpoints for the great circle segment those points on the
+#     circle closest to the endpoints of the lineament
 
+# Do I really want to keep LinLatLonStats?
+# LinLengthDist needs to be revised to show more meaningful information.
+
+# Need to re-generate and save lineaments/fits for:
+#   - map_nsrfit
+#   - tpw_nsrfit
+#   - gc_nsrfit
+#   - synth_nsrfit
