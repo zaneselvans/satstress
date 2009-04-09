@@ -264,7 +264,7 @@ class Lineament(object): #{{{1
         return(bfgcseg_lon1, bfgcseg_lat1, bfgcseg_lon2, bfgcseg_lat2)
     #}}}2
 
-    def bfgcseg_midpoint(self): #{{{2 TODO: Test/debug
+    def bfgcseg_midpoint(self): #{{{2 TODO: Replace with best fit great circle stuff...
         """
         Find the lon,lat point which lies on the lineament's best fit great
         circle, and is halfway between points on the great circle which are
@@ -274,13 +274,20 @@ class Lineament(object): #{{{1
         generating doppelgangers.
 
         """
-        bfgcseg_lon1, bfgcseg_lat1, bfgcseg_lon2, bfgcseg_lat2 = self.bfgcseg_endpoints()
+
+        # This is currently a HACK, because I don't have best fit great circles
+        # working.  Just takes the length weighted mean longitude and latitude
+        # and uses that instead.  This breaks down at high latitudes.
+        #bfgcseg_lon1, bfgcseg_lat1, bfgcseg_lon2, bfgcseg_lat2 = self.bfgcseg_endpoints()
+        #bfgc_mp_lon, bfgc_mp_lat = spherical_midpoint(bfgcseg_lon1, bfgcseg_lat1, bfgcseg_lon2, bfgcseg_lat2)
+        bfgc_mp_lon = (w_length*(mod(mp_lons,2*pi))).sum()
+        bfgc_mp_lat = (w_length*mp_lats).sum()
 
         # find and return the midpoint between these endpoints
-        return(spherical_midpoint(bfgcseg_lon1, bfgcseg_lat1, bfgcseg_lon2, bfgcseg_lat2))
+        return(bfgc_mp_lon, bfgc_mp_lon)
     #}}}2
 
-    def doppelgen_bfgcseg_midpoint(self): #{{{2 TODO: Test/debug
+    def doppelgen_nsr(self): #{{{2
         """
         Generate a synthetic lineament starting at the midpoint of the feature,
         as approximated by the point on its best fit great circle, halfway
@@ -290,6 +297,15 @@ class Lineament(object): #{{{1
         """
         init_lon, init_lat = self.bfgcseg_midpoint()
         return(lingen_nsr(stresscalc=self.stresscalc, init_lon=init_lon, init_lat=init_lat, max_length=self.length, prop_dir="both"))
+    #}}}2
+    
+    def doppelgen_gc(self): #{{{2
+        """
+        Generate a great circle segment approximating the lineament.
+
+        """
+        init_lon, init_lat, fin_lon, fin_lat = self.bfgcseg_endpoints()
+        return(lingen_greatcircle(init_lon, init_lat, fin_lon, fin_lat))
     #}}}2
 
     def nsrfits(self, delta_max=radians(45), dbar_max=0.125, use_delta=True, use_dbar=True, use_stress=True): #{{{2
@@ -444,13 +460,8 @@ class Lineament(object): #{{{1
 
         # find the midpoint of the best fit great circle (BFGC) segment
         # representing the lineament.  This is the initiation point for the
-        # syntetic feature.  Until I get the BFGC linear algebra working, I'm
-        # just going to use the length weighted mean latitude and longitude,
-        # which is obviously wrong, but will do okay at low latitudes anyway:
-        #bfgc_mp_lon, bgfc_mp_lat = self.bfgcseg_midpoint()
-
-        bfgc_mp_lon = (w_length*mp_lons).sum()
-        bfgc_mp_lat = (w_length*mp_lats).sum()
+        # syntetic feature.
+        bfgc_mp_lon, bgfc_mp_lat = self.bfgcseg_midpoint()
 
         doppel_init_lons = self.bs + bfgc_mp_lon
 
@@ -460,7 +471,6 @@ class Lineament(object): #{{{1
         # Measure their shape similarities (MHDs), and normalize by the
         # lineament length:
         self.nsrdbars = array([ self.mhd(doppel.lonshift(-b)) for doppel,b in zip(bfgc_doppels,self.bs) ]) / self.length
-
     #}}}2 end calc_nsrfits
 
 #}}}1 end of the Lineament class
@@ -561,7 +571,7 @@ def bestfit_greatcircle(lons=None, lats=None, weights=None): #{{{ TODO: Get Aaro
     pass
 #}}} end fit_greatcircle
 
-def mhd(linA, linB): #{{{ TODO: what to return when lineament has no vertices?
+def mhd(linA, linB): #{{{
     """
     Calculate the mean Hausdorff Distance between linA and linB.
 
