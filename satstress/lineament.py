@@ -86,6 +86,23 @@ class Lineament(object): #{{{1
 
     #}}}2
 
+    def midpoint(self): #{{{2
+        """
+        Returns the lineament vertex (mp_lon, mp_lat) which is closest to
+        halfway along the lineament.
+
+        """
+
+        seg_lengths = self.seg_lengths()
+        cumulative_lengths = array([ seg_lengths[:N+1].sum() for N in range(len(seg_lengths)) ])
+        half_delta = fabs(cumulative_lengths - self.length/2.0)
+
+        mp_idx = int(where(fabs(min(half_delta)-half_delta) < 1e-9)[0][0])
+
+        return(self.lons[mp_idx], self.lats[mp_idx])
+
+    #}}}2
+
     def colats(self): # {{{2
         """
         Return a list of the latitude values from the lineament's vertices"
@@ -158,62 +175,6 @@ class Lineament(object): #{{{1
         return(Lineament(lons=tpw_lons, lats=tpw_lats, stresscalc=self.stresscalc))
     #}}}2
 
-    def plot(self, map, lon_cyc=2*pi, lat_mirror=False, color='black', alpha=1.0, linewidth=1.0): #{{{2
-        """
-        Plot the lineament on the provided Basemap object, map, with the
-        associated color, alpha, and width.
-
-        if lon_cyclic is non-zero, modulo the longitudes of the feature by the
-        cyclic value, until any that can ever fall in the displayed area of the
-        map do so, plotting the feature once for each distinct time it is the
-        case.  The default value, 2*pi, means that features which cross the
-        edge of the map will have that portion that runs out of the display
-        plotted on the far side.  If lon_cyclic=pi, then all the features will
-        be placed in the same non-repeating pi-wide portion of the stress
-        field, for easy comparison therein.
-
-        If lat_mirror is True, use the absolute values of the latitudes,
-        instead of the latitudes, in order to map the lineament into the
-        northern hemisphere.  This allows more compact comparison of lineaments
-        in stress-equivalent locations.
-        
-        """
-
-        plotted_lines = []
-
-        # What does it mean to have a longitude discontinuity?  It means
-        # that two adjacent points in the lineament have longitude values
-        # which differ by more than they need to... that is, for two points
-        # ptA, ptB, having longitudes lonA and lonB, there exists some integer
-        # N, such that:
-        # abs(lonA - (2*pi*N + lonB)) < abs(lonA - lonB) 
-        # this can only be true if:
-        # abs(lonA - lonB) > pi
-
-        lons = mod(self.lons,2*pi)
-
-        # if the difference in longitude between two adjacent points in the
-        # lineament is ever greater than pi, we have a discontinuity:
-        while len(where(abs(lons[:-1]-lons[1:]) > pi)[0] > 0):
-            lons[1:] = where(abs(lons[:-1]-lons[1:]) > pi, lons[1:]+2*pi*sign(lons[:-1]-lons[1:]), lons[1:])
-
-        # In order to create the illusion that the lineaments are wrapping
-        # around in longitude, we plot one copy at each longitude where a
-        # portion of them will show up on the map...
-        nrange = unique1d(floor((lons-radians(map.llcrnrlon))/lon_cyc))
-        for N in nrange:
-            (x,y) = map(degrees(lons-N*lon_cyc), degrees(self.lats))
-            plotted_lines.append(map.plot(x, y, color=color, alpha=alpha, linewidth=linewidth))
-
-            # If we're mirroring across the equator, we need to plot all of the
-            # lineaments with their anti-latitudes as well:
-            if lat_mirror:
-                (x,y) = map(degrees(lons-N*lon_cyc), -degrees(self.lats))
-                plotted_lines.append(map.plot(x, y, color=color, alpha=alpha, linewidth=linewidth))
-
-        return(plotted_lines)
-    #}}}2
-
     def mhd(self, linB): #{{{2
         """
         Calculate the mean Hausdorff Distance between linA and linB.
@@ -227,6 +188,60 @@ class Lineament(object): #{{{1
         return(mhd(self, linB))
 
     #}}}2 end mhd()
+
+    def mean_lonlat(self): #{{{2
+        """
+        Return the length weighted mean longitude of the feature.
+
+        """
+
+        mp_lons, mp_lats = self.seg_midpoints()
+        mp_lons = fixlons(mp_lons)
+        w_length = self.seg_lengths()/self.length
+
+        return((w_length*mp_lons).sum(), (w_length*mp_lats).sum())
+    #}}}2 end mean_lonlat()
+
+    def doppelgen_midpoint_nsr(self, stresscalc=None): #{{{2
+        """
+        Find a midpoint, representative of the lineament, and generate a synthetic
+        NSR feature there which approximates the feature, for each value of
+        backrotation (b, longitudinal shift) stored in self.bs.  Return those
+        doppelgangers as a list.
+
+        """
+        if stresscalc is None:
+            stresscalc=self.stresscalc
+
+        # Several different ways to find the midpoint of a lineament.  Not sure
+        # which one is best yet.
+
+        # don't have BFGC working yet... won't necessarily intersect prototype lin
+        #mp_lon, mp_lat = self.bfgcseg_midpoint()
+
+        # won't necessarily intersect prototype lin, screwy at high latitudes
+        #mp_lon, mp_lat = self.mean_lonlat()
+
+        # will always intersect, but can be bad with high sinuosities
+        mp_lon, mp_lat = self.midpoint()
+
+        # Create an array of all the midpoints at which we need to generate
+        # doppelgangers, given the our b values.
+        init_lons = self.bs + mp_lon
+
+        return([ lingen_nsr(stresscalc=stresscalc, init_lon=init_lon, init_lat=mp_lat,\
+                            max_length=self.length, prop_dir="both") for init_lon in init_lons ])
+
+    #}}}2 end doppelgen_midpoint_nsr
+
+    def doppelgen_gcseg(self): #{{{2
+        """
+        Generate a great circle segment approximating the lineament.
+
+        """
+        init_lon, init_lat, fin_lon, fin_lat = self.bfgcseg_endpoints()
+        return(lingen_greatcircle(init_lon, init_lat, fin_lon, fin_lat))
+    #}}}2
 
     def bfgcseg_endpoints(self): #{{{2 TODO: Test/Debug
         """
@@ -275,68 +290,10 @@ class Lineament(object): #{{{1
 
         """
 
-        # This is currently a HACK, because I don't have best fit great circles
-        # working.  Just takes the length weighted mean longitude and latitude
-        # and uses that instead.  This breaks down at high latitudes.
         #bfgcseg_lon1, bfgcseg_lat1, bfgcseg_lon2, bfgcseg_lat2 = self.bfgcseg_endpoints()
         #bfgc_mp_lon, bfgc_mp_lat = spherical_midpoint(bfgcseg_lon1, bfgcseg_lat1, bfgcseg_lon2, bfgcseg_lat2)
-        bfgc_mp_lon = (w_length*(mod(mp_lons,2*pi))).sum()
-        bfgc_mp_lat = (w_length*mp_lats).sum()
-
-        # find and return the midpoint between these endpoints
-        return(bfgc_mp_lon, bfgc_mp_lon)
-    #}}}2
-
-    def doppelgen_nsr(self): #{{{2
-        """
-        Generate a synthetic lineament starting at the midpoint of the feature,
-        as approximated by the point on its best fit great circle, halfway
-        between the points on the great circle which are closest to the
-        lineament endpoints.
-
-        """
-        init_lon, init_lat = self.bfgcseg_midpoint()
-        return(lingen_nsr(stresscalc=self.stresscalc, init_lon=init_lon, init_lat=init_lat, max_length=self.length, prop_dir="both"))
-    #}}}2
-    
-    def doppelgen_gc(self): #{{{2
-        """
-        Generate a great circle segment approximating the lineament.
-
-        """
-        init_lon, init_lat, fin_lon, fin_lat = self.bfgcseg_endpoints()
-        return(lingen_greatcircle(init_lon, init_lat, fin_lon, fin_lat))
-    #}}}2
-
-    def nsrfits(self, delta_max=radians(45), dbar_max=0.125, use_delta=True, use_dbar=True, use_stress=True): #{{{2
-        """
-        Given arrays of dbar, delta_rms, and stress weighting values, figure
-        out what weights should be associated with the lineament (i.e. what
-        proportion of its length should be added to the bin for the values of b
-        corresponding to those delta values)
-
-        Only use metrics indicated by the use_* flags.  Set others to unity.
-        
-        """
-
-        assert(self.bs is not None and self.nsrdeltas is not None and self.nsrdbars is not None and self.nsrstresswts is not None)
-
-        if use_delta is True:
-            delta_wt = where(self.nsrdeltas < delta_max, 1-(self.nsrdeltas/delta_max), 0.0)
-        else:
-            delta_wt = 1.0
-
-        if use_dbar is True:
-            dbar_wt = where(self.nsrdbars < dbar_max, 1-(self.nsrdbars/dbar_max), 0.0)
-        else:
-            dbar_wt = 1.0
-
-        if use_stress is True:
-            stress_wt = self.nsrstresswts
-        else:
-            stress_wt = 1.0
-
-        return(delta_wt * dbar_wt * stress_wt)
+        #return(bfgc_mp_lon, bfgc_mp_lat)
+        pass
 
     #}}}2
 
@@ -374,8 +331,16 @@ class Lineament(object): #{{{1
 
         """
 
-        if stresscalc is None:
+        # we have to have at least one stresscalc or this is pointless:
+        assert(self.stresscalc is not None or stresscalc is not None)
+
+        if stresscalc is None and self.stresscalc is not None:
             stresscalc = self.stresscalc
+
+        elif self.stresscalc is None and stresscalc is not None:
+            self.stresscalc = stresscalc
+
+        # else: we allow the stresscalc passed in to take priority
 
         # set the b values first, so that the fit metrics can refer to them.
         self.bs = linspace(0,pi,nb,endpoint=False)
@@ -456,29 +421,121 @@ class Lineament(object): #{{{1
         self.nsrdeltas = (tile(w_length,nb)*raw_deltas).reshape((nb,nsegs)).sum(axis=1)
 
         # Now generate synthetic NSR doppelgangers for the feature, at all
-        # values of b, and see how similar they are to the mapped shape:
-
-        # find the midpoint of the best fit great circle (BFGC) segment
-        # representing the lineament.  This is the initiation point for the
-        # syntetic feature.
-        bfgc_mp_lon, bgfc_mp_lat = self.bfgcseg_midpoint()
-
-        doppel_init_lons = self.bs + bfgc_mp_lon
-
-        # Generate the doppelgangers:
-        bfgc_doppels = [ lingen_nsr(stresscalc=stresscalc, init_lon=init_lon, init_lat=bfgc_mp_lat, max_length=self.length, prop_dir="both") for init_lon in doppel_init_lons ]
+        # values of self.bs:
+        doppels = self.doppelgen_midpoint_nsr(stresscalc)
 
         # Measure their shape similarities (MHDs), and normalize by the
         # lineament length:
-        self.nsrdbars = array([ self.mhd(doppel.lonshift(-b)) for doppel,b in zip(bfgc_doppels,self.bs) ]) / self.length
+        self.nsrdbars = array([ self.mhd(doppel.lonshift(-b)) for doppel,b in zip(doppels,self.bs) ]) / self.length
     #}}}2 end calc_nsrfits
+
+    def nsrfits(self, delta_max=radians(45), dbar_max=0.125, use_delta=True, use_dbar=True, use_stress=True): #{{{2
+        """
+        Given arrays of dbar, delta_rms, and stress weighting values, figure
+        out what weights should be associated with the lineament (i.e. what
+        proportion of its length should be added to the bin for the values of b
+        corresponding to those delta values)
+
+        Only use metrics indicated by the use_* flags.  Set others to unity.
+        
+        """
+
+        assert(self.bs is not None and self.nsrdeltas is not None and self.nsrdbars is not None and self.nsrstresswts is not None)
+
+        if use_delta is True:
+            delta_wt = where(self.nsrdeltas < delta_max, 1-(self.nsrdeltas/delta_max), 0.0)
+        else:
+            delta_wt = 1.0
+
+        if use_dbar is True:
+            dbar_wt = where(self.nsrdbars < dbar_max, 1-(self.nsrdbars/dbar_max), 0.0)
+        else:
+            dbar_wt = 1.0
+
+        if use_stress is True:
+            stress_wt = self.nsrstresswts
+        else:
+            stress_wt = 1.0
+
+        return(delta_wt * dbar_wt * stress_wt)
+
+    #}}}2
+
+    def best_fit(self, delta_max=radians(45), dbar_max=0.125, use_delta=True, use_dbar=True, use_stress=False): #{{{2
+        """
+        Return the value of the best fit, and the b at which it occurs.  If
+        there are no good fits, return None.
+
+        """
+
+        nsrfits = self.nsrfits(delta_max=delta_max, dbar_max=dbar_max, use_dbar=use_dbar, use_delta=use_delta, use_stress=use_stress)
+        best_fit = max(nsrfits)
+
+        if best_fit > 0.0:
+            best_b = float(self.bs[where(fabs(nsrfits-best_fit) < 1e-9)[0][0]])
+        else:
+            best_fit = None
+            best_b = None
+
+        return(best_fit, best_b)
+    #}}}2
+
+    def plot(self, map, lon_cyc=2*pi, lat_mirror=False, color='black', alpha=1.0, linewidth=1.0): #{{{2
+        """
+        Plot the lineament on the provided Basemap object, map, with the
+        associated color, alpha, and width.
+
+        if lon_cyclic is non-zero, modulo the longitudes of the feature by the
+        cyclic value, until any that can ever fall in the displayed area of the
+        map do so, plotting the feature once for each distinct time it is the
+        case.  The default value, 2*pi, means that features which cross the
+        edge of the map will have that portion that runs out of the display
+        plotted on the far side.  If lon_cyclic=pi, then all the features will
+        be placed in the same non-repeating pi-wide portion of the stress
+        field, for easy comparison therein.
+
+        If lat_mirror is True, use the absolute values of the latitudes,
+        instead of the latitudes, in order to map the lineament into the
+        northern hemisphere.  This allows more compact comparison of lineaments
+        in stress-equivalent locations.
+        
+        """
+
+        plotted_lines = []
+
+        # What does it mean to have a longitude discontinuity?  It means
+        # that two adjacent points in the lineament have longitude values
+        # which differ by more than they need to... that is, for two points
+        # ptA, ptB, having longitudes lonA and lonB, there exists some integer
+        # N, such that:
+        # abs(lonA - (2*pi*N + lonB)) < abs(lonA - lonB) 
+        # this can only be true if:
+        # abs(lonA - lonB) > pi
+        lons = fixlons(self.lons)
+
+        # In order to create the illusion that the lineaments are wrapping
+        # around in longitude, we plot one copy at each longitude where a
+        # portion of them will show up on the map...
+        nrange = unique1d(floor((lons-radians(map.llcrnrlon))/lon_cyc))
+        for N in nrange:
+            (x,y) = map(degrees(lons-N*lon_cyc), degrees(self.lats))
+            plotted_lines.append(map.plot(x, y, color=color, alpha=alpha, linewidth=linewidth))
+
+            # If we're mirroring across the equator, we need to plot all of the
+            # lineaments with their anti-latitudes as well:
+            if lat_mirror:
+                (x,y) = map(degrees(lons-N*lon_cyc), -degrees(self.lats))
+                plotted_lines.append(map.plot(x, y, color=color, alpha=alpha, linewidth=linewidth))
+
+        return(plotted_lines)
+    #}}}2
 
 #}}}1 end of the Lineament class
 
 ################################################################################
 # Helpers having to do with fit metrics or lineament generation.
 ################################################################################
-def lingen_nsr(stresscalc, init_lon=None, init_lat=None, max_length=2*pi, prop_dir="both", segment_length=0.005): # {{{
+def lingen_nsr(stresscalc, init_lon=None, init_lat=None, max_length=2*pi, prop_dir="both", segment_length=0.01): # {{{
     """
     Generate a synthetic NSR feature, given a starting location, maximum
     length, propagation direction, and a step size on the surface.
@@ -495,6 +552,11 @@ def lingen_nsr(stresscalc, init_lon=None, init_lat=None, max_length=2*pi, prop_d
         done = False
     else:
         done = True
+
+    # In order to avoid problems with doppelgangers, we need to make sure that
+    # each feature has a minimum number of segments.  This says at least 10
+    # segments:
+    segment_length = min(segment_length, max_length/10.0)
 
     lons = array([init_lon,])
     lats = array([init_lat,])
@@ -515,7 +577,12 @@ def lingen_nsr(stresscalc, init_lon=None, init_lat=None, max_length=2*pi, prop_d
             assert(prop_dir == "west")
             prop_az = comp_az + pi
 
-        newlon, newlat = spherical_reckon(lons[-1], lats[-1], prop_az, segment_length)
+        # this introduces some irregularity into the length of the segments, to
+        # avoid having problems with exact integer multiples in doppelganger
+        # generation, etc.
+        newseglen = segment_length*(1+0.1*(random_sample()-0.5))
+
+        newlon, newlat = spherical_reckon(lons[-1], lats[-1], prop_az, newseglen)
 
         # Make sure that our new longitude is within 2*pi in longitude of the
         # previous point in the feature, i.e. don't allow any big
@@ -528,7 +595,7 @@ def lingen_nsr(stresscalc, init_lon=None, init_lat=None, max_length=2*pi, prop_d
         lons = concatenate([lons,array([newlon,])])
         lats = concatenate([lats,array([newlat,])])
 
-        lin_length += segment_length
+        lin_length += newseglen
 
         # Calculate the stresses at the new location
         (tens_mag, tens_az, comp_mag, comp_az) = stresscalc.principal_components(theta=(pi/2.0)-lats[-1], phi=lons[-1], t=0.0)
@@ -554,6 +621,14 @@ def lingen_greatcircle(init_lon, init_lat, fin_lon, fin_lat, seg_len=0.01): #{{{
     """
 
     gc_length  = spherical_distance(init_lon, init_lat, fin_lon, fin_lat)
+
+    # taking this minimum forces each feature to have at least 10 segments.
+    seg_len = min(seg_len, gc_length/10.0)
+
+    # adding the random +/- 10% to each segment length here ensures that we
+    # don't get any exact integer issues in calculating doppelgangers...
+    seg_dists = concatenate([[0,],linspace(seg_len,gc_length,gc_length/seg_len,endpoint=False)+(random_sample(gc_length/seg_len)-0.5)*0.1,[gc_length,]])
+
     init_az    = spherical_azimuth(init_lon, init_lat, fin_lon, fin_lat)
     lons, lats = spherical_reckon(init_lon, init_lat, init_az, linspace(0,gc_length,1+(gc_length/seg_len)))
     return(Lineament(lons=lons, lats=lats))
@@ -757,6 +832,19 @@ def paleopole_transform(pnp_lon, pnp_lat, lon_in, lat_in): #{{{
     lat_out = pi/2 - theta_out # co-lat to lat
 
     return(lon_out, lat_out)
+#}}}
+
+def fixlons(lons): #{{{
+    """
+    Takes a set of longitudes, and forces it to be within a continuous range
+    (i.e. no skips at "international date line")
+
+    """
+
+    lons = mod(lons, 2*pi)
+    while len(where(abs(lons[:-1]-lons[1:]) > pi)[0] > 0):
+        lons[1:] = where(abs(lons[:-1]-lons[1:]) > pi, lons[1:]+2*pi*sign(lons[:-1]-lons[1:]), lons[1:])
+    return(lons)
 #}}}
 
 ################################################################################
