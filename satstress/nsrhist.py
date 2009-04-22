@@ -40,7 +40,8 @@ def random_nsrlins(nsr_stresscalc=None, nlins=1000, minlen=0.0, maxlen=1.25): #{
     max_lengths = minlen+(rand(2*nlins)*(maxlen-minlen))
     init_lons, init_lats = lineament.random_lonlatpoints(2*nlins)
     while len(linlist) < nlins:
-        newlin = lineament.lingen_nsr(nsr_stresscalc, init_lon=init_lons[N], init_lat=init_lats[N], max_length=max_lengths[N], prop_dir='both')
+        seg_len=min(0.01, max_lengths[N]/10.0)
+        newlin = lineament.lingen_nsr(nsr_stresscalc, init_lon=init_lons[N], init_lat=init_lats[N], max_length=max_lengths[N], prop_dir='both', seg_len=seg_len)
         if newlin.length > minlen:
             linlist.append(newlin)
         N = N+1
@@ -169,6 +170,40 @@ def load_lins(linpath): #{{{
     return linlist
 #}}}
 
+def gc(lin): #{{{
+    gc_lin = lineament.Lineament(lons=lin.lons, lats=lin.lats)
+
+    pole1_lon, pole1_lat = gc_lin.bfgc_pole()
+    pole2_lon, pole2_lat = lineament.spherical_reckon(pole1_lon, pole1_lat, 0.0, pi)
+    # Generate a BFGC lineament:
+    gc_dop = gc_lin.doppelgen_gcseg()
+
+    the_fig = figure()
+    ax = the_fig.add_subplot(1,1,1)
+
+    # Plot the lineament, and its BFGC doppelganger:
+    ax.plot(degrees(mod(gc_lin.lons,2*pi)), degrees(gc_lin.lats), color='black', linewidth=2)
+    ax.plot(degrees(mod(gc_dop.lons,2*pi)), degrees(gc_dop.lats), color='black', linewidth=2, alpha=0.5)
+
+    # Look and see how the weights are distributed:
+    #mp_lons, mp_lats = gc_lin.seg_midpoints()
+    #weights = gc_lin.seg_lengths()/gc_lin.length
+    #ax.scatter(degrees(mod(mp_lons,2*pi)), degrees(mp_lats), color='black', s=weights*500, alpha=0.5)
+
+    # Plot the implied pole and the other points on the great circle...
+    ax.scatter(degrees(mod([pole1_lon,pole2_lon],2*pi)), degrees([pole1_lat,pole2_lat]), color='black', s=50, marker='x', linewidth=2)
+    far_lons, far_lats = lineament.spherical_reckon(mod(pole1_lon,2*pi), pole1_lat, linspace(0,2*pi,180), pi/2)
+    ax.scatter(degrees(mod(far_lons,2*pi)), degrees(far_lats), color='black', s=3, alpha=0.3)
+
+    print("D_bar = %f" % (gc_lin.mhd(gc_dop),))
+
+    ax.set_xlim(0,360)
+    ax.set_xticks(linspace(0,360,13))
+    ax.set_ylim(-90,90)
+    ax.set_yticks(linspace(-90,90,7))
+    ax.set_aspect('equal')
+#}}}
+
 ###############################################################################
 #    Functions for calculating fits, and displaying the results in general    #
 ###############################################################################
@@ -195,10 +230,6 @@ def calcfits(satfile="input/ConvectingEuropa_GlobalDiurnalNSR.ssrun",\
     print("Transforming to pre-TPW coordinates")
     tpwlins = [ lin.poleshift(pnp_lon=pnp_lon, pnp_lat=pnp_lat) for lin in maplins ]
 
-    #print("Loading synthetic lineament pools")
-    #gc_pool = load_lins("output/gc_pool")
-    #synth_pool = load_lins("output/synth_pool")
-
     print("Generating synthetic lineament pools")
     protolinlens = array([lin.length for lin in maplins])
     print("  great circle segments")
@@ -224,6 +255,113 @@ def calcfits(satfile="input/ConvectingEuropa_GlobalDiurnalNSR.ssrun",\
     return(maplins, tpwlins, gclins, synthlins)
 #}}}
 
+def tpw_search(satfile="input/ConvectingEuropa_GlobalDiurnalNSR.ssrun", linfile="input/GlobalLineaments", np=100, nb=36, nlins=0): #{{{
+    """
+    Transform the lineaments read in from linfile to np different possible
+    paleopoles, evenly distributed over the surface of the sphere, fit them to
+    the NSR stress field at nb different values of backrotation.  Save the
+    results.
+
+    """
+    print("Initializing satellite")
+    europa = satstress.Satellite(open(satfile,'r'))
+    NSR = satstress.StressCalc([satstress.NSR(europa),])
+
+    print("Loading mapped features")
+    maplins = lineament.shp2lins(linfile, stresscalc=NSR)
+
+    if nlins > 0:
+        maplins = maplins[:nlins]
+
+    pnp_lons, pnp_lats = fibonacci_sphere(np)
+
+    agg_fits = []
+    for pnp_lon, pnp_lat in zip(pnp_lons, pnp_lats):
+        print("Transforming to lon=%d, lat=%d" % (degrees(mod(pnp_lon,2*pi)), degrees(pnp_lat)) )
+        tpwlins = [ lin.poleshift(pnp_lon=pnp_lon, pnp_lat=pnp_lat) for lin in maplins ]
+
+        label = "tpw_lon%d_lat%d_nsrfit" % (degrees(mod(pnp_lon,2*pi)), degrees(pnp_lat))
+        for lin,N in zip(tpwlins,range(len(tpwlins))):
+            if (mod(N+1,60)==0):
+                print("    N=%d" % (N+1,) )
+            lin.calc_nsrfits(nb=nb, stresscalc=NSR)
+        if nlins == 0:
+            print("Saving %s" % (label,) )
+            save_lins(tpwlins, name=label)
+        agg_fits.append(aggregate_bestfit(tpwlins))
+
+    return(pnp_lons, pnp_lats, array(agg_fits))
+#}}}
+
+def load_tpw_results(np): #{{{
+    pnp_lons, pnp_lats = fibonacci_sphere(np)
+    lins_list = []
+    for pnp_lon, pnp_lat in zip(pnp_lons, pnp_lats):
+        filename = "tpw_lon%d_lat%d_nsrfit" % (degrees(mod(pnp_lon,2*pi)), degrees(pnp_lat))
+        lins_list.append(load_lins("output/%s" % (filename,) ))
+
+    return(pnp_lons, pnp_lats, lins_list)
+#}}}
+
+def tpw_polefits(tpw_lins_list): #{{{
+    agg_best_fits = array([ aggregate_bestfit(lins) for lins in tpw_lins_list ])
+    acthist_amps = array([ acthist_amplitude(lins) for lins in tpw_lins_list ])
+    np = len(tpw_lins_list)
+    pnp_lons, pnp_lats = fibonacci_sphere(np)
+    pnp_lons = mod(pnp_lons,2*pi)
+    new_pnp_lons = []
+    new_pnp_lats = []
+
+    # Take advantage of the symmetry in the system to increase resolution:
+    for pnp_lon, pnp_lat in zip(pnp_lons, pnp_lats):
+        if pnp_lon > pi:
+            new_pnp_lon = mod(pnp_lon,pi)
+            new_pnp_lat = -pnp_lat
+        else:
+            new_pnp_lon = pnp_lon
+            new_pnp_lat = pnp_lat
+        new_pnp_lons.append(new_pnp_lon)
+        new_pnp_lats.append(new_pnp_lat)
+
+    # Convert to arrays, and add corners:
+    # Cheat by adding the current pole values...
+    pnp_lons = concatenate([new_pnp_lons,[0,0]])
+    pnp_lats = concatenate([new_pnp_lats,[pi/2,-pi/2]])
+    agg_best_fits = concatenate([agg_best_fits,[0.490]*2])
+    acthist_amps  = concatenate([acthist_amps, [0.100]*2])
+
+    # add another copy of the data to the east and west for continuity:
+    pnp_lons = concatenate([pnp_lons, pnp_lons+pi, pnp_lons-pi])
+    pnp_lats = tile(pnp_lats,3)
+    agg_best_fits = tile(agg_best_fits,3)
+    acthist_amps = tile(acthist_amps,3)
+
+    # Create an interpolated grid, showing the aggregate best fits
+    reglons = linspace(0,pi,180)
+    reglats = linspace(-pi/2,pi/2,180)
+    pnp_fits = griddata(pnp_lons, pnp_lats, agg_best_fits, reglons, reglats)
+    pnp_amps = griddata(pnp_lons, pnp_lats, acthist_amps, reglons, reglats)
+
+    the_fig = figure()
+    fit_ax = the_fig.add_subplot(1,2,1)
+    amp_ax = the_fig.add_subplot(1,2,2)
+    fit_ax.contourf(degrees(reglons), degrees(reglats), pnp_fits, 50)
+    amp_ax.contourf(degrees(reglons), degrees(reglats), pnp_amps, 50)
+    fit_ax.scatter(degrees(pnp_lons), degrees(pnp_lats), marker='o', color='black', alpha=0.5, s=5, linewidth=0)
+    amp_ax.scatter(degrees(pnp_lons), degrees(pnp_lats), marker='o', color='black', alpha=0.5, s=5, linewidth=0)
+    fit_ax.set_xlim(0,180)
+    amp_ax.set_xlim(0,180)
+    fit_ax.set_ylim(-90,90)
+    amp_ax.set_ylim(-90,90)
+    fit_ax.set_xticks(linspace(0,180,7))
+    amp_ax.set_xticks(linspace(0,180,7))
+    fit_ax.set_yticks(linspace(-90,90,7))
+    amp_ax.set_yticks(linspace(-90,90,7))
+    fit_ax.set_aspect('equal')
+    amp_ax.set_aspect('equal')
+
+#}}}
+
 def aggregate_bestfit(lins, delta_max=radians(45), dbar_max=0.125): #{{{
     """
     An overall metric of how well a given set of features can be forced to fit
@@ -236,11 +374,77 @@ def aggregate_bestfit(lins, delta_max=radians(45), dbar_max=0.125): #{{{
     linbestfits = array([ max(lin.nsrfits(delta_max=delta_max, dbar_max=dbar_max, use_stress=False)) for lin in lins ])
     return(sum(linlengths*linbestfits)/sum(linlengths))
 
+#}}} end aggregate_bestfit
+
+def acthist_amplitude(lins): #{{{
+
+    norm_length = sum([lin.length for lin in lins])
+    acthist = array([ lin.length*lin.nsrfits() for lin in lins]).sum(axis=0)/norm_length
+    return( max(acthist) - min(acthist))
+
+#}}}
+
+def show_extreme_doppels(lin): #{{{
+    mp_lon, mp_lat = lin.midpoint()
+
+    seg_len = min(0.01, lin.length/10.0)
+
+    best_dbar = min(lin.nsrdbars)
+    best_b = lin.bs[where(fabs(lin.nsrdbars - best_dbar) < 1e-9)[0][0]]
+    best_doppel = lineament.lingen_nsr(stresscalc=lin.stresscalc, init_lon=mp_lon+best_b, init_lat=mp_lat, prop_dir="both", max_length=lin.length, seg_len=seg_len)
+    best_doppel.lons -= best_b
+
+    worst_dbar = max(lin.nsrdbars)
+    worst_b = lin.bs[where(fabs(lin.nsrdbars - worst_dbar) < 1e-9)[0][0]]
+    worst_doppel = lineament.lingen_nsr(stresscalc=lin.stresscalc, init_lon=mp_lon+worst_b, init_lat=mp_lat, prop_dir="both", max_length=lin.length, seg_len=seg_len)
+    worst_doppel.lons -= worst_b
+
+    lines, map = lineament.plotlinmap([lin,], color='black', linewidth=2.0)
+    map.scatter(degrees(lin.lons), degrees(lin.lats), color='black')
+
+    lineament.plotlinmap([best_doppel,], color='green', map=map)
+    map.scatter(degrees(best_doppel.lons), degrees(best_doppel.lats), color='green')
+    map.scatter(degrees(best_doppel.lons+2*pi), degrees(best_doppel.lats), color='green')
+    map.scatter(degrees(best_doppel.lons-2*pi), degrees(best_doppel.lats), color='green')
+    gca().annotate('D=%.3g' % (best_dbar,), xy=(degrees(best_doppel.lons[0]),      degrees(best_doppel.lats[0])) )
+    gca().annotate('D=%.3g' % (best_dbar,), xy=(degrees(best_doppel.lons[0]+2*pi), degrees(best_doppel.lats[0])) )
+    gca().annotate('D=%.3g' % (best_dbar,), xy=(degrees(best_doppel.lons[0]-2*pi), degrees(best_doppel.lats[0])) )
+
+    lineament.plotlinmap([worst_doppel,], color='red', map=map)
+    map.scatter(degrees(worst_doppel.lons), degrees(worst_doppel.lats), color='red')
+    map.scatter(degrees(worst_doppel.lons+2*pi), degrees(worst_doppel.lats), color='red')
+    map.scatter(degrees(worst_doppel.lons-2*pi), degrees(worst_doppel.lats), color='red')
+    gca().annotate('D=%.3g' % (worst_dbar,), xy=(degrees(worst_doppel.lons[0]),      degrees(worst_doppel.lats[0])) )
+    gca().annotate('D=%.3g' % (worst_dbar,), xy=(degrees(worst_doppel.lons[0]+2*pi), degrees(worst_doppel.lats[0])) )
+    gca().annotate('D=%.3g' % (worst_dbar,), xy=(degrees(worst_doppel.lons[0]-2*pi), degrees(worst_doppel.lats[0])) )
+
+    return(best_doppel, worst_doppel)
+#}}}
+
+def fibonacci_sphere(N): #{{{
+    """
+    Generate N points on the surface of the sphere, fairly evenly spaced from
+    one another.
+
+    """
+
+    inc = pi * (3 - sqrt(5))
+    off = 2. / N
+    k = arange(0,N)
+    y = k*off - 1. + 0.5*off
+    r = sqrt(1 - y*y)
+    phi = k * inc
+    x = cos(phi)*r
+    z = sin(phi)*r
+    theta = arctan2(sqrt(x**2+y**2),z)
+    phi = arctan2(y,x)
+    lats = pi/2-theta
+    return phi, lats
 #}}}
 
 def fitcurve(lin, delta_max=radians(45), dbar_max=0.125, color='black', ax=None, use_stress=True): #{{{
     """
-    Plot delta_rms as a function of b for lin, and show the value of the
+    Plot delta and dbar as a function of b for lin, and show the value of the
     weighting function that results.
 
     """
@@ -251,31 +455,21 @@ def fitcurve(lin, delta_max=radians(45), dbar_max=0.125, color='black', ax=None,
     else:
         delta_ax = ax
 
-    sat_radius_km = lin.stresscalc.stresses[0].satellite.radius()/1000
-
     # Plot the mapped lineament's fit curve:
-    degree_formatter = matplotlib.ticker.FormatStrFormatter(r'%.0f$^\circ$')
-    delta_ax.axis([0,179,0,100])
-    delta_ax.invert_xaxis()
-    delta_ax.set_yticks(unique(sort(hstack([arange(0,91,15),round(degrees(delta_max))]))))
-    delta_ax.set_xticks(arange(0,179,15))
     delta_ax.set_xlabel("westward translation (b)")
-    delta_ax.xaxis.set_major_formatter(degree_formatter)
-    delta_ax.set_ylabel(r'$\delta_{rms}$')
-    wt_ax = twinx(ax=delta_ax)
-    wt_ax.set_ylabel('length weighting')
-    wt_ax.set_yticks(linspace(0,0.9,7))
-    delta_ax.yaxis.set_major_formatter(degree_formatter)
-    delta_ax.plot(degrees(lin.bs), degrees(lin.nsrdeltas), ls='-', linewidth=2, color=color)
+    delta_ax.plot(degrees(lin.bs), lin.nsrdeltas/delta_max, ls='-', linewidth=2, color=color)
 
-    wt_ax.plot(degrees(lin.bs), lin.nsrdbars, ls='--', linewidth=2, color=color)
+    dbar_ax = twinx(ax=delta_ax)
+    dbar_ax.plot(degrees(lin.bs), lin.nsrdbars/dbar_max, ls='--', linewidth=2, color=color)
 
     if use_stress:
-        wt_ax.plot(degrees(lin.bs), lin.nsrstresswts, ls='-.', linewidth=2, color=color)
+        dbar_ax.plot(degrees(lin.bs), lin.nsrstresswts, ls='-.', linewidth=2, color=color)
 
-    wt_ax.fill_between(degrees(lin.bs), lin.nsrfits(delta_max=delta_max, dbar_max=dbar_max, use_stress=use_stress), 0, color=color, alpha=0.3)
-    delta_ax.set_ylim(0,100)
-    wt_ax.set_ylim(0,1.0)
+    dbar_ax.fill_between(degrees(lin.bs), lin.nsrfits(delta_max=delta_max, dbar_max=dbar_max, use_stress=use_stress), 0, color=color, alpha=0.3)
+
+    delta_ax.axis([0,179,0,2.25])
+    dbar_ax.axis([0,179,0,2.25])
+    delta_ax.invert_xaxis()
 
     if ax is None:
         the_fig.show()
@@ -383,6 +577,7 @@ def makefigs(delta_max=radians(45), dbar_max=0.125, maps=False, hists=False, exa
                     'ActHist_BySin',\
                     'ActHist_Compare',\
                     'ActHist_Delta',\
+                    'ActHist_Dbar',\
                     'LinStats_DeltaLenCorr',\
                     'LinStats_DeltaSinCorr',\
                     'LinStats_Mapped',\
@@ -598,6 +793,26 @@ def ActHist_Compare(nsrlins, gclins, tpwlins, delta_max=radians(45), dbar_max=0.
                      labels=['Mapped','Mapped Minus E15','Great Circles','Pre-TPW'], outfile=outfile, norm_by_all=norm_by_all)
     #}}}
 
+def ActHist_Synth(maplins, synlins, gclins, N=10, synth_prop=0.3, mu=radians(-25), sigma=radians(15)): #{{{
+    from random import sample
+
+    lins_list = [maplins,]
+    num_synth = int(round(len(maplins)*synth_prop))
+    labels = ['Mapped',]
+
+    for i in range(N):
+        shift_bs = normal(loc=mu, scale=sigma, size=num_synth)
+        shift_synth = [ lin.lonshift(b) for lin,b in zip(synlins[:num_synth], shift_bs) ]
+        random_gclins = sample(gclins,len(maplins)-num_synth)
+        shift_random = [ lin.lonshift(b) for lin,b in zip(random_gclins,rand(len(random_gclins))*pi) ]
+        pseudo_randlins = shift_synth+shift_random
+        lins_list.append(pseudo_randlins)
+        labels.append('Synthetic %d' % (i,))
+
+    activity_history(lins_list, labels=labels)
+
+#}}}
+
 def FitMap(lins, titlestr="Features colored by fit", lin_cm=cm.jet, nbins=9, stresscentric=False, outfile=None, delta_max=radians(45), dbar_max=0.125, showbad=True, derotate=False): #{{{
     """
     Creates a global map of the lineaments, color coding them by what amount of
@@ -665,7 +880,7 @@ def FitMap(lins, titlestr="Features colored by fit", lin_cm=cm.jet, nbins=9, str
             if backrot == 0:
                 lin2plot = lin
             else:
-                lin2plot = lin.lonshift(backrot)
+                lin2plot = lineament.Lineament(lons=lin.lons+backrot, lats=lin.lats)
 
             newline, linfitmap = lineament.plotlinmap([lin2plot,], map=linfitmap, linewidth=lin_width, color=lin_color, lon_cyc=lon_cyc, lat_mirror=lat_mirror)
 
@@ -730,13 +945,13 @@ def DeltaSinuosityCorr(lins, outfile=None): #{{{
     the_fig = figure(figsize=(12,8))
     ax1 = the_fig.add_subplot(1,1,1)
 
-    hilatlins = [ lin for lin in lins if degrees(min(fabs(lin.lats))) > 30 ]
+    hilatlins = [ lin for lin in lins if degrees(min(fabs(lin.lats))) > 30 and max(lin.nsrfits()) > 0.0 ]
     hilat_best_fits = array([ lin.nsrfits(use_stress=False).max() for lin in hilatlins ])
     hilat_sins = array([ lin.sinuosity() for lin in hilatlins ])
     hilat_r2 = corrcoef(hilat_sins,hilat_best_fits)[0,1]**2
     hilat_symbs = scatter(hilat_sins, hilat_best_fits, c='blue', marker='s', label=r'$|\theta_{min}|>30^\circ R^2=%.3g$' % ( hilat_r2, ) )
 
-    lolatlins = [ lin for lin in lins if degrees(min(fabs(lin.lats))) <= 30 ]
+    lolatlins = [ lin for lin in lins if degrees(min(fabs(lin.lats))) <= 30 and max(lin.nsrfits()) > 0.0 ]
     lolat_best_fits= array([ lin.nsrfits(use_stress=False).max() for lin in lolatlins ])
     lolat_sins = array([ lin.sinuosity() for lin in lolatlins ])
     lolat_r2 = corrcoef(lolat_sins,lolat_best_fits)[0,1]**2
@@ -783,7 +998,9 @@ def LinDensityMap(lins, maxdist=500, N=0, label="", cmap=cm.jet,\
     if N==0:
         N = 5.0e8/(maxdist**2)
 
-    randlons, randlats = lineament.random_lonlatpoints(N)
+    #randlons, randlats = lineament.random_lonlatpoints(N)
+    randlons, randlats = fibonacci_sphere(N)
+    randlons = mod(randlons,2*pi)
     reglats = linspace(-90,90,180)
     reglons = linspace(0,360,360)
 
