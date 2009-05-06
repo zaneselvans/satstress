@@ -1,6 +1,7 @@
 from numpy import *
 from pylab import *
 from mpl_toolkits.basemap import Basemap
+import pickle
 
 # Open Source Geospatial libraries:
 from osgeo import ogr
@@ -11,7 +12,7 @@ class Lineament(object): #{{{1
 
     """
 
-    def __init__(self, lons=None, lats=None, stresscalc=None, bs=None, nsrdeltas=None, nsrdbars=None, nsrstresswts=None): #{{{2
+    def __init__(self, lons=None, lats=None, stresscalc=None, bs=None, nsrdbars=None, nsrstresswts=None): #{{{2
         """
         Create a lineament from a given list of (lon,lat) points.
 
@@ -22,10 +23,9 @@ class Lineament(object): #{{{1
         stresscalc is a L{satstress.StressCalc} object defining the field we
         are going to be comparing the lineament to.
         
-        If all of bs, nsrdeltas, nsrdbars, and nsrstresswts are set, and have
-        the same length, then we have a complete NSR fit and we can go ahead
-        and set those values for the feature.  Otherwise, set these attributes
-        to None.
+        If bs, nsrdbars, and nsrstresswts are set and have the same length, then we have
+        a complete NSR fit and we can go ahead and set those values for the
+        feature.  Otherwise, set these attributes to None.
 
         """
 
@@ -38,16 +38,13 @@ class Lineament(object): #{{{1
         self.length = self.calc_length()
         self.stresscalc = stresscalc
 
-        # All or nothing baby:
-        if bs is None or nsrdeltas is None or nsrdbars is None or nsrstresswts is None:
+        if bs is None or nsrdbars is None or nsrstresswts is None:
             self.bs = None
-            self.nsrdeltas = None
             self.nsrdbars = None
             self.nsrstresswts = None
         else:
-            assert(len(bs) == len(nsrdeltas) == len(nsrdbars) == len(nsrstresswts))
+            assert(len(bs) == len(nsrdbars) == len(nsrstresswts))
             self.bs = array(bs)
-            self.nsrdeltas = array(nsrdeltas)
             self.nsrdbars = array(nsrdbars)
             self.nsrstresswts = array(nsrstresswts)
     #}}}2
@@ -105,17 +102,6 @@ class Lineament(object): #{{{1
 
     #}}}2
 
-    def colats(self): # {{{2
-        """
-        Return a list of the latitude values from the lineament's vertices"
-
-        """
-        if len(self.lats) == 0:
-            return None
-        else:
-            return(pi/2.0-self.lats)
-    #}}}2
-
     def seg_midpoints(self): #{{{2
         """
         Return a list of the midpoints of each line segment in the Lineament.
@@ -163,16 +149,15 @@ class Lineament(object): #{{{1
         nb = len(self.bs)
         shift_lons = self.lons+b
         shift_bs = mod(self.bs-b,pi)
-        dtype = [('bs',float),('nsrdeltas',float),('nsrdbars',float),('nsrstresswts',float)]
+        dtype = [('bs',float),('nsrdbars',float),('nsrstresswts',float)]
         shift_fits = zeros(nb, dtype=dtype)
         shift_fits['bs'] = shift_bs
-        shift_fits['nsrdeltas'] = self.nsrdeltas
         shift_fits['nsrdbars'] = self.nsrdbars
         shift_fits['nsrstresswts'] = self.nsrstresswts
         shift_fits.sort(order='bs')
         return(Lineament(lons=shift_lons, lats=self.lats, stresscalc=self.stresscalc,\
-                         bs=shift_fits['bs'], nsrdeltas=shift_fits['nsrdeltas'],\
-                         nsrdbars=shift_fits['nsrdbars'], nsrstresswts=shift_fits['nsrstresswts']))
+                         bs=shift_fits['bs'], nsrdbars=shift_fits['nsrdbars'],\
+                         nsrstresswts=shift_fits['nsrstresswts']))
     #}}}2
 
     def poleshift(self, pnp_lon=0.0, pnp_lat=pi/2): #{{{2
@@ -186,32 +171,24 @@ class Lineament(object): #{{{1
         return(Lineament(lons=tpw_lons, lats=tpw_lats, stresscalc=self.stresscalc))
     #}}}2
 
+    def d_min(self, linB): #{{{2
+        """
+        Return an array containing the distances from the midpoints of each
+        segment in self to the nearest midpoint of a segment in linB.
+
+        """
+        
+        return(d_min(self, linB))
+    #}}}2
+
     def mhd(self, linB): #{{{2
         """
-        Calculate the mean Hausdorff Distance between linA and linB.
-
-        Use the midpoints of the line segments making up the lineament, instead of
-        the verticies, and weight by the lengths of the line segments.
-
-        (See: http://en.wikipedia.org/wiki/Hausdorff_distance)
+        MHD form A to B.
 
         """
+        
         return(mhd(self, linB))
-
-    #}}}2 end mhd()
-
-    def mean_lonlat(self): #{{{2
-        """
-        Return the length weighted mean longitude of the feature.
-
-        """
-
-        mp_lons, mp_lats = self.seg_midpoints()
-        mp_lons = fixlons(mp_lons)
-        w_length = self.seg_lengths()/self.length
-
-        return((w_length*mp_lons).sum(), (w_length*mp_lats).sum())
-    #}}}2 end mean_lonlat()
+    #}}}2
 
     def doppelgen_midpoint_nsr(self, stresscalc=None): #{{{2
         """
@@ -224,7 +201,14 @@ class Lineament(object): #{{{1
         if stresscalc is None:
             stresscalc=self.stresscalc
 
-        mp_lon, mp_lat = self.bfgcseg_midpoint()
+        # Figure out where to initiate the formation of the doppelganger:
+        ep1_lon, ep1_lat, ep2_lon, ep2_lat = self.bfgcseg_endpoints()
+        mp_lon, mp_lat = spherical_midpoint(ep1_lon, ep1_lat, ep2_lon, ep2_lat)
+
+        # Set the max_length of the doppelganger to be the length of the best
+        # fit great circle, and not the prototype, since NSR features are almost
+        # perfectly straight.
+        max_length = spherical_distance(ep1_lon, ep1_lat, ep2_lon, ep2_lat)
 
         # Create an array of all the midpoints at which we need to generate
         # doppelgangers, given the our b values.
@@ -302,34 +286,27 @@ class Lineament(object): #{{{1
     def calc_nsrfits(self, nb=180, stresscalc=None): #{{{2
         """
         For nb evenly spaced values of longitudinal translation, b, ranging
-        from 0 to pi, calculate the fit metrics delta and dbar for the
-        lineament, compared to its stresscalc object.
+        from 0 to pi, calculate the fit metric (dbar) for the lineament,
+        using the stresscalc object associated with the feature to generate
+        the hypothesized synthetic features.  Use the stresscalc that was
+        passed in if there is none associated with the feature, or 
 
-        Store the resulting values of b, delta, and dbar in the lineament's
-        attributes bs, deltas, dbars for later reference.
+        Store the resulting values of b and dbar in the lineament's
+        attributes bs, and nsrdbars for later reference.
 
         This only works for a purely NSR stress field.
 
-        Calculate the delta_rms values for all backrotations implied by the
-        lineament's list of b values, and store them in self.nsrdeltas.  Weight
-        the delta_rms values by segment length.
-
-        If stresscalc is None, use the stresscalc object stored within the
-        lineament (the default).
-
         Calculate a metric of the significance of the feature's location within
-        the stress field, based on its magnitude and anisotropy relative to
-        the global average, and store it for later use in weighting the
-        feature's contribution to the overall results.  This is
-        self.nsrstresswts
+        the stress field, based on its magnitude and anisotropy relative to the
+        global average, and store it for later use in weighting the feature's
+        contribution to the overall results.  This is self.nsrstresswts
 
         Generate a synthetic lineament meant to replicate the feature (a
         doppelganger) by using the NSR stress field, and a starting point near
         the center of the feature (at the midpoint of a great circle segment
         approximating the feature).  Calculate the mean Hausdorff distance
-        (MHD) between the prototype (self) and this doppelganger as a secondary
-        metric of how well the feature matches the stresses in the region.  Do
-        this for every value of b, and store the results in self.nsrdbars.
+        (MHD) between the prototype (self) and this doppelganger for every
+        value of b, and store the results in self.nsrdbars.
 
         """
 
@@ -338,149 +315,76 @@ class Lineament(object): #{{{1
 
         if stresscalc is None and self.stresscalc is not None:
             stresscalc = self.stresscalc
-
         elif self.stresscalc is None and stresscalc is not None:
             self.stresscalc = stresscalc
-
-        # else: we allow the stresscalc passed in to take priority
 
         # set the b values first, so that the fit metrics can refer to them.
         self.bs = linspace(0,pi,nb,endpoint=False)
 
         # Create vectors of non-stress and non-b dependent values:
-        mp_az = self.seg_azimuths()
         mp_lons, mp_lats = self.seg_midpoints()
         w_length = self.seg_lengths()/self.length
 
-        nsegs = len(mp_az)
+        # number of segments in this feature
+        nsegs = len(w_length)
 
         # Create vectors containing all of the lons and lats at which stresses
         # will need to be calculated, based on the locations of the vertices
         # making up the lineament and the values of b at which we are doing
         # calculations
         calc_thetas = tile((pi/2)-mp_lats, nb)
-        calc_phis = ravel(array( [linspace(lon,lon+pi,nb,endpoint=False) for lon in mp_lons ]).transpose())
+        calc_phis = repeat(linspace(0,pi,nb,endpoint=False),nsegs) + tile(mp_lons,nb)
 
         # use SatStress to perform the stress calculations at those locations
-        # (and t=0, since NSR is not a time-variable potential field).  Each
-        # element of the resulting array will contain the principal components
-        # of a stress as [tens_max, tens_az, comp_mag, comp_az] where tens_*
-        # represents the more tensile (less compressive) of the two stresses,
-        # and comp_* is the more compressive (less tensile).  Tension is
-        # positive.  mag and az are the magnitude in Pa and azimuth as radians
-        # clockwise from north.
         tens_mag, tens_az, comp_mag, comp_az = stresscalc.principal_components(calc_thetas, calc_phis, 0.0)
 
         # Create an (nsegs*nb) length array of w_stress values
         w_stress = (tens_mag - comp_mag)/stresscalc.mean_global_stressdiff()
 
-        # There's a problem here with the weighting functions.  We want
-        # delta_rms to reflect the average angle between a feature and the
-        # expected orientation of failure given the underlying stresses we've
-        # calcualted.  Doing a 'local' weighting according to the fraction of
-        # the length of the overall lineament that a particular segment makes
-        # up is fine, because if there's a short segment that's way out of
-        # whack (say, a jog in the otherwise straight feature), we don't want
-        # that big angle to create much of a change in the overall value of
-        # delta for the feature.  If it's a big angle, but it only increases
-        # the overall delta_rms a little bit, that's fine.
-        
-        # On the other hand, with w_stress, where we're comparing the
-        # importance of the location at which the feature finds itself,
-        # relative to the rest of the stress field, globally, we can end up
-        # screwing up the metric.  In perverse cases, where the entire feature
-        # finds itself in an "unimportant" isotropic or low-stress region, the
-        # value of delta_rms that gets reported for it will be very small,
-        # which normally we take to be an indication of a good fit, but in this
-        # case simply means that the fit (however good or bad it is) is
-        # unimportant.  The quantity that we've been using to do this kind of
-        # "importance" weighting in the overall fits up until now has just been
-        # the feature length.  That's the quantity that really needs to be
-        # modulated as a result of the significance of the region of the stress
-        # field in which the feature finds itself.
-
-        # This means that we need another nb-length array, containing weights
-        # to be applied to the feature's length, depending on what value of b
-        # it is associated with (and thus, what stress region it found itself
-        # within).  This weighting needs to be externally available so that we
-        # can construct a stress weighted length when we need it, and use the
-        # geographic length when we need that.  It should be a length weighted
-        # mean of the w_stress values for each segment.
-        self.nsrstresswts = (tile(w_length,nb)*w_stress).reshape((nb,nsegs)).sum(axis=1)
-
-        # Create an (nsegs x nb) length array of raw delta values using mp_az
-        # and stress_pc.  We are implicitly assuming here that failure is
-        # taking place as tensile fracture, perpendicular to the most tensile
-        # stress, which also happens to be the orientation of the most
-        # compressive stress:
-        raw_deltas = mod(fabs(comp_az - tile(mp_az,nb)), pi/2)
-
-        # If only compressive stresses are encountered, set delta for the
-        # segment to the highest meaningful value (pi/2).
-        raw_deltas = where(tens_mag > 0, raw_deltas, pi/2)
-
-        # Take the length weighted mean of the raw deltas for each value of b:
-        self.nsrdeltas = (tile(w_length,nb)*raw_deltas).reshape((nb,nsegs)).sum(axis=1)
-
-        # Now generate synthetic NSR doppelgangers for the feature, at all
-        # values of self.bs:
+        # generate NSR doppelgangers for all b in self.bs:
         doppels = self.doppelgen_midpoint_nsr(stresscalc)
 
-        # Measure their shape similarities (MHDs), and normalize by the
-        # lineament length:
+        # Shift all of the doppelgangers such that they are superimposed upon
+        # the prototype lineament:
         for doppel,b in zip(doppels,self.bs):
             doppel.lons -= b
 
-        self.nsrdbars = array([ self.mhd(doppel) for doppel in doppels ]) / self.length
+        # for each point in self (the prototype) find the minimum distance to
+        # any point in each doppelganger - this measures the similarity in
+        # their shape.  It's normalized by self.length so as to be unitless,
+        # and scaled linearly to the overall length of the feature.
+        d_min = ravel(array([ self.d_min(doppel) for doppel in doppels ]))/self.length
+
+        # note that this is the RMS minimum distance...
+        self.nsrdbars = sqrt(((tile(w_length,nb)*(d_min**2))).reshape(nb,nsegs).sum(axis=1))
+
+        self.nsrstresswts = ((tile(w_length,nb)*w_stress)).reshape(nb,nsegs).sum(axis=1)
     #}}}2 end calc_nsrfits
 
-    def nsrfits(self, delta_max=radians(45), dbar_max=0.125, use_delta=True, use_dbar=True, use_stress=True): #{{{2
+    def nsrfits(self, dbar_max=0.125): #{{{2
         """
-        Given arrays of dbar, delta_rms, and stress weighting values, figure
-        out what weights should be associated with the lineament (i.e. what
-        proportion of its length should be added to the bin for the values of b
-        corresponding to those delta values)
+        Return a heuristic metric of the probability that the feature fits the
+        chosen stress field at each value of b, multiplied by the significance
+        of such a fit, as measured by the lack of perturbability of the fit in
+        this location within the stress field.
 
-        Only use metrics indicated by the use_* flags.  Set others to unity.
-        
         """
 
-        assert(self.bs is not None and self.nsrdeltas is not None and self.nsrdbars is not None and self.nsrstresswts is not None)
+        assert(self.bs is not None and self.nsrdbars is not None and self.nsrstresswts is not None)
 
-        if use_delta is True:
-            delta_wt = where(self.nsrdeltas < delta_max, 1-(self.nsrdeltas/delta_max), 0.0)
-        else:
-            delta_wt = 1.0
-
-        if use_dbar is True:
-            dbar_wt = where(self.nsrdbars < dbar_max, 1-(self.nsrdbars/dbar_max), 0.0)
-        else:
-            dbar_wt = 1.0
-
-        if use_stress is True:
-            stress_wt = self.nsrstresswts
-        else:
-            stress_wt = 1.0
-
-        return(delta_wt * dbar_wt * stress_wt)
+        return(self.nsrstresswts*(1.0 - where(self.nsrdbars/dbar_max < 1.0, self.nsrdbars/dbar_max, 1.0))**2)
 
     #}}}2
 
-    def best_fit(self, delta_max=radians(45), dbar_max=0.125, use_delta=True, use_dbar=True, use_stress=False): #{{{2
+    def best_fit(self, dbar_max=0.125): #{{{2
         """
-        Return the value of the best fit, and the b at which it occurs.  If
-        there are no good fits, return None.
+        Return best fit, and the value of b at which it occurs.
 
         """
 
-        nsrfits = self.nsrfits(delta_max=delta_max, dbar_max=dbar_max, use_dbar=use_dbar, use_delta=use_delta, use_stress=use_stress)
+        nsrfits = self.nsrfits()
         best_fit = max(nsrfits)
-
-        if best_fit > 0.0:
-            best_b = float(self.bs[where(fabs(nsrfits-best_fit) < 1e-9)[0][0]])
-        else:
-            best_fit = None
-            best_b = None
+        best_b = float(self.bs[where(fabs(nsrfits-best_fit) < 1e-9)[0][0]])
 
         return(best_fit, best_b)
     #}}}2
@@ -492,17 +396,21 @@ class Lineament(object): #{{{1
         the lineament.
 
         """
-        from scipy.optimize import fmin
 
         weights = self.seg_lengths()/self.length
         mp_lons, mp_lats = self.seg_midpoints()
-        az2pole = spherical_azimuth(self.lons[0], self.lats[0], self.lons[-1], self.lats[-1]) + pi/2.0
-        pole_guess_lon, pole_guess_lat = spherical_reckon(self.lons[0], self.lats[0], az2pole, pi/2.0)
-        pole_guess = sphere2xyz(1.0, pi/2.0 - pole_guess_lat, pole_guess_lon)
-        mp_x, mp_y, mp_z = sphere2xyz(weights, pi/2 - mp_lats, mp_lons)
-        A = dot(array([mp_x, mp_y, mp_z]),array([mp_x, mp_y, mp_z]).transpose())
-        best_pole_x, best_pole_y, best_pole_z = fmin(gc_errfunc, pole_guess, args=(A,), disp=False)
-        best_pole_r, best_pole_theta, best_pole_phi = xyz2sphere(best_pole_x, best_pole_y, best_pole_z)
+
+        # special case for features consisting of a single segment... in which
+        # case all the eigenstuff is both broken and unnecessary:
+        if len(mp_lons) == 1:
+            best_pole_phi, bp_lat = spherical_reckon(mp_lons[0], mp_lats[0], spherical_azimuth(self.lons[0], self.lats[0], self.lons[-1], self.lats[-1])+pi/2.0, pi/2.0)
+            best_pole_theta = pi/2.0 - bp_lat
+        else:
+            mp_x, mp_y, mp_z = sphere2xyz(weights, pi/2 - mp_lats, mp_lons)
+            A = dot(array([mp_x, mp_y, mp_z]),array([mp_x, mp_y, mp_z]).transpose())
+            eigenvals, eigenvecs = eig(A)
+            best_pole_x, best_pole_y, best_pole_z = eigenvecs[:,where(fabs(eigenvals - min(eigenvals)) < 1e-9)[0][0] ]
+            best_pole_r, best_pole_theta, best_pole_phi = xyz2sphere(best_pole_x, best_pole_y, best_pole_z)
 
         return(best_pole_phi, pi/2.0 - best_pole_theta)
     #}}}2 end bfgc_pole
@@ -660,31 +568,13 @@ def lingen_greatcircle(init_lon, init_lat, fin_lon, fin_lat, seg_len=0.01): #{{{
 
 #}}} end lingen_greatcircle
 
-def gc_errfunc(pole_xyz, A): #{{{
+def d_min(linA, linB): #{{{
     """
-    An error function for use with scipy.optimize optimization functions, in
-    finding the pole representing the best fit great circle for a lineament.
-
-    """
-    pole_x, pole_y, pole_z = pole_xyz
-    return( dot(dot(array([pole_x, pole_y, pole_z]),A),array([pole_x, pole_y, pole_z]).transpose()) )
-
-#}}} end gc_errfunc
-
-def mhd(linA, linB): #{{{
-    """
-    Calculate the mean Hausdorff Distance between linA and linB.
-
-    Use the midpoints of the line segments making up the lineament, instead of
-    the verticies, and weight by the lengths of the line segments, because
-    we're really trying to compare linear features, not sets of points.
-
-    (See: http://en.wikipedia.org/wiki/Hausdorff_distance)
+    For each point in linA, find the minimum distance to a point in linB.
 
     """
     mp_lonsA, mp_latsA = linA.seg_midpoints()
     mp_lonsB, mp_latsB = linB.seg_midpoints()
-    lenWt = linA.seg_lengths()/linA.length
 
     # Create a matrix of lat/lon points such that pairwise calculations in
     # spherical_distance do the entire grid of possible distances between
@@ -694,12 +584,18 @@ def mhd(linA, linB): #{{{
 
     # reshape distmatrix such that each column corresponds to a point in linA and find the
     # minimum distances for each point in A:
-    mindists = distmatrix.reshape((len(mp_lonsA), len(mp_lonsB))).min(axis=1)
+    return(distmatrix.reshape((len(mp_lonsA), len(mp_lonsB))).min(axis=1))
 
-    # Weight distances by segment lengths and sum them:
-    return(sum(mindists*lenWt))
+#}}} end d_min
 
-#}}} end mhd
+def mhd(linA, linB): #{{{
+    """
+    Calculate the MHD from linA to linB.  Duh.
+
+    """
+
+    return(sum(d_min(linA, linB)*(linA.seg_lengths()/linA.length))/linA.length)
+#}}}
 
 ################################################################################
 # Helpers having to do with spherical geometry
@@ -881,15 +777,12 @@ def update_lins(lins): # {{{
     update a set of lineaments to include all the newest and bestest
     functionality from the module.
 
-    Can also be used to update the "good fit" threshold, if both delta_max and
-    dbar_max are provided.
-
     """
 
     newlins = []
     linlen=len(lins)
     for lin,N in zip(lins,range(linlen)):
-        newlin = Lineament(lons=lin.lons, lats=lin.lats, stresscalc=lin.stresscalc, bs=lin.bs, nsrdeltas=lin.nsrdeltas, nsrdbars=lin.nsrdbars, nsrstresswts=lin.nsrstresswts)
+        newlin = Lineament(lons=lin.lons, lats=lin.lats, stresscalc=lin.stresscalc, bs=lin.bs, nsrdbars=lin.nsrdbars, nsrstresswts=lin.nsrstresswts)
         newlins.append(newlin)
 
     return(newlins)
