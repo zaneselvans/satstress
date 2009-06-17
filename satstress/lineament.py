@@ -190,7 +190,7 @@ class Lineament(object): #{{{1
         return(mhd(self, linB))
     #}}}2
 
-    def doppelgen_midpoint_nsr(self, stresscalc=None): #{{{2
+    def doppelgen_midpoint_nsr(self, stresscalc=None, doppel_library=None): #{{{2
         """
         Find a midpoint, representative of the lineament, and generate a synthetic
         NSR feature there which approximates the feature, for each value of
@@ -212,12 +212,23 @@ class Lineament(object): #{{{1
 
         # Create an array of all the midpoints at which we need to generate
         # doppelgangers, given the our b values.
-        init_lons = self.bs + mp_lon
+        init_lons = mp_lon + self.bs
 
-        seg_len = min(0.01, self.length/10.0)
+        # Now we need to generate doppelgangers, which are perfect synthetic
+        # features that have resulted from the NSR stress field.  There are two
+        # ways to do this.  Either we can calculate them from scratch, which is
+        # highly accurate, but also computationally slow, or we can look up the
+        # closest approximation to the feature's doppelganger in our pre-calculated
+        # library of perfect features.
+        if doppel_library is None:
+            seg_len = min(0.01, self.length/10.0)
+            doppels = [ lingen_nsr(stresscalc=stresscalc, init_lon=init_lon, init_lat=mp_lat,\
+                            max_length=self.length, prop_dir="both", seg_len=seg_len) for init_lon in init_lons ]
 
-        return([ lingen_nsr(stresscalc=stresscalc, init_lon=init_lon, init_lat=mp_lat,\
-                            max_length=self.length, prop_dir="both", seg_len=seg_len) for init_lon in init_lons ])
+        else: # we have a library we can do the lookup in
+            doppels = find_nearest_lins(lins=doppel_library, lons=init_lons, lats=repeat(array([mp_lat,]),len(init_lons)))
+
+        return(doppels)
 
     #}}}2 end doppelgen_midpoint_nsr
 
@@ -283,7 +294,7 @@ class Lineament(object): #{{{1
 
     #}}}2
 
-    def calc_nsrfits(self, nb=180, stresscalc=None): #{{{2
+    def calc_nsrfits(self, nb=180, stresscalc=None, doppel_library=None): #{{{2
         """
         For nb evenly spaced values of longitudinal translation, b, ranging
         from 0 to pi, calculate the fit metric (dbar) for the lineament,
@@ -341,8 +352,9 @@ class Lineament(object): #{{{1
         # Create an (nsegs*nb) length array of w_stress values
         w_stress = (tens_mag - comp_mag)/stresscalc.mean_global_stressdiff()
 
-        # generate NSR doppelgangers for all b in self.bs:
-        doppels = self.doppelgen_midpoint_nsr(stresscalc)
+        self.nsrstresswts = ((tile(w_length,nb)*w_stress)).reshape(nb,nsegs).sum(axis=1)
+
+        doppels = self.doppelgen_midpoint_nsr(stresscalc, doppel_library=doppel_library)
 
         # Shift all of the doppelgangers such that they are superimposed upon
         # the prototype lineament:
@@ -358,10 +370,9 @@ class Lineament(object): #{{{1
         # note that this is the RMS minimum distance...
         self.nsrdbars = sqrt(((tile(w_length,nb)*(d_min**2))).reshape(nb,nsegs).sum(axis=1))
 
-        self.nsrstresswts = ((tile(w_length,nb)*w_stress)).reshape(nb,nsegs).sum(axis=1)
     #}}}2 end calc_nsrfits
 
-    def nsrfits(self, dbar_max=0.125): #{{{2
+    def nsrfits(self, dbar_max=0.125, use_stress=True): #{{{2
         """
         Return a heuristic metric of the probability that the feature fits the
         chosen stress field at each value of b, multiplied by the significance
@@ -372,7 +383,12 @@ class Lineament(object): #{{{1
 
         assert(self.bs is not None and self.nsrdbars is not None and self.nsrstresswts is not None)
 
-        return(self.nsrstresswts*(1.0 - where(self.nsrdbars/dbar_max < 1.0, self.nsrdbars/dbar_max, 1.0))**2)
+        if use_stress is True:
+            w_stress = self.nsrstresswts
+        else:
+            w_stress = 1.0
+
+        return(w_stress*(1.0 - where(self.nsrdbars/dbar_max < 1.0, self.nsrdbars/dbar_max, 1.0))**2)
 
     #}}}2
 
@@ -544,6 +560,29 @@ def lingen_nsr(stresscalc, init_lon=None, init_lat=None, max_length=2*pi, prop_d
 
 #}}} end lingen_nsr
 
+def lingen_nsr_library(nlats=36): #{{{
+    """
+    Create a regularaly spaced "grid" of synthetic NSR lineaments, for use in
+    visualizing the expected NSR trajectories, and in fast fitting of
+    lineaments to the stress field.
+
+    """
+    import satstress
+    satfile   = "input/ConvectingEuropa_GlobalDiurnalNSR.ssrun"
+    europa = satstress.Satellite(open(satfile,'r'))
+    NSR = satstress.StressCalc([satstress.NSR(europa),])
+
+    linlist = []
+    for lat in linspace(0,pi/2,nlats+2)[1:-1]:
+        linlist.append(lingen_nsr(NSR, init_lon=0.0, init_lat=lat, max_length=2*pi, prop_dir='both'))
+
+    # Now mirror and shift that set of regular lineaments to cover the surface entirely:
+    linlist += [Lineament(lons=lin.lons, lats=-lin.lats, stresscalc=lin.stresscalc) for lin in linlist]
+    linlist += [Lineament(lons=lin.lons+pi, lats=lin.lats, stresscalc=lin.stresscalc) for lin in linlist]
+
+    return linlist
+#}}}
+
 def lingen_greatcircle(init_lon, init_lat, fin_lon, fin_lat, seg_len=0.01): #{{{
     """
     Return a L{Lineament} object closely approximating the shortest great
@@ -595,6 +634,16 @@ def mhd(linA, linB): #{{{
     """
 
     return(sum(d_min(linA, linB)*(linA.seg_lengths()/linA.length))/linA.length)
+#}}}
+
+def find_nearest_lins(lins=None, lons=None, lats=None): #{{{
+    """
+    Given a list of lineaments (lins) and a set of points on the surface,
+    defined by (lons,lats), return a list of lineaments chosen from lins, which
+    are the features closest to the respective (lon,lat) points.
+
+    """
+    pass
 #}}}
 
 ################################################################################

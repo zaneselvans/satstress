@@ -240,7 +240,7 @@ def nvf2dict(nvf, comment='#'):
     return params
 # end nvf2dict()
 
-def eigen2(a, b, c): #TODO: use numpy arrays for return values.
+def eigen2(a, b, c):
     """
     Calculate the normalized eigenvectors and eigenvalues for a 2x2 symmetric
     matrix, where a, b, and c are:
