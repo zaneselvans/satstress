@@ -190,7 +190,7 @@ class Lineament(object): #{{{1
         return(mhd(self, linB))
     #}}}2
 
-    def doppelgen_midpoint_nsr(self, stresscalc=None, doppel_library=None): #{{{2
+    def doppelgen_midpoint_nsr(self, stresscalc=None, doppel_library=None, d_max=0.01): #{{{2
         """
         Find a midpoint, representative of the lineament, and generate a synthetic
         NSR feature there which approximates the feature, for each value of
@@ -226,7 +226,7 @@ class Lineament(object): #{{{1
                             max_length=self.length, prop_dir="both", seg_len=seg_len) for init_lon in init_lons ]
 
         else: # we have a library we can do the lookup in
-            doppels = find_nearest_lins(lins=doppel_library, lons=init_lons, lats=repeat(array([mp_lat,]),len(init_lons)))
+            doppels = find_nearest_lins(lins=doppel_library, lons=init_lons, lats=repeat(array([mp_lat,]),len(init_lons)), d_max=d_max)
 
         return(doppels)
 
@@ -294,7 +294,7 @@ class Lineament(object): #{{{1
 
     #}}}2
 
-    def calc_nsrfits(self, nb=180, stresscalc=None, doppel_library=None): #{{{2
+    def calc_nsrfits(self, nb=180, stresscalc=None, doppel_library=None, d_max=0.01): #{{{2
         """
         For nb evenly spaced values of longitudinal translation, b, ranging
         from 0 to pi, calculate the fit metric (dbar) for the lineament,
@@ -354,7 +354,7 @@ class Lineament(object): #{{{1
 
         self.nsrstresswts = ((tile(w_length,nb)*w_stress)).reshape(nb,nsegs).sum(axis=1)
 
-        doppels = self.doppelgen_midpoint_nsr(stresscalc, doppel_library=doppel_library)
+        doppels = self.doppelgen_midpoint_nsr(stresscalc, doppel_library=doppel_library, d_max=d_max)
 
         # Shift all of the doppelgangers such that they are superimposed upon
         # the prototype lineament:
@@ -388,17 +388,17 @@ class Lineament(object): #{{{1
         else:
             w_stress = 1.0
 
-        return(w_stress*(1.0 - where(self.nsrdbars/dbar_max < 1.0, self.nsrdbars/dbar_max, 1.0))**2)
+        return(w_stress*(1.0 - where(self.nsrdbars/dbar_max < 1.0, (self.nsrdbars/dbar_max), 1.0))**2)
 
     #}}}2
 
-    def best_fit(self, dbar_max=0.125): #{{{2
+    def best_fit(self, dbar_max=0.125, use_stress=True): #{{{2
         """
         Return best fit, and the value of b at which it occurs.
 
         """
 
-        nsrfits = self.nsrfits()
+        nsrfits = self.nsrfits(use_stress=use_stress)
         best_fit = max(nsrfits)
         best_b = float(self.bs[where(fabs(nsrfits-best_fit) < 1e-9)[0][0]])
 
@@ -636,14 +636,53 @@ def mhd(linA, linB): #{{{
     return(sum(d_min(linA, linB)*(linA.seg_lengths()/linA.length))/linA.length)
 #}}}
 
-def find_nearest_lins(lins=None, lons=None, lats=None): #{{{
+def find_nearest_lins(lins=None, lons=None, lats=None, d_max=0.01): #{{{
     """
     Given a list of lineaments (lins) and a set of points on the surface,
     defined by (lons,lats), return a list of lineaments chosen from lins, which
-    are the features closest to the respective (lon,lat) points.
+    are the features closest to the respective (lon,lat) points.  If no
+    features within the list of lineaments are within d_max of a (lon,lat)
+    point, for that point return a lineament having (lon,lat) as its only
+    vertex (a zero-length lineament, indicating failed doppelganger creation).
 
     """
-    pass
+    from scipy.spatial import KDTree
+
+    # first, we need to create a lookup table that keeps track of which
+    # lineament from the library a given lat/lon point is in, so that when we
+    # figure out where that nearest point is, we can choose the appropriate
+    # library lneament as a doppelganger.
+
+    lib_lons = concatenate([ lin.lons for lin in lins ])
+    lib_lats = concatenate([ lin.lats for lin in lins ])
+    lib_Ns    = concatenate([ repeat(N, len(lin.lons)) for N,lin in zip(range(len(lins)),lins) ])
+
+    dtype = [('lons',float),('lats',float),('Ns',int)]
+    lins_lookup = zeros(len(lib_lons), dtype=dtype)
+    lins_lookup['lons'] = lib_lons
+    lins_lookup['lats'] = lib_lats
+    lins_lookup['Ns']   = lib_Ns
+
+    # Now we create a KDTree to search, using all the lon/lat points making up
+    # the library of features, but converted to cartesian x,y,z:
+    radius = 1.0
+    lib_x, lib_y, lib_z = sphere2xyz(radius, pi/2-lib_lats, lib_lons)
+    lib_kdt = KDTree(array([lib_x, lib_y, lib_z]).T)
+    x, y, z = sphere2xyz(radius, pi/2.0-lats, lons)
+    dists, near_idx = lib_kdt.query(array([x, y, z]).T, distance_upper_bound=d_max)
+
+    # For those input points which we successfully found nearest lon,lat
+    # points, we return the feature which that nearest point was in, otherwise,
+    # we return a zero length feature having as its only vertex the input
+    # point:
+    nearest_lins = []
+    for idx,N in zip(near_idx,range(len(lons))):
+        if idx < len(lib_lons):
+            nearest_lins.append(lins[lins_lookup['Ns'][idx]])
+        else:
+            nearest_lins.append(Lineament(lons=array([lons[N],]), lats=array([lats[N],])))
+
+    return(nearest_lins)
 #}}}
 
 ################################################################################
@@ -845,7 +884,6 @@ def plotlinmap(lins, map=None, color='black', alpha=1.0, linewidth=1.0, lon_cyc=
     if map is None:
         thefig = figure()
         map = Basemap()
-        map.drawmapboundary(fill_color="white")
         map.drawmeridians(range(-180,181,30), labels=[1,0,0,1])
         map.drawparallels(range(-90,91,30), labels=[1,0,0,1])
 
