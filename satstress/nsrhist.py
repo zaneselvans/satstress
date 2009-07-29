@@ -73,34 +73,44 @@ def random_gclins(nlins=1000, minlen=0.0, maxlen=1.25): #{{{
 
 #}}}
 
-def linsample(proto=None, pool=None, nbins=20): #{{{
+def linsample(proto=None, pool=None, nbins=20, fraction=1.0): #{{{
     """
-    Select lineaments from pool that approximate the length distribution of
-    those in proto.  Approximate the distribution using nbins bins, ranging
-    from the minimum to the maximum length of th lineaments in proto.
+    Select a set of lineaments from a pool with a similar length distribution
+    to that of a prototype set.
+
+    nbins controls the number of discrete, evenly spaced length bins which are
+    to be approximated in replicating the length distribution.  The lower edge
+    of the shortest bin is the length of the shortest feature in the prototype
+    set, and similarly the high edge of the longest bin is the length of the
+    longest feature in the prototype set.
 
     """
 
     # define the length bins to replicate:
-    Ns, bins = histogram([ lin.length for lin in proto ], bins=nbins, new=True)
+    proto_lengths = array([ lin.length for lin in proto ])
+    proto = array(proto)
+    pool_lengths  = array([ lin.length for lin in pool  ])
+    pool = array(pool)
 
-    # randomize lins2fit to avoid habitually selecting from the same pool:
-    shuffle(pool)
+    bins = linspace(min(proto_lengths)-0.00001, max(proto_lengths)+0.00001, num=nbins+1)
+    sample_lins = []
 
-    keepers = []
-    numlins = len(proto)
-    for N,i in zip(Ns, range(nbins)):
-        lins_by_bin = []
-        for lin in pool:
-            linlen = lin.length
-            if linlen > bins[i] and linlen < bins[i+1]:
-                lins_by_bin.append(lin)
+    for i in range(nbins):
+        # Organize the prototypes and pool into bins by length
+        proto_binned_lins    = proto[where( logical_and(proto_lengths >= bins[i], proto_lengths < bins[i+1]) )]
+        proto_binned_lengths = array([lin.length for lin in proto_binned_lins])
 
-        keepers += lins_by_bin[:N]
+        pool_binned_lins    = pool[where(  logical_and(pool_lengths >= bins[i], pool_lengths < bins[i+1]) )]
+        pool_binned_lengths = array([lin.length for lin in pool_binned_lins])
 
-    # avoid ordering the lineaments by length:
-    shuffle(keepers)
-    return(keepers)
+        if len(pool_binned_lins) > 0:
+            sample_binned_lins = pool_binned_lins[ np.random.randint(0, high=len(pool_binned_lins), size=int(fraction*len(proto_binned_lins))) ]
+            sample_binned_lengths = array([lin.length for lin in sample_binned_lins])
+            sample_lins.append(sample_binned_lins)
+
+        #print("%3.d: %7.3g %7.3g " % (i+1, np.mean(proto_binned_lengths), np.mean(sample_binned_lengths)) )
+
+    return(concatenate(sample_lins))
 #}}}
 
 def save_lins(lins, name="global_lins", outdir="output"): #{{{
@@ -160,6 +170,8 @@ def reload_nsrfits(update=False): #{{{
     crazylins  The mapped lineaments, with random locations/orientations
     gclins     A collection of great circle segments
     tpwlins    The mapped lineaments, transformed to PNP 80E 10N
+
+    maplins, synthlins, crazylins, gclins, tpwlins = nsrhist.reload_nsrfits()
 
     if update is True, then these datasets are read in, updated to reflect the
     most recent version of the Lineament object, saved back to disk, and then
@@ -411,7 +423,11 @@ def tpw_polefits(pnp_lons=None, pnp_lats=None, tpwlins_list=None, maplins=None, 
     """
 
     if pnp_lons is None and pnp_lats is None and tpwlins_list is None:
-        pnp_lons, pnp_lats, tpwlins_list = load_tpw_results(fast=fast)
+        if fast is True:
+            pnp_lons, pnp_lats, acthist_amps = load_tpw_results(fast=True)
+        else:
+            pnp_lons, pnp_lats, tpwlins_list = load_tpw_results(fast=False)
+            acthist_amps = array([ acthist_amplitude(lins) for lins in tpwlins_list ])
 
     if maplins is not None:
         map_acthist_amp = acthist_amplitude(maplins)
@@ -422,8 +438,6 @@ def tpw_polefits(pnp_lons=None, pnp_lats=None, tpwlins_list=None, maplins=None, 
         gc_acthist_amp = acthist_amplitude(gclins)
     else:
         gc_acthist_amp = 0.0
-
-    acthist_amps = array([ acthist_amplitude(lins) for lins in tpwlins_list ])
 
     levels = linspace(acthist_amps.min(), acthist_amps.max(), ncols)
 
@@ -596,7 +610,7 @@ def fibonacci_sphere(N, halfsphere=False): #{{{
     return lons, lats
 #}}}
 
-def fitcurve(lin, color='black', ax=None, dbar_max=0.125): #{{{
+def fitcurve(lin, color='black', ax=None, dbar_max=0.125, show_dbar=True, show_w=True, show_fnsr=True, use_stress=True): #{{{
     """
     Plot delta and dbar as a function of b for lin, and show the value of the
     weighting function that results.
@@ -611,16 +625,23 @@ def fitcurve(lin, color='black', ax=None, dbar_max=0.125): #{{{
 
     # Plot the mapped lineament's fit curve:
     dbar_ax.set_xlabel("westward translation (b)")
-    dbar_ax.plot(degrees(lin.bs), lin.nsrdbars, ls='-', linewidth=2, color=color)
+    if show_dbar is True:
+        dbar_ax.plot(degrees(lin.bs), lin.nsrdbars, ls='-', linewidth=2, color=color)
+        dbar_ax.axis([0,179,0,0.3])
+        dbar_ax.set_yticks(linspace(0,0.3,5,endpoint=False))
 
-    fit_ax = twinx(ax=dbar_ax)
-    fit_ax.fill_between(degrees(lin.bs), lin.nsrfits(dbar_max=dbar_max), 0, color=color, alpha=0.3)
-    fit_ax.plot(degrees(lin.bs), lin.nsrstresswts, ls='--', linewidth=2, color=color)
 
-    fit_ax.axis([0,179,0,1.5])
-    fit_ax.set_yticks(linspace(0,1.5,5,endpoint=False))
-    dbar_ax.axis([0,179,0,0.3])
-    dbar_ax.set_yticks(linspace(0,0.3,5,endpoint=False))
+    if show_fnsr is True or show_w is True:
+        fit_ax = twinx(ax=dbar_ax)
+        fit_ax.axis([0,179,0,1.5])
+        fit_ax.set_yticks(linspace(0,1.5,5,endpoint=False))
+
+    if show_fnsr is True:
+        fit_ax.fill_between(degrees(lin.bs), lin.nsrfits(dbar_max=dbar_max, use_stress=use_stress), 0, color=color, alpha=0.3)
+
+    if show_w is True:
+        fit_ax.plot(degrees(lin.bs), lin.nsrstresswts, ls='--', linewidth=2, color=color)
+
     dbar_ax.invert_xaxis()
 
     if ax is None:
@@ -656,7 +677,7 @@ def make_crazy(lins, tpw=True, spin=True): #{{{
     return(newlins)
 #}}}
 
-def activity_history(lins_list, the_fig=None, labels=[], colors=[], lin_cm=cm.jet, norm_by_all=False, outfile=None, dbar_max=0.125): #{{{
+def activity_history(lins_list, the_fig=None, labels=[], colors=[], alphas=[], lin_cm=cm.jet, norm_by_all=False, outfile=None, dbar_max=0.125, verbose=True, titlestr="Apparent Lineament Activity History"): #{{{
     """
     Plots apparent activity histories for one or several sets of lineaments,
     allowing visual comparison.
@@ -703,6 +724,13 @@ def activity_history(lins_list, the_fig=None, labels=[], colors=[], lin_cm=cm.je
     except AssertionError:
         print "len(lins_list) = %g != len(colors) = %g" % (len(lins_list), len(colors))
 
+    if (len(alphas) == 0):
+        alphas = np.ones(len(lins_list))
+    try:
+        assert(len(lins_list) == len(alphas))
+    except AssertionError:
+        print "len(lins_list) = %g != len(alphas) = %g" % (len(lins_list), len(alphas))
+
     # Depending on whether we're segmenting a single dataset (say, by lineament
     # length) or trying to compare different datasets, we may want to norm each
     # set of lineaments by its own length, or the total length of all the
@@ -711,11 +739,11 @@ def activity_history(lins_list, the_fig=None, labels=[], colors=[], lin_cm=cm.je
     if norm_by_all is True:
         norm_lengths = [sum(norm_lengths),] * len(lins_list)
 
-    for lins,label,color,norm_length in zip(lins_list,labels,colors,norm_lengths):
-        print("Calculating activity histories for %s" % (label,))
-        acthist = array([ lin.length*lin.nsrfits(dbar_max=dbar_max) for lin in lins ]).sum(axis=0)/norm_length
-        #label += " (kept %2.f%%)" % (100*aggregate_bestfit(lins, dbar_max=dbar_max),)
-        hist_ax.plot(degrees(lins[0].bs), acthist, label=label, lw=3, c=color)
+    for lins,label,color,alpha,norm_length in zip(lins_list,labels,colors,alphas,norm_lengths):
+        if verbose is True:
+            print("Calculating activity histories for %s" % (label,))
+        acthist = calc_acthist(lins, dbar_max=dbar_max, norm_length=norm_length)
+        hist_ax.plot(degrees(lins[0].bs), acthist, label=label, lw=3, c=color, alpha=alpha)
 
     hist_ax.set_ylabel("H(b)")
     hist_ax.set_xlabel("westward translation b")
@@ -725,7 +753,6 @@ def activity_history(lins_list, the_fig=None, labels=[], colors=[], lin_cm=cm.je
     hist_ax.xaxis.set_major_formatter(degree_formatter)
     hist_ax.set_xlim(179,0)
     hist_ax.legend(loc="upper left")
-    titlestr = 'Apparent Lineament Activity History'
     if norm_by_all is True:
         titlestr += ' (Normalized)'
     hist_ax.set_title(titlestr)
@@ -736,6 +763,11 @@ def activity_history(lins_list, the_fig=None, labels=[], colors=[], lin_cm=cm.je
         the_fig.show()
 
 #}}}
+
+def calc_acthist(lins, dbar_max=0.125, norm_length=None):
+    if norm_length is None:
+        norm_length = sum([lin.length for lin in lins])
+    return(array([ lin.length*lin.nsrfits(dbar_max=dbar_max) for lin in lins ]).sum(axis=0)/norm_length)
 
 def jackstraws(N=10, nb=36, spin=True, tpw=False): #{{{
     """
@@ -808,8 +840,13 @@ def makefigs(dbar_max=0.125, maps=False, hists=False, examples=False, stats=Fals
                     'ActHist_ByLength',\
                     'ActHist_BySin',\
                     'ActHist_ByDbar',\
-                    'ActHist_Compare',\
-                    'ActHist_Synth',\
+                    'ActHist_MapStats',\
+                    'ActHist_SpinCycleStats',\
+                    'ActHist_JackStrawsStats',\
+                    'ActHist_GreatCircleStats',\
+                    'ActHist_TPWStats',\
+                    'ActHist_PeakStats',\
+                    'ActHist_Synthesized',\
                     'ActHist_AmpProb',\
                     'LinStats_DbarLenCorr',\
                     'LinStats_DbarSinCorr',\
@@ -831,7 +868,7 @@ def makefigs(dbar_max=0.125, maps=False, hists=False, examples=False, stats=Fals
 
     # These are the lineaments in their modern locations, compared to an
     # elastic NSR stress field, with Delta ~ 0.001.
-    nsrlins = load_lins(path.join(outdir,'map_nsrfit'))
+    maplins = load_lins(path.join(outdir,'map_nsrfit'))
     # All the mapped lineaments, transformed to a pre-TPW coordinate system,
     # with the paleo-north pole at 80E, 10N in current lat/lon.
     tpwlins = load_lins(path.join(outdir,'tpw_nsrfit'))
@@ -847,7 +884,7 @@ def makefigs(dbar_max=0.125, maps=False, hists=False, examples=False, stats=Fals
 
     if maps is True: #{{{2
         print("Plotting Mapped Lineaments")
-        FitMap(nsrlins, nbins=9, titlestr="Global Lineaments as Mapped", dbar_max=dbar_max, outfile=figure_outfiles['FitMap_Mapped'])
+        FitMap(maplins, nbins=9, titlestr="Global Lineaments as Mapped", dbar_max=dbar_max, outfile=figure_outfiles['FitMap_Mapped'])
         print("Plotting Randomized Mapped Lineaments")
         FitMap(crazylins, nbins=9, titlestr="Randomized Global Lineaments", dbar_max=dbar_max, outfile=figure_outfiles['FitMap_Crazy'])
         print("Plotting Pre-TPW Lineaments, fit to NSR stresses")
@@ -857,49 +894,72 @@ def makefigs(dbar_max=0.125, maps=False, hists=False, examples=False, stats=Fals
         print("Plotting synthetic NSR lineaments")
         FitMap(synlins, titlestr="Perfect Synthetic NSR Lineaments for b=0", dbar_max=dbar_max, outfile=figure_outfiles['FitMap_SyntheticNSR'])
         print("Plotting Mapped Lineaments, relative to stress field")
-        FitMap(nsrlins, nbins=9, titlestr="Mapped Lineaments Backrotated for Best Fit", dbar_max=dbar_max, derotate=True, outfile=figure_outfiles['FitMap_Derotated'], showbad=False)
+        FitMap(maplins, nbins=9, titlestr="Mapped Lineaments Backrotated for Best Fit", dbar_max=dbar_max, derotate=True, outfile=figure_outfiles['FitMap_Derotated'], showbad=False)
         FitMap(gclins, nbins=9, titlestr="Random Great Circle Segments Backrotated for Best Fit", dbar_max=dbar_max, derotate=True, outfile=figure_outfiles['FitMap_DerotatedGC'], showbad=False)
     #}}}2
 
     if hists is True: #{{{2
-        ActHist_ByLength(nsrlins, dbar_max=dbar_max, outfile=figure_outfiles['ActHist_ByLength'], norm_by_all=True)
-        ActHist_BySin(nsrlins, dbar_max=dbar_max, outfile=figure_outfiles['ActHist_BySin'], norm_by_all=True)
-        ActHist_ByDbar(nsrlins, outfile=figure_outfiles['ActHist_ByDbar'], norm_by_all=False)
-        ActHist_Compare(nsrlins, gclins, tpwlins, dbar_max=dbar_max, outfile=figure_outfiles['ActHist_Compare'], norm_by_all=False)
-        ActHist_Synth(nsrlins, synlins, gclins, crazylins, outfile=figure_outfiles['ActHist_Synth'], norm_by_all=False, N=1)
-        ActHist_AmpProb(nsrlins, tpwlins, synlins, outfile=figure_outfiles['ActHist_AmpProb'])
+        # These three figures demonstrate robustness of the metric
+        ActHist_ByLength(maplins, dbar_max=dbar_max, outfile=figure_outfiles['ActHist_ByLength'], norm_by_all=True)
+        ActHist_BySin(maplins, dbar_max=dbar_max, outfile=figure_outfiles['ActHist_BySin'], norm_by_all=True)
+        ActHist_ByDbar(maplins, outfile=figure_outfiles['ActHist_ByDbar'], norm_by_all=False)
+
+        # Statistics of the dataset, and an attempt at synthesizing our map
+        numhists = 100
+        print("Calculating activity histories for %d resampled maps" % (numhists,) )
+        ActHist_MapStats(maplins, N=numhists, outfile=figure_outfiles['ActHist_MapStats'])
+
+        print("Calculating activity histories for %d spin cycle maps" % (numhists,) )
+        ActHist_SpinCycleStats(maplins, N=numhists, outfile=figure_outfiles['ActHist_SpinCycleStats'])
+
+        print("Calculating activity histories for %d jackstraws maps" % (numhists,) )
+        ActHist_SpinCycleStats(maplins, N=numhists, outfile=figure_outfiles['ActHist_JackStrawsStats'])
+
+        print("Calculating activity histories for %d resampled great circle maps" % (numhists,) )
+        ActHist_SpinCycleStats(maplins, N=numhists, outfile=figure_outfiles['ActHist_GreatCircleStats'])
+
+        print("Calculating activity histories for %d partially derotated maps" % (numhists,) )
+        ActHist_PeakStats(maplins, N=numhists, scale=np.radians(15), outfile=figure_outfiles['ActHist_PeakStats'])
+
+        print("Calculating activity histories for %d synthetic map recreations" % (numhists,) )
+        ActHist_Synthesized(maplins, N=numhists, peak_frac=0.4, scale=np.radians(15), outfile=figure_outfiles['ActHist_Synthesized'])
+
+        print("Calculating activity histories for derotated maps")
+        Acthist_Derotated(maplins, synlins, crazylins, N=numhists, outfile=figure_outfiles[''])
+
+        ActHist_AmpProb(maplins, tpwlins, synlins, outfile=figure_outfiles['ActHist_AmpProb'])
     #}}}2
  
     if examples is True: #{{{2
         # List of canonical features from the map: {{{3
-        good_nsr1    = nsrlins[1]   # 1500 km long, symmetric arcuate lineament in the N. hemisphere
-        good_nsr2    = nsrlins[53]  #  700 km long, asymmetric arcuate lineament in the N. hemisphere
-        good_nsr3    = nsrlins[108] # 1800 km long, nearly symmetric arcuate lineament in the S. hemisphere
-        bad_nsr1     = nsrlins[20]  #  553 km long, north-south lineament in the S. hemisphere
-        bad_nsr2     = nsrlins[6]   # 1222 km long, diagonal, grazing the equator
-        bad_nsr3     = nsrlins[36]  # 1175 km long, diagonal, equator crossing
-        bad_nsr4     = nsrlins[54]  # 1036 km long, north-south, equator crossing
-        bad_nsr5     = nsrlins[70]  # 1061 km long, one of the SCDs, crossing the equator
-        bad_nsr6     = nsrlins[120] #  640 km, N-S equator crossing
-        bad_nsr7     = nsrlins[122] # 1300 km, N-S equator crossing
-        cycloid1     = nsrlins[112] # 1132 km long cycloid, 4-5 arcs, near 30S.  Low dbar, high delta
-        cycloid2     = nsrlins[137] #  458 km long cycloid, 5 arcs, near 60S.  Low dbar, high delta
-        cycloid3     = nsrlins[148] #  776 km long cycloid, 5 arcs, 45-70N.
-        cycloid4     = nsrlins[155] # 1711 km long semi-cycloidal, actually passed the test
-        cycloid5     = nsrlins[159] # 1527 km long semi-cycloidal, actually passed the test
-        sinuous1     = nsrlins[23]  # 1334 km long, sinuous from 30N to 75N
-        sinuous2     = nsrlins[136] # 1189 km long, sinuous from 30S to 70S
-        short_hilat1 = nsrlins[11]  #  450 km, east-west, just above 30N... fits perfectly
-        short_hilat2 = nsrlins[78]  #  200 km, diagonal, 50-60N, fits perfectly
-        short_hilat3 = nsrlins[11]  #  183 km, east-west, just above 30N... fits perfectly
-        short_hilat4 = nsrlins[160] #  200 km, diagonal, 75S... fits very well
-        short_lolat1 = nsrlins[26]  #  500 km, diagonal, between 0N and 30N, fits perfectly
-        short_lolat2 = nsrlins[41]  #  177 km, diagonal, between 0N and 30N, does not fit because of dbar
-        short_lolat3 = nsrlins[43]  #  197 km, diagonal, between 0N and 30N, fits very well
-        dbar_fail1   = nsrlins[7]   # 1073 km, arcuate, dbar_min doesn't quite line up with delta_min, and so it gets lost.
-        dbar_fail2   = nsrlins[62]  #  500 km, east-west almost at the equator.  Large number of "good fits" possible.
-        dbar_fail3   = nsrlins[63]  #  500 km, east-west almost at the equator.  Large number of "good fits" possible.
-        dbar_fail4   = nsrlins[115] # 1262 km, looks good, but dbar just doesn't quite get low enough... Grr.
+        good_nsr1    = maplins[1]   # 1500 km long, symmetric arcuate lineament in the N. hemisphere
+        good_nsr2    = maplins[53]  #  700 km long, asymmetric arcuate lineament in the N. hemisphere
+        good_nsr3    = maplins[108] # 1800 km long, nearly symmetric arcuate lineament in the S. hemisphere
+        bad_nsr1     = maplins[20]  #  553 km long, north-south lineament in the S. hemisphere
+        bad_nsr2     = maplins[6]   # 1222 km long, diagonal, grazing the equator
+        bad_nsr3     = maplins[36]  # 1175 km long, diagonal, equator crossing
+        bad_nsr4     = maplins[54]  # 1036 km long, north-south, equator crossing
+        bad_nsr5     = maplins[70]  # 1061 km long, one of the SCDs, crossing the equator
+        bad_nsr6     = maplins[120] #  640 km, N-S equator crossing
+        bad_nsr7     = maplins[122] # 1300 km, N-S equator crossing
+        cycloid1     = maplins[112] # 1132 km long cycloid, 4-5 arcs, near 30S.  Low dbar, high delta
+        cycloid2     = maplins[137] #  458 km long cycloid, 5 arcs, near 60S.  Low dbar, high delta
+        cycloid3     = maplins[148] #  776 km long cycloid, 5 arcs, 45-70N.
+        cycloid4     = maplins[155] # 1711 km long semi-cycloidal, actually passed the test
+        cycloid5     = maplins[159] # 1527 km long semi-cycloidal, actually passed the test
+        sinuous1     = maplins[23]  # 1334 km long, sinuous from 30N to 75N
+        sinuous2     = maplins[136] # 1189 km long, sinuous from 30S to 70S
+        short_hilat1 = maplins[11]  #  450 km, east-west, just above 30N... fits perfectly
+        short_hilat2 = maplins[78]  #  200 km, diagonal, 50-60N, fits perfectly
+        short_hilat3 = maplins[11]  #  183 km, east-west, just above 30N... fits perfectly
+        short_hilat4 = maplins[160] #  200 km, diagonal, 75S... fits very well
+        short_lolat1 = maplins[26]  #  500 km, diagonal, between 0N and 30N, fits perfectly
+        short_lolat2 = maplins[41]  #  177 km, diagonal, between 0N and 30N, does not fit because of dbar
+        short_lolat3 = maplins[43]  #  197 km, diagonal, between 0N and 30N, fits very well
+        dbar_fail1   = maplins[7]   # 1073 km, arcuate, dbar_min doesn't quite line up with delta_min, and so it gets lost.
+        dbar_fail2   = maplins[62]  #  500 km, east-west almost at the equator.  Large number of "good fits" possible.
+        dbar_fail3   = maplins[63]  #  500 km, east-west almost at the equator.  Large number of "good fits" possible.
+        dbar_fail4   = maplins[115] # 1262 km, looks good, but dbar just doesn't quite get low enough... Grr.
         #}}}3
 
         eg_lins = [ good_nsr1, bad_nsr2, cycloid1, sinuous1, sinuous2, short_hilat1, short_lolat2, dbar_fail2 ]
@@ -914,27 +974,27 @@ def makefigs(dbar_max=0.125, maps=False, hists=False, examples=False, stats=Fals
 
     if stats is True: #{{{2
         # Uncomment if we need to demonstrate the variation of orientations with latitude.
-        #NSRFailDirByLat(nsrlins[0].stresscalc, lats=linspace(20,36,9))
+        #NSRFailDirByLat(maplins[0].stresscalc, lats=linspace(20,36,9))
 
-        #LinLengthDist(nsrlins, label="Mapped Lineament", outfile=figure_outfiles['LinLengthDist_Mapped'])
+        #LinLengthDist(maplins, label="Mapped Lineament", outfile=figure_outfiles['LinLengthDist_Mapped'])
         #LinLengthDist(gclins,  label="Great Circle Segment", outfile=figure_outfiles['LinLengthDist_GreatCircle'])
         #LinLengthDist(tpwlins, label="pre-TPW (pole=80E10N) Lineament", outfile=figure_outfiles['LinLengthDist_PreTPW'])
 
         DbarLengthCorr(gclins, outfile=figure_outfiles['LinStats_DbarLenCorr'])
-        DbarSinuosityCorr(nsrlins, outfile=figure_outfiles['LinStats_DbarSinCorr'])
+        DbarSinuosityCorr(maplins, outfile=figure_outfiles['LinStats_DbarSinCorr'])
 
-        #LinLatLonStats(nsrlins, label="Mapped Lineaments", outfile=figure_outfiles['LinStats_Mapped'])
+        #LinLatLonStats(maplins, label="Mapped Lineaments", outfile=figure_outfiles['LinStats_Mapped'])
         #LinLatLonStats(gclins,  label="Great Circle Segments", outfile=figure_outfiles['LinStats_GreatCircle'])
         #LinLatLonStats(tpwlins, label="pre-TPW Lineaments (pole=80E10N)", outfile=figure_outfiles['LinStats_PreTPW'])
         #LinLatLonStats(synlins, label="Synthetic NSR Lineaments", outfile=figure_outfiles['LinStats_SyntheticNSR'])
-        #LinLatLonStats(nsrlins, label="Derotated Lineaments", outfile=figure_outfiles['LinStats_Derotated'])
+        #LinLatLonStats(maplins, label="Derotated Lineaments", outfile=figure_outfiles['LinStats_Derotated'])
 
     #}}}2
 
     if lindensity is True: #{{{2
         # This shows the density of the mapped features, and a bunch of information
         # about how that relates to the spacecraft observations.
-        LinDensityMap(nsrlins, maxdist=250, label="Density of Mapped Features",\
+        LinDensityMap(maplins, maxdist=250, label="Density of Mapped Features",\
                       grid_outfile       = figure_outfiles['LinDensity_Grid'],\
                       resolution_outfile = figure_outfiles['LinDensity_Resolution'],\
                       emission_outfile   = figure_outfiles['LinDensity_Emission'],\
@@ -972,7 +1032,7 @@ def ActHist_AmpProb(maplins, tpwlins, synthlins, outfile=None): #{{{
 
     spin_amps = pickle.load(open('output/spin_amps.pkl'))
     tpw_amps = pickle.load(open('output/tpw_spin_amps.pkl'))
-    pnp_lons, pnp_lats, pnp_amps = load_tpw_results()
+    pnp_lons, pnp_lats, pnp_amps = load_tpw_results(fast=True)
 
     map_amp = acthist_amplitude(maplins)
     synth_amp = acthist_amplitude(synthlins)
@@ -1050,7 +1110,7 @@ def ActHist_BySin(lins, dbar_max=0.125, outfile=None, norm_by_all=True): #{{{
     activity_history(lins_by_sin, dbar_max=dbar_max, labels=labels_by_sin, outfile=outfile, norm_by_all=norm_by_all)
     #}}}
 
-def ActHist_ByDbar(nsrlins, outfile=None, norm_by_all=False): #{{{
+def ActHist_ByDbar(maplins, outfile=None, norm_by_all=False): #{{{
     """
     Show that the time variability is not sensitive to the particular value
     chosen for dbar_max.
@@ -1062,44 +1122,147 @@ def ActHist_ByDbar(nsrlins, outfile=None, norm_by_all=False): #{{{
     colors = cm.jet(linspace(0,1,len(dbars)))
 
     for dbar_max,N in zip(dbars,range(len(dbars))):
-        activity_history([nsrlins,], labels=[r'$\bar{D}_{max}=%.3g$'%(dbar_max,),], outfile=outfile, norm_by_all=norm_by_all, the_fig=the_fig, dbar_max=dbar_max, colors=[colors[N],])
-        acthist_amplitude(nsrlins, dbar_max=dbar_max)
+        activity_history([maplins,], labels=[r'$\bar{D}_{max}=%.3g$'%(dbar_max,),], outfile=outfile, norm_by_all=norm_by_all, the_fig=the_fig, dbar_max=dbar_max, colors=[colors[N],])
+        acthist_amplitude(maplins, dbar_max=dbar_max)
     #}}}
 
-def ActHist_Compare(nsrlins, gclins, tpwlins, dbar_max=0.125, outfile=None, norm_by_all=False): #{{{
-    # the global lineaments, with anything in the E15REGMAP01 observation
-    # excluded: i.e. any feature with a portion of its length between
-    # 250E and 290E longitude.
-    noE15lins = [ lin for lin in nsrlins if (degrees(mod(array(lin.lons),2*pi)) > 290).all() or \
-                                            (degrees(mod(array(lin.lons),2*pi)) < 240).all() ]
+def ActHist_MapStats(maplins, nbins=20, N=100, outfile=None): #{{{
+    """
+    Do a Monte Carlo subsampling of our lineament map and compare the activity
+    history of the true map with the synthetic ones, to see how self-consistent
+    it is.
 
-    activity_history([nsrlins, noE15lins, gclins, tpwlins], dbar_max=dbar_max,\
-                     labels=['Mapped','Mapped Minus E15','Great Circles','Pre-TPW'], outfile=outfile, norm_by_all=norm_by_all)
-    #}}}
+    """
 
-def ActHist_Synth(maplins, synlins, gclins, crazylins, N=10, synth_prop=0.20, mu=radians(-30), sigma=radians(15), outfile=None, norm_by_all=False): #{{{
-    from random import sample
+    # pseudo-maps in transparent gray
+    maps = [ linsample(proto=maplins, pool=maplins, nbins=nbins) for i in range(N) ]
+    alphas = [10./N,]*N
+    colors = ['gray',]*N
+    labels = [None,]*(N-1)
+    labels.append('Synthetic Subsamples (N=%d)' % (N,))
 
-    perfect_synth = [ lin.lonshift(mu) for lin in synlins ]
+    # map minus E15 mapping swath in solid blue, as an example of geographic exclusion
+    labels.append('Map minus E15 Swath')
+    noE15lins = [ lin for lin in maplins if (degrees(mod(array(lin.lons),2*pi)) > 290).all() or (degrees(mod(array(lin.lons),2*pi)) < 240).all() ]
+    maps.append(noE15lins)
+    colors.append('blue')
+    alphas.append(1.0)
 
-    derotated = [ lin.lonshift(lin.best_fit()[1]+mu) for lin in maplins ]
+    # Real map in solid black
+    labels.append('Mapped Lineaments')
+    maps.append(maplins)
+    colors.append('black')
+    alphas.append(1.0)
 
-    lins_list = [maplins, perfect_synth, gclins, crazylins, derotated]
-    num_synth = int(round(len(maplins)*synth_prop))
-    labels = ['Mapped','Perfect NSR','Great Circles', 'Randomized Map', 'De-rotated Map']
+    the_fig = figure(figsize=(12,8))
+    activity_history(maps, labels=labels, colors=colors, alphas=alphas, the_fig=the_fig, outfile=outfile, verbose=False, titlestr="Natural Variability in the Mapped Dataset")
+#}}}
 
+def ActHist_SpinCycleStats(maplins, nbins=20, N=100, outfile=None): #{{{
+    """
+    Do a Monte Carlo subsampling of our lineament map, randomizing the
+    longitudes of the subsampled data, and then compare the activity history of
+    the true map with the synthetic ones, to see how far outside of the normal
+    range our data is.
+
+    """
+
+    maps = [ make_crazy(linsample(proto=maplins, pool=maplins, nbins=nbins),tpw=False) for i in range(N) ]
+    maps.append(maplins)
+
+    # pseudo-maps in gray
+    colors = ['gray',]*N
+    # real map in black
+    colors.append('black')
+
+    # pseudo-maps nearly transparent
+    alphas = [15./N,]*N
+    # real map opaque
+    alphas.append(1.0)
+
+    labels = [None,]*(N-1)
+    labels.append('Spun Subsamples (N=%d)' % (N,))
+    labels.append('Mapped Lineaments')
+
+    the_fig = figure(figsize=(12,8))
+    activity_history(maps, labels=labels, colors=colors, alphas=alphas, the_fig=the_fig, outfile=outfile, verbose=False)
+#}}}
+
+def ActHist_PeakStats(maplins, nbins=20, N=100, scale=np.radians(15), outfile=None): #{{{
+    """
+    Create a large number of synthetic datasets composed partly of a
+    longitudinally randomized sampling of maplins, and partly from a de-rotated
+    set of maplins, and see how their activity histories compare to that of the
+    mapped features in their real locations.
+
+    """
+
+    map_acthist = calc_acthist(maplins)
+    mu = int(where(np.abs(map_acthist-np.max(map_acthist)) < 1e-6)[0])*(np.pi/len(map_acthist))
+    maps = []
     for i in range(N):
-        shift_bs = normal(loc=mu, scale=sigma, size=num_synth)
-        synth_subset = [ synlins[N] for N in randint(len(synlins), size=num_synth) ]
-        shift_synth = [ lin.lonshift(b) for lin,b in zip(synth_subset, shift_bs) ]
-        random_gclins = sample(gclins,len(maplins)-num_synth)
-        shift_random = [ lin.lonshift(b) for lin,b in zip(random_gclins,rand(len(random_gclins))*pi) ]
-        pseudo_randlins = shift_synth+shift_random
-        lins_list.append(pseudo_randlins)
-        labels.append('%d%% Great Circles + %d%% NSR' % (int(100*(1-synth_prop)),int(100*synth_prop)))
+        peak_dist = linsample(proto=maplins, pool=maplins, nbins=nbins)
+        peak_dist = [ lin.lonshift(-b+lin.best_fit()[1]) for lin,b in zip(peak_dist,np.random.normal(loc=mu, scale=scale, size=len(peak_dist))) ]
+        maps.append(peak_dist)
 
-    activity_history(lins_list, labels=labels, outfile=outfile, norm_by_all=norm_by_all)
 
+    maps.append(maplins)
+
+    # pseudo-maps in gray
+    colors = ['gray',]*N
+    # real map in black
+    colors.append('black')
+
+    # pseudo-maps nearly transparent
+    alphas = [10./N,]*N
+    # real map opaque
+    alphas.append(1.0)
+
+    labels = [None,]*(N-1)
+    labels.append('Synthetic Peak (N=%d)' % (N,))
+    labels.append('Mapped Lineaments')
+
+    the_fig = figure(figsize=(12,8))
+    activity_history(maps, labels=labels, colors=colors, alphas=alphas, the_fig=the_fig, outfile=outfile, verbose=False, titlestr='Peak subsampled from derotated map $\mu=%g^\circ$, $\sigma=%g^\circ$' % (degrees(mu),degrees(scale)) )
+#}}}
+
+def ActHist_Synthesized(maplins, nbins=20, N=100, peak_frac=0.4, scale=np.radians(15), outfile=None): #{{{
+    """
+    Create a large number of synthetic datasets composed partly of a
+    longitudinally randomized sampling of maplins, and partly from a de-rotated
+    set of maplins, and see how their activity histories compare to that of the
+    mapped features in their real locations.
+
+    """
+
+    map_acthist = calc_acthist(maplins)
+    mu = int(where(np.abs(map_acthist-np.max(map_acthist)) < 1e-6)[0])*(np.pi/len(map_acthist))
+    maps = []
+    for i in range(N):
+        random_part = make_crazy(linsample(proto=maplins, pool=maplins, nbins=nbins, fraction=(1.0-peak_frac)),tpw=False)
+        derotated_part = linsample(proto=maplins, pool=maplins, fraction=peak_frac, nbins=nbins)
+        derotated_part = [ lin.lonshift(-b+lin.best_fit()[1]) for lin,b in zip(derotated_part,np.random.normal(loc=mu, scale=scale, size=len(derotated_part))) ]
+        maps.append(concatenate([random_part,derotated_part]))
+
+
+    maps.append(maplins)
+
+    # pseudo-maps in gray
+    colors = ['gray',]*N
+    # real map in black
+    colors.append('black')
+
+    # pseudo-maps nearly transparent
+    alphas = [10./N,]*N
+    # real map opaque
+    alphas.append(1.0)
+
+    labels = [None,]*(N-1)
+    labels.append('%d%% Rand + %d%% Peak (N=%d)' % (int(100*(1-peak_frac)),int(100*peak_frac),N))
+    labels.append('Mapped Lineaments')
+
+    the_fig = figure(figsize=(12,8))
+    activity_history(maps, labels=labels, colors=colors, alphas=alphas, the_fig=the_fig, outfile=outfile, verbose=False, titlestr='Mix of random and peaked features w/ $\mu=%g^\circ$, $\sigma=%g^\circ$' % (degrees(mu),degrees(scale)) )
 #}}}
 
 def FitMap(lins, titlestr="Features colored by fit", lin_cm=cm.jet, nbins=9, stresscentric=False, outfile=None, dbar_max=0.125, showbad=True, derotate=False): #{{{
@@ -1479,7 +1642,7 @@ def FitCurveExamples(lins, labels=[], outfile=None, dbar_max=0.125): #{{{
 #}}}
 
 ###############################################################################
-#      No longer using these plots...
+# Obsolete plots, testing functions, etc.
 ###############################################################################
 
 def LinLatLonStats(goodlins=[], badlins=[], label="", outfile=None): #{{{
@@ -1607,39 +1770,6 @@ def LinLengthDist(lins, label="", outfile=None): #{{{
 
 #}}}
 
-def broken_contourf(): #{{{
-    """
-    Simple demonstration that filled contour plots are broken.
-
-    Looking at the PDF and PNG output using the macosx backend, everything is
-    fine.  It's only the GUI output which is for some reason outlining the
-    polygons in the filled contours.
-
-    """
-    from numpy.random import uniform, seed
-    from matplotlib.mlab import griddata
-    import matplotlib.pyplot as plt
-    import numpy as np
-    # make up data.
-    #npts = int(raw_input('enter # of random points to plot:'))
-    seed(-1)
-    npts = 200
-    x = uniform(-2,2,npts)
-    y = uniform(-2,2,npts)
-    z = x*np.exp(-x**2-y**2)
-    # define grid.
-    xi = np.linspace(-2.1,2.1,100)
-    yi = np.linspace(-2.1,2.1,100)
-    # grid the data.
-    zi = griddata(x,y,z,xi,yi)
-    # contour the gridded data, plotting dots at the nonuniform data points.
-    CS = plt.contourf(xi,yi,zi,15,cmap=plt.cm.jet)
-    # plot data points.
-    plt.title('griddata() and contourf() test')
-    plt.savefig('broken_contourf.pdf')
-    plt.savefig('broken_contourf.png')
- #}}}
-
 def kd_tree_test(linlib=None, libsize=30, N=10, d_max=1.0): #{{{
     """
     A routine for testing how well this whole idea of finding an approximate
@@ -1704,3 +1834,96 @@ def fastfit_test(libsize=90, linlib=None, d_max=0.01): #{{{
 
 #}}}
 
+def test_fitres(lin, dbar_max=0.125, d_max=None, inter_res=20.0, nb=180): #{{{
+    """
+    A function for testing how the resolution of synthetic features
+    (doppelgangers) affects the accuracy of our fit metric.
+
+    """
+    europa = satstress.Satellite(open("input/ConvectingEuropa_GlobalDiurnalNSR.ssrun",'r'))
+    NSR = satstress.StressCalc([satstress.NSR(europa),])
+
+    the_fig = figure(figsize=(10,10))
+    map_ax = the_fig.add_subplot(2,1,1)
+    ax1 = the_fig.add_subplot(2,1,2)
+
+    map_ax.set_aspect('equal')
+    map_ax.plot(np.degrees(lin.lons), np.degrees(lin.lats), lw=2, color='black')
+    map_ax.scatter(np.degrees(lin.lons), np.degrees(lin.lats), color='black', s=5)
+    init_lon, init_lat = lin.bfgcseg_midpoint()
+    map_ax.grid()
+
+    if d_max is None:
+        d_max = np.median(lin.seg_lengths())
+
+    print("Performing low-resolution fits (d_max=%g)" % (d_max,))
+    lowres = lin.lonshift(radians(60))
+    lowres.calc_nsrfits(stresscalc=NSR, d_max=d_max, nb=nb)
+    ax1.plot(np.degrees(lowres.bs), lowres.nsrfits(use_stress=False), color='red', lw=2, label="$d_{max}=%g$" % (d_max,))
+    ax1.fill_between(np.degrees(lowres.bs), lowres.nsrfits(use_stress=False), 0, color='red', alpha=0.3)
+    ax1.set_ylim(0,1)
+    ax1.set_yticks(linspace(0,1.0,11))
+    ax1.grid()
+
+    lowres_init_lon, lowres_init_lat = lowres.bfgcseg_midpoint()
+    lowres_best_dbar, lowres_best_b = lowres.best_fit(use_stress=False)
+    lowres_best_doppel = lineament.lingen_nsr(stresscalc=NSR, init_lon=lowres_init_lon+lowres_best_b, init_lat=lowres_init_lat, prop_dir="both", max_length=lowres.length, seg_len=d_max)
+    lrbd = lowres_best_doppel.lonshift(-lowres_best_b-radians(60))
+    map_ax.plot(np.degrees(lrbd.lons), np.degrees(lrbd.lats), lw=2, color='red')
+    map_ax.scatter(np.degrees(lrbd.lons), np.degrees(lrbd.lats), color='red', s=5)
+
+    the_fig.show()
+
+    print("Performing high-resolution fits (d_max=%g)" % (d_max/inter_res,))
+    highres = lin.lonshift(radians(120))
+    highres.calc_nsrfits(stresscalc=NSR, d_max=d_max/inter_res, nb=nb)
+    ax1.plot(np.degrees(highres.bs), highres.nsrfits(use_stress=False), color='green', lw=2, label="$d_{max}=%g$" % (d_max/inter_res,))
+    ax1.fill_between(np.degrees(highres.bs), highres.nsrfits(use_stress=False), 0, color='green', alpha=0.3)
+    ax1.set_ylim(0,1)
+    ax2 = ax1.twinx()
+    ax2.set_yticks(linspace(0,1.0,11))
+    ax1.set_title("L=%g np=%d <l>=%g" % (lin.length, len(lin.lons), np.median(lin.seg_lengths()) ) )
+    ax1.legend()
+
+    highres_init_lon, highres_init_lat = highres.bfgcseg_midpoint()
+    highres_best_dbar, highres_best_b = highres.best_fit(use_stress=False)
+    highres_best_doppel = lineament.lingen_nsr(stresscalc=NSR, init_lon=highres_init_lon+highres_best_b, init_lat=highres_init_lat, prop_dir="both", max_length=highres.length, seg_len=d_max/inter_res)
+    hrbd = highres_best_doppel.lonshift(-highres_best_b-radians(120))
+    map_ax.plot(np.degrees(hrbd.lons), np.degrees(hrbd.lats), lw=2, color='green')
+    map_ax.scatter(np.degrees(hrbd.lons), np.degrees(hrbd.lats), color='green', s=5)
+    map_ax.scatter([np.mod(np.degrees(init_lon),360),], [np.degrees(init_lat),], color='black', marker='x', s=50)
+
+    the_fig.show()
+#}}}
+
+def test_initdist(lins):
+    """
+    Look at the correlation between the distance between the fracture
+    initiation point and how good a lineament's best fit is.
+
+    """
+
+    init_lons, init_lats = array([ lin.bfgcseg_midpoint() for lin in lins ]).transpose()
+
+    mp_lons_list = []
+    mp_lats_list = []
+    for lin in lins:
+        mp_lons, mp_lats = lin.seg_midpoints()
+        mp_lons_list.append(mp_lons)
+        mp_lats_list.append(mp_lats)
+
+    lin_lengths = array([ lin.length for lin in lins ])
+    d_mins = array([ lineament.spherical_distance(init_lon, init_lat, mp_lons, mp_lats).min() for init_lon,init_lat,mp_lons,mp_lats in zip(init_lons,init_lats,mp_lons_list,mp_lats_list) ])
+    d_mins = d_mins/lin_lengths
+
+    best_fits, best_bs = array([ lin.best_fit(use_stress=False) for lin in lins ]).transpose()
+
+    the_fig = figure(figsize=(10,10))
+    ax1 = the_fig.add_subplot(1,1,1)
+    colors = cm.jet(linspace(0,1,11))
+    ax1.scatter(d_mins,best_fits, s=[100*lin.length for lin in lins],alpha=0.5,lw=0,color='black')
+    ax1.set_xlabel("Normalized dist. from crack init. pt. to prototype feature")
+    ax1.set_ylabel("Quality of best fit ($0 \leq \max(f_{nsr}(b)) \leq 1$)")
+    ax1.grid()
+    ax1.set_title("symbol size proportional to prototype length ($R^2=%g$)" % (corrcoef(d_mins, best_fits)[0][1],))
+    the_fig.show()

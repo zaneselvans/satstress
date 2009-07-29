@@ -146,18 +146,27 @@ class Lineament(object): #{{{1
 
         """
         # Add b to each of self.lons
-        nb = len(self.bs)
         shift_lons = self.lons+b
-        shift_bs = mod(self.bs-b,pi)
-        dtype = [('bs',float),('nsrdbars',float),('nsrstresswts',float)]
-        shift_fits = zeros(nb, dtype=dtype)
-        shift_fits['bs'] = shift_bs
-        shift_fits['nsrdbars'] = self.nsrdbars
-        shift_fits['nsrstresswts'] = self.nsrstresswts
-        shift_fits.sort(order='bs')
+
+        if self.bs is not None:
+            shift_bs = mod(self.bs-b,pi)
+            nb = len(self.bs)
+            dtype = [('bs',float),('nsrdbars',float),('nsrstresswts',float)]
+            shift_fits = zeros(nb, dtype=dtype)
+            shift_fits['bs'] = shift_bs
+            shift_fits['nsrdbars'] = self.nsrdbars
+            shift_fits['nsrstresswts'] = self.nsrstresswts
+            shift_fits.sort(order='bs')
+            new_bs = shift_fits['bs']
+            new_nsrdbars = shift_fits['nsrdbars']
+            new_nsrstresswts = shift_fits['nsrstresswts']
+        else:
+            new_bs = None
+            new_nsrdbars = None
+            new_nsrstresswts = None
+
         return(Lineament(lons=shift_lons, lats=self.lats, stresscalc=self.stresscalc,\
-                         bs=shift_fits['bs'], nsrdbars=shift_fits['nsrdbars'],\
-                         nsrstresswts=shift_fits['nsrstresswts']))
+                         bs=new_bs, nsrdbars=new_nsrdbars, nsrstresswts=new_nsrstresswts))
     #}}}2
 
     def poleshift(self, pnp_lon=0.0, pnp_lat=pi/2): #{{{2
@@ -190,7 +199,7 @@ class Lineament(object): #{{{1
         return(mhd(self, linB))
     #}}}2
 
-    def doppelgen_midpoint_nsr(self, stresscalc=None, doppel_library=None, d_max=0.01): #{{{2
+    def doppelgen_midpoint_nsr(self, stresscalc=None, d_max=0.01): #{{{2
         """
         Find a midpoint, representative of the lineament, and generate a synthetic
         NSR feature there which approximates the feature, for each value of
@@ -215,18 +224,10 @@ class Lineament(object): #{{{1
         init_lons = mp_lon + self.bs
 
         # Now we need to generate doppelgangers, which are perfect synthetic
-        # features that have resulted from the NSR stress field.  There are two
-        # ways to do this.  Either we can calculate them from scratch, which is
-        # highly accurate, but also computationally slow, or we can look up the
-        # closest approximation to the feature's doppelganger in our pre-calculated
-        # library of perfect features.
-        if doppel_library is None:
-            seg_len = min(0.01, self.length/10.0)
-            doppels = [ lingen_nsr(stresscalc=stresscalc, init_lon=init_lon, init_lat=mp_lat,\
-                            max_length=self.length, prop_dir="both", seg_len=seg_len) for init_lon in init_lons ]
-
-        else: # we have a library we can do the lookup in
-            doppels = find_nearest_lins(lins=doppel_library, lons=init_lons, lats=repeat(array([mp_lat,]),len(init_lons)), d_max=d_max)
+        # features that have resulted from the NSR stress field.
+        # ways to do this.
+        doppels = [ lingen_nsr(stresscalc=stresscalc, init_lon=init_lon, init_lat=mp_lat,\
+                        max_length=self.length, prop_dir="both", seg_len=d_max) for init_lon in init_lons ]
 
         return(doppels)
 
@@ -294,7 +295,7 @@ class Lineament(object): #{{{1
 
     #}}}2
 
-    def calc_nsrfits(self, nb=180, stresscalc=None, doppel_library=None, d_max=0.01): #{{{2
+    def calc_nsrfits(self, nb=180, stresscalc=None, d_max=0.01): #{{{2
         """
         For nb evenly spaced values of longitudinal translation, b, ranging
         from 0 to pi, calculate the fit metric (dbar) for the lineament,
@@ -354,7 +355,7 @@ class Lineament(object): #{{{1
 
         self.nsrstresswts = ((tile(w_length,nb)*w_stress)).reshape(nb,nsegs).sum(axis=1)
 
-        doppels = self.doppelgen_midpoint_nsr(stresscalc, doppel_library=doppel_library, d_max=d_max)
+        doppels = self.doppelgen_midpoint_nsr(stresscalc, d_max=d_max)
 
         # Shift all of the doppelgangers such that they are superimposed upon
         # the prototype lineament:
@@ -524,12 +525,7 @@ def lingen_nsr(stresscalc, init_lon=None, init_lat=None, max_length=2*pi, prop_d
             assert(prop_dir == "west")
             prop_az = comp_az + pi
 
-        # this introduces irregularity into the length of the segments, to
-        # avoid having problems with exact integer multiples in doppelganger
-        # generation, etc.
-        newseglen = 2.0*seg_len*random_sample()
-
-        newlon, newlat = spherical_reckon(lons[-1], lats[-1], prop_az, newseglen)
+        newlon, newlat = spherical_reckon(lons[-1], lats[-1], prop_az, seg_len)
 
         # Make sure that our new longitude is within 2*pi in longitude of the
         # previous point in the feature, i.e. don't allow any big
@@ -542,7 +538,7 @@ def lingen_nsr(stresscalc, init_lon=None, init_lat=None, max_length=2*pi, prop_d
         lons = concatenate([lons,array([newlon,])])
         lats = concatenate([lats,array([newlat,])])
 
-        lin_length += newseglen
+        lin_length += seg_len
 
         # Calculate the stresses at the new location
         (tens_mag, tens_az, comp_mag, comp_az) = stresscalc.principal_components(theta=(pi/2.0)-lats[-1], phi=lons[-1], t=0.0)
