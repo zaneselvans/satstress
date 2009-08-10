@@ -1215,10 +1215,8 @@ def LinLatLonStats(goodlins=[], badlins=[], label="", outfile=None): #{{{
     lat_ax.set_ylabel("length [km]")
     lat_ax.legend()
 
-    if outfile is None:
-        the_fig.show()
-    else:
-        the_fig.savefig(outfile)
+    if save_fmt is not None:
+        the_fig.savefig(os.path.join(outfile,'.'+save_fmt))
 
 # end LinLatLonStats }}}
 
@@ -1247,22 +1245,21 @@ def LinLengthDist(lins, label="", outfile=None): #{{{
     # and a list of boolean values saying whether or not it passed:
     best_fit = [ l.best_fit()[0] for l in lins ]
 
-    lengthskept = array([ (linlengths[n],best_fit[n]) for n in range(len(lins)) ], dtype=[('length',float),('best_fit',float)])
-    lengthskept.sort(order='length')
+    len_fits = array([ (linlengths[n],best_fit[n]) for n in range(len(lins)) ], dtype=[('length',float),('best_fit',float)])
+    len_fits.sort(order='length')
 
     the_fig = figure(figsize=(9,3))
     plot_ax = the_fig.add_subplot(1,1,1)
-    plot_ax.plot(lengthskept['length'], color='black', linewidth=2)
-    plot_ax.fill_between(range(len(lengthskept)), zeros(len(lengthskept)), lengthskept['length'], where=lengthskept['best_fit'], facecolor=lengthskept['best_fit'])
+    plot_ax.plot(len_fits['length'], color='black', linewidth=2)
+    plot_ax.fill_between(np.arange(len(lins)), len_fits['length'], color='gray')
     plot_ax.set_title(label + ' Length Distribution')
     plot_ax.set_xlabel('N')
     plot_ax.set_ylabel('lineament length [km]')
+    plot_ax.set_xlim(0,len(lins)-1)
+    plot_ax.grid()
 
-    if outfile is None:
-        the_fig.show()
-    else:
-        the_fig.savefig(outfile)
-
+    if save_fmt is not None:
+        the_fig.savefig(os.path.join(outfile,'.'+save_fmt))
 #}}}
 
 def ActHist_ByLength(lins, dbar_max=0.125, norm_by_all=True): #{{{
