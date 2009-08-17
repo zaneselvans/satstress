@@ -6,6 +6,7 @@ Routines for comparing a set of lineaments to an NSR stress field.
 
 from . import lineament
 from . import satstress
+from . import stressplot
 from pylab import *
 from matplotlib import colors, colorbar
 from mpl_toolkits.basemap import Basemap
@@ -24,7 +25,7 @@ figdir = os.path.join('output','figs')
 lindir = os.path.join('output','lins')
 
 # Format to save the figures in.  If None, don't save:
-save_fmt = None
+save_fmt = 'pdf'
 
 ###############################################################################
 #  Helper functions for generating, sampling, saving, and loading lineaments  #
@@ -993,40 +994,38 @@ def makefigs(dbar_max=0.125, maps=False, hists=False, examples=False, stats=Fals
         lindensity = True # works
         examples = True   # works
         hists = True      # works
-        stats = True      # LinLengthDist colors are funny; LinLatLonStats doesn't work
+        stats = True      # works
         maps = True       # works
         tpw = True        # works
 
     maplins, synthlins, crazylins, gclins, tpwlins = reload_nsrfits()
 
+    if stress is True: #{{{2
+        StressFieldNSR(outfile='StressFieldNSR')
+
+    #}}}2
+
     if maps is True: #{{{2
         print("Plotting Mapped Lineaments")
-        FitMap(maplins, nbins=9, titlestr="Global Lineaments as Mapped", dbar_max=dbar_max,\
-               outfile=path.join(figdir,'FitMap_Mapped'))
+        FitMap(maplins, nbins=9, titlestr="Global Lineaments as Mapped", dbar_max=dbar_max, outfile='FitMap_Mapped')
 
         print("Plotting Randomized Mapped Lineaments")
-        FitMap(crazylins, nbins=9, titlestr="Randomized Global Lineaments", dbar_max=dbar_max,\
-               outfile=path.join(figdir,'FitMap_Crazy'))
+        FitMap(crazylins, nbins=9, titlestr="Randomized Global Lineaments", dbar_max=dbar_max, outfile='FitMap_Crazy')
 
         print("Plotting Pre-TPW Lineaments, fit to NSR stresses")
-        FitMap(tpwlins, nbins=9, titlestr="Mapped Lineaments before TPW w/ PNP=80E10N", dbar_max=dbar_max,\
-               outfile=path.join(figdir,'FitMap_PreTPW'))
+        FitMap(tpwlins, nbins=9, titlestr="Mapped Lineaments before TPW w/ PNP=80E10N", dbar_max=dbar_max, outfile='FitMap_PreTPW')
 
         print("Plotting random great circle segments")
-        FitMap(gclins, nbins=9, titlestr="Random Great Circle Segments", dbar_max=dbar_max,\
-               outfile=path.join(figdir,'FitMap_GreatCircle'))
+        FitMap(gclins, nbins=9, titlestr="Random Great Circle Segments", dbar_max=dbar_max, outfile='FitMap_GreatCircle')
 
         print("Plotting synthetic NSR lineaments")
-        FitMap(synthlins, titlestr="Perfect Synthetic NSR Lineaments for b=0", dbar_max=dbar_max,\
-               outfile=path.join(figdir,'FitMap_SyntheticNSR'))
+        FitMap(synthlins, titlestr="Perfect Synthetic NSR Lineaments for b=0", dbar_max=dbar_max, outfile='FitMap_SyntheticNSR')
 
         print("Plotting Mapped Lineaments, relative to stress field")
-        FitMap(maplins, nbins=9, titlestr="Mapped Lineaments Backrotated for Best Fit", dbar_max=dbar_max, derotate=True, showbad=False,\
-               outfile=path.join(figdir,'FitMap_Derotated'))
+        FitMap(maplins, nbins=9, titlestr="Mapped Lineaments Backrotated for Best Fit", dbar_max=dbar_max, derotate=True, showbad=False, outfile='FitMap_Derotated')
 
         print("Plotting Derotated Great Circle Segments")
-        FitMap(gclins, nbins=9, titlestr="Random Great Circle Segments Backrotated for Best Fit", dbar_max=dbar_max, derotate=True, showbad=False,\
-               outfile=path.join(figdir,'FitMap_DerotatedGC'))
+        FitMap(gclins, nbins=9, titlestr="Random Great Circle Segments Backrotated for Best Fit", dbar_max=dbar_max, derotate=True, showbad=False, outfile='FitMap_DerotatedGC')
     #}}}2
 
     if hists is True: #{{{2
@@ -1112,13 +1111,6 @@ def makefigs(dbar_max=0.125, maps=False, hists=False, examples=False, stats=Fals
 
         DbarLengthCorr(gclins)
         DbarSinuosityCorr(maplins)
-
-        LinLatLonStats(maplins,   label="Lineaments as Mapped",             outfile='LinStats_Mapped')
-        LinLatLonStats(gclins,    label="Great Circle Segments",            outfile='LinStats_GreatCircle')
-        LinLatLonStats(tpwlins,   label="pre-TPW Lineaments (pole=80E10N)", outfile='LinStats_PreTPW')
-        LinLatLonStats(synthlins, label="Synthetic NSR Lineaments",         outfile='LinStats_SyntheticNSR')
-        LinLatLonStats(maplins,   label="Derotated Lineaments",             outfile='LinStats_Derotated')
-        LinLatLonStats(crazylins, label="Randomized Lineaments",            outfile='LinStats_Jackstraws')
     #}}}2
 
     if lindensity is True: #{{{2
@@ -1132,93 +1124,58 @@ def makefigs(dbar_max=0.125, maps=False, hists=False, examples=False, stats=Fals
 
     #}}}2
 
-    if stress is True: #{{{
-        # need to generate maps of the NSR stresses which are behind all of
-        # this stuff... GridCalc here we come!
-        pass
-
-    #}}}2
-
 # end makefigs }}}
 
-def LinLatLonStats(goodlins=[], badlins=[], label="", outfile=None): #{{{
-    """
-    Shows the distribution of latitudes and longitudes of the lineament
-    segments over the surface of the satellite, relative to an expected random
-    distribution.
+def StressFieldNSR(scalar_field='w_stress', cmap=cm.gray, outfile=None, plot_tens=True, plot_comp=True, plot_lesser=True, plot_greater=True): #{{{
 
-    """
+    min_lon = np.radians(0.0)
+    max_lon = np.radians(180.0)
+    min_lat = np.radians(0.0)
+    max_lat = np.radians(90.0)
 
-    good_lat_pile = []
-    good_lon_pile = []
-    bad_lat_pile  = []
-    bad_lon_pile  = []
-    sat_radius_km = 1561
+    scalar_nlons = 300
+    scalar_nlats = scalar_nlons*(max_lat-min_lat)/(max_lon-min_lon)
 
-    dbar_max = max([ max(lin.nsrdbars) for lin in goodlins if max(lin.nsrdbars) > 0 ])
+    satfile="input/ConvectingEuropa_GlobalDiurnalNSR.ssrun"
+    europa = satstress.Satellite(open(satfile,'r'))
+    NSR = satstress.StressCalc([satstress.NSR(europa),])
 
-    good_length = sum([ lin.length for lin in goodlins ])*sat_radius_km
-    bad_length = sum([ lin.length for lin in badlins ])*sat_radius_km
+    the_fig = figure(figsize=(11,5))
+    map_ax  = the_fig.add_subplot(1,1,1)
+    map_ax.set_title("Tidal Stresses due to NSR")
+    grid_basemap = Basemap(llcrnrlon = np.degrees(min_lon),\
+                             llcrnrlat = np.degrees(min_lat),\
+                             urcrnrlon = np.degrees(max_lon),\
+                             urcrnrlat = np.degrees(max_lat),\
+                                    ax = map_ax)
 
-    total_length = good_length + bad_length
+    field_data = stressplot.scalar_grid(stresscalc=NSR, nlons=scalar_nlons, nlats=scalar_nlats, min_lon=min_lon, max_lon=max_lon, min_lat=min_lat, max_lat=max_lat,\
+                                        field=scalar_field, cmap=cmap, basemap_ax=grid_basemap)
+    vector_nlons = 13
+    vector_nlats = 7
 
-    for goodlin in goodlins:
-        goodsegments  = goodlin.segments()
-        goodmidpoints = goodlin.midpoints()
-        good_seg_lens = [ int(round(sat_radius_km*seg.calc_length())) for seg in goodsegments ]
+    vector_lons  = np.linspace(min_lon, max_lon, vector_nlons)
+    vector_lats  = np.linspace(min_lat, max_lat, vector_nlats)
+    vector_mesh_lons, vector_mesh_lats = np.meshgrid(vector_lons, vector_lats)
+    vector_mesh_lons = np.ravel(vector_mesh_lons)
+    vector_mesh_lats = np.ravel(vector_mesh_lats)
 
-        for mp,seg_len in zip(goodmidpoints,good_seg_lens):
-            good_lon_pile += [mp[0],]*seg_len
-            good_lat_pile += [mp[1],]*seg_len
+    stressplot.vector_points(stresscalc=NSR, lons=vector_mesh_lons, lats=vector_mesh_lats, time_t=0.0, basemap_ax=grid_basemap, arrow_width=0.0015,\
+                             plot_tens=plot_tens, plot_comp=plot_comp, plot_lesser=plot_lesser, plot_greater=plot_greater)
 
-    for badlin in badlins:
-        badsegments   = badlin.segments()
-        badmidpoints  = badlin.midpoints()
-        bad_seg_lens = [ int(round(sat_radius_km*seg.calc_length())) for seg in badsegments ]
+    grid_basemap.drawmeridians(np.degrees(np.linspace(min_lon, max_lon, 7)), labels=[1,0,0,1], linewidth=0.5, color='gray')
+    grid_basemap.drawparallels(np.degrees(np.linspace(min_lat, max_lat, 7)), labels=[1,0,0,1], linewidth=0.5, color='gray')
+    grid_basemap.drawmapboundary()
 
-        for mp,seg_len in zip(badmidpoints,bad_seg_lens):
-            bad_lon_pile += [mp[0],]*seg_len
-            bad_lat_pile += [mp[1],]*seg_len
+    # Need some kind of scale bar for the scalar field in the background:
+    cb_ax,kw = colorbar.make_axes(map_ax, orientation='vertical')
+    colorbar.ColorbarBase(cb_ax, cmap=cmap, norm=colors.Normalize(vmin=0.0,vmax=np.max(field_data)), orientation='vertical', format='%.2f')
+    cb_ax.set_ylabel("w_stress")
 
-    the_fig = figure(figsize=(12,8))
-    lon_ax = the_fig.add_subplot(2,1,1)
-    lon_ax.set_title(r'%s max($\delta_{rms}$)=%.0f$^\circ$ max($\bar{D}$)=%.0g' % (label, degrees(delta_max), dbar_max) )
-    if len(bad_lon_pile) > 0:
-        lins_n, lin_bins, lins_patches = lon_ax.hist([mod(degrees(good_lon_pile),180),mod(degrees(bad_lon_pile),180)],\
-                                                     bins=90, range=(0,180), label="passed", histtype='barstacked', rwidth=1.0, facecolor='#666666')
-        lins_patches[1][0].set_label("failed")
-        for patch in lins_patches[1]:
-            patch.set_facecolor('#CCCCCC')
-    else:
-        lon_ax.hist(mod(degrees(good_lon_pile),180), bins=90, range=(0,180), label="passed", histtype='barstacked', rwidth=1.0, facecolor='#666666')
+    if save_fmt is not None and outfile is not None:
+        the_fig.savefig(os.path.join(figdir,outfile+'.'+save_fmt))
 
-    lon_ax.set_xlim(0,180)
-    lon_ax.axhline(y=total_length/90.0, color='black', linewidth=3, linestyle='--', label="random")
-    lon_ax.set_xticks(linspace(0,180,7))
-    lon_ax.set_xlabel("longitude (modulo $\pi$)")
-    lon_ax.set_ylabel("length [km]")
-
-    lat_ax = the_fig.add_subplot(2,1,2)
-    if len(bad_lat_pile) > 0:
-        lins_n, lin_bins, lins_patches = lat_ax.hist([abs(degrees(good_lat_pile)),abs(degrees(bad_lat_pile))],\
-                                                     bins=90, range=(0,90), label="passed", histtype='barstacked', rwidth=1.0, facecolor='#666666')
-        lins_patches[1][0].set_label("failed")
-        for patch in lins_patches[1]:
-            patch.set_facecolor('#CCCCCC')
-    else:
-        lat_ax.hist(abs(degrees(good_lat_pile)), bins=90, range=(0,90), label="passed", histtype='barstacked', rwidth=1.0, facecolor='#666666')
-    lat_ax.set_xlim(0,90)
-    lats = linspace(0,pi/2,100)
-    lat_ax.plot(degrees(lats), (total_length/90)*(cos(lats))*pi/2, color='black', linestyle='--', linewidth=3, label="random")
-    lat_ax.set_xticks(linspace(0,90,7))
-    lat_ax.set_xlabel("abs(latitude)")
-    lat_ax.set_ylabel("length [km]")
-    lat_ax.legend()
-
-    if save_fmt is not None:
-        the_fig.savefig(os.path.join(outfile,'.'+save_fmt))
-
-# end LinLatLonStats }}}
+#}}} end StressFieldNSR
 
 def LinLengthDist(lins, label="", outfile=None): #{{{
     """
@@ -1258,7 +1215,7 @@ def LinLengthDist(lins, label="", outfile=None): #{{{
     plot_ax.set_xlim(0,len(lins)-1)
     plot_ax.grid()
 
-    if save_fmt is not None:
+    if save_fmt is not None and outfile is not None:
         the_fig.savefig(os.path.join(outfile,'.'+save_fmt))
 #}}}
 
@@ -1453,6 +1410,89 @@ def ActHist_Synthesized(maplins, nbins=20, N=100, peak_frac=0.4, scale=np.radian
     activity_history(maps, labels=labels, colors=colors, alphas=alphas, the_fig=the_fig, verbose=False, outfile='ActHist_Synthesized' )
 #}}}
 
+def FitMap(lins, titlestr="Features colored by fit", lin_cm=cm.jet, nbins=9, stresscentric=False, outfile=None, dbar_max=0.125, showbad=True, derotate=False): #{{{
+    """
+    Creates a global map of the lineaments, color coding them by what amount of
+    backrotation (b) minimizes delta_rms(b) when compared to the NSR stress
+    field.  Lineament width indicates the value of min(delta_rms(b)), with
+    wider lineaments agreeing better with NSR stresses.
+
+    Those lineaments which did not meet the criteria for inclusion in the
+    analysis are plotted thin and black.
+
+    """
+
+    # We can't both derotate and show the bad features, since bad features
+    # don't necessarily have a best fit backrotation
+    if derotate is True:
+        showbad = False
+
+    lin_cm = colors.ListedColormap(lin_cm(linspace(0,1,nbins)))
+    sat_radius_km = lins[0].stresscalc.stresses[0].satellite.radius()/1000
+
+    the_fig = figure(figsize=(12,8))
+    if stresscentric:
+        llcrnrlon=0
+        llcrnrlat=0
+        urcrnrlon=180
+        urcrnrlat=90
+        lat_mirror=True
+        gridspace=15
+    else:
+        llcrnrlon=0
+        llcrnrlat=-90
+        urcrnrlon=360
+        urcrnrlat=90
+        lat_mirror=False
+        gridspace=30
+
+    lon_cyc=abs(radians(llcrnrlon-urcrnrlon))
+    linfitmap = Basemap(llcrnrlon=llcrnrlon,llcrnrlat=llcrnrlat,urcrnrlon=urcrnrlon,urcrnrlat=urcrnrlat)
+    linfitmap.drawmeridians(range(llcrnrlon,urcrnrlon+1,gridspace), labels=[1,0,0,1])
+    linfitmap.drawparallels(range(llcrnrlat,urcrnrlat+1,gridspace), labels=[1,0,0,1])
+    map_ax = the_fig.axes[0]
+
+    for lin in lins:
+        if len(lin.bs) > 0:
+            backrot = 0
+            # load some information about the lineament's best fit:
+            best_fit, best_b = lin.best_fit(dbar_max=dbar_max)
+
+            if best_fit > 0.0:
+                if derotate:
+                    backrot = best_b
+                # Map the color of the lineament to its best_b
+                lin_color = lin_cm(int((lin_cm.N)*(best_b/pi)))
+                # use line width to indicate goodness of best_fit
+                lin_width = 1.0 + 5.0*best_fit
+
+            elif showbad:
+                lin_width = 1.0
+                lin_color = 'black'
+
+            else:
+                continue
+
+            if backrot == 0:
+                lin2plot = lin
+            else:
+                lin2plot = lineament.Lineament(lons=lin.lons+backrot, lats=lin.lats)
+
+            newline, linfitmap = lineament.plotlinmap([lin2plot,], map=linfitmap, linewidth=lin_width, color=lin_color, lon_cyc=lon_cyc, lat_mirror=lat_mirror)
+
+    map_ax.set_title(titlestr)
+    cb_ax,kw = colorbar.make_axes(map_ax, orientation="horizontal", pad=0.05, shrink=0.5)
+    colorbar.ColorbarBase(cb_ax, cmap=lin_cm, orientation="horizontal", norm=colors.BoundaryNorm(linspace(0,180,nbins+1),nbins), format=r'%.0f$^\circ$')
+    # Fix up the colorbar a bit:
+    cb_ax.invert_xaxis()
+    cb_ax.set_xlabel("backrotation b")
+
+    the_fig.show()
+    if outfile is not None and save_fmt is not None:
+        the_fig.savefig(os.path.join(figdir,outfile+'.'+save_fmt))
+
+# end FitMap }}}
+
 def ActHist_AmpProb(maplins, tpwlins, synthlins): #{{{
     """
     Create a figure showing the likelihood of getting various activity history
@@ -1504,7 +1544,7 @@ def ActHist_AmpProb(maplins, tpwlins, synthlins): #{{{
     hist_ax.legend(loc='upper right')
     hist_ax.grid()
 
-    if save_fmt is not None:
+    if save_fmt is not None and outfile is not None:
         the_fig.savefig('output/ActHist_AmpProb.'+save_fmt)
 
 #}}}
@@ -1541,7 +1581,7 @@ def DbarLengthCorr(lins): #{{{
     ax1.set_title('Effects of length and latitude on fit to NSR for great circle segments, N=%d'\
                    % (len(hilatlins)+len(lolatlins)) )
 
-    if save_fmt is not None:
+    if save_fmt is not None and outfile is not None:
         the_fig.savefig(os.path.join(figdir,'DbarLengthCorr.'+save_fmt))
 
 # end DbarLengthCorr}}}
@@ -1576,7 +1616,7 @@ def DbarSinuosityCorr(lins): #{{{
     ax1.set_title('Effects of sinuosity and latitude on fit to NSR for all mapped features, N=%d'\
                    % (len(hilatlins)+len(lolatlins)) )
 
-    if save_fmt is not None:
+    if save_fmt is not None and outfile is not None:
         the_fig.savefig(os.path.join(figdir,'DbarLengthCorr.'+save_fmt))
 
 # end DbarSinuosityCorr }}}
@@ -1739,7 +1779,7 @@ def LinDensityMap(lins, maxdist=500, N=0, label="", cmap=cm.jet): #{{{
         lin_rast_corr_ax.set_ylim(0,lindensity.max())
         lin_rast_corr_ax.set_xlim(0,randsamples.max())
 
-        if save_fmt is not None:
+        if save_fmt is not None and outfile is not None:
             rastfig.savefig(os.path.join(figdir,outfile+'.'+save_fmt))
 #}}} end LinDensityMap
 
@@ -1786,6 +1826,6 @@ def FitCurveExamples(lins, labels=[], outfile=None, dbar_max=0.125): #{{{
 
     eg_map_ax.set_title(r'Example Lineaments and Fit Probabilities')
 
-    if save_fmt is not None:
+    if save_fmt is not None and outfile is not None:
         the_fig.savefig(outfile)
 #}}}
