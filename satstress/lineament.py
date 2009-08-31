@@ -199,35 +199,39 @@ class Lineament(object): #{{{1
         return(mhd(self, linB))
     #}}}2
 
-    def doppelgen_midpoint_nsr(self, stresscalc=None, d_max=0.01): #{{{2
+    def doppelgen_midpoint_nsr(self, stresscalc=None, init_doppel_res=0.0, doppel_res=0.1, num_subsegs=10): #{{{2
         """
         Find a midpoint, representative of the lineament, and generate a synthetic
         NSR feature there which approximates the feature, for each value of
         backrotation (b, longitudinal shift) stored in self.bs.  Return those
         doppelgangers as a list.
 
+        doppel_res determines the resolution of the doppelgangers.  A smaller
+        number means lower resolution.  doppel_res=1.0 means the mean segment
+        length is the same as the prototype lineament.  doppel_res=2.0 would
+        mean the mean segment length of the prototype lineament is twice that
+        of the doppelganger, etc.
+
+        If init_doppel_res is <= 0.0 then initial doppelgangers are not
+        generated, and the midpoint of the great circle segment is used as the
+        initiation point instead, saving considerable computation.
+
         """
-        if stresscalc is None:
-            stresscalc=self.stresscalc
 
-        # Figure out where to initiate the formation of the doppelganger:
-        ep1_lon, ep1_lat, ep2_lon, ep2_lat = self.bfgcseg_endpoints()
-        mp_lon, mp_lat = spherical_midpoint(ep1_lon, ep1_lat, ep2_lon, ep2_lat)
-
-        # Set the max_length of the doppelganger to be the length of the best
-        # fit great circle, and not the prototype, since NSR features are almost
-        # perfectly straight.
-        max_length = spherical_distance(ep1_lon, ep1_lat, ep2_lon, ep2_lat)
-
-        # Create an array of all the midpoints at which we need to generate
-        # doppelgangers, given the our b values.
-        init_lons = mp_lon + self.bs
+        mean_seg_len = (self.length/(len(self.lons)-1))
+        doppel_seg_len = mean_seg_len/doppel_res
+        if init_doppel_res > 0.0:
+            init_doppel_seg_len = mean_seg_len/init_doppel_res
+            init_lons, init_lats, bfgc_len = best_nsr_init_points(self, stresscalc, seg_len=init_doppel_seg_len, num_subsegs=num_subsegs)
+        else:
+            bfgc_ep1_lon, bfgc_ep1_lat, bfgc_ep2_lon, bfgc_ep2_lat, bfgc_mp_lon, bfgc_mp_lat, bfgc_len = self.bfgcseg()
+            init_lons = self.bs + bfgc_mp_lon
+            init_lats = array([bfgc_mp_lat,]).repeat(len(self.bs))
 
         # Now we need to generate doppelgangers, which are perfect synthetic
         # features that have resulted from the NSR stress field.
-        # ways to do this.
-        doppels = [ lingen_nsr(stresscalc=stresscalc, init_lon=init_lon, init_lat=mp_lat,\
-                        max_length=self.length, prop_dir="both", seg_len=d_max) for init_lon in init_lons ]
+        doppels = [ lingen_nsr(stresscalc=stresscalc, init_lon=init_lon, init_lat=init_lat,\
+                        max_length=bfgc_len, prop_dir="both", seg_len=doppel_seg_len, num_subsegs=num_subsegs) for init_lon,init_lat in zip(init_lons,init_lats) ]
 
         return(doppels)
 
@@ -295,7 +299,26 @@ class Lineament(object): #{{{1
 
     #}}}2
 
-    def calc_nsrfits(self, nb=180, stresscalc=None, d_max=0.01): #{{{2
+    def bfgcseg(self): #{{{2
+        """
+        Find the best fit great circle segment representing the lineament and
+        return some information about it as a tuple in the following order:
+
+        (ep1_lon, ep1_lat, ep2_lon, ep2_lat, mp_lon, mp_lat, bfgcseg_length)
+
+        where ep1_lon, ep1_lat, ep2_lon, ep2_lat, are the lons and lats of the
+        two endpoints, mp_lon and mp_lat are the lon and lat of the midopint,
+        and seg_length is the geodesic distance from one end to the other.
+
+        """
+        ep1_lon, ep1_lat, ep2_lon, ep2_lat = self.bfgcseg_endpoints()
+        mp_lon, mp_lat = spherical_midpoint(ep1_lon, ep1_lat, ep2_lon, ep2_lat)
+        bfgcseg_length = spherical_distance(ep1_lon, ep1_lat, ep2_lon, ep2_lat)
+
+        return(ep1_lon, ep1_lat, ep2_lon, ep2_lat, mp_lon, mp_lat, bfgcseg_length)
+    #}}}2
+
+    def calc_nsrfits(self, nb=180, stresscalc=None, init_doppel_res=0.0, doppel_res=0.1, num_subsegs=10): #{{{2
         """
         For nb evenly spaced values of longitudinal translation, b, ranging
         from 0 to pi, calculate the fit metric (dbar) for the lineament,
@@ -315,10 +338,10 @@ class Lineament(object): #{{{1
 
         Generate a synthetic lineament meant to replicate the feature (a
         doppelganger) by using the NSR stress field, and a starting point near
-        the center of the feature (at the midpoint of a great circle segment
-        approximating the feature).  Calculate the mean Hausdorff distance
-        (MHD) between the prototype (self) and this doppelganger for every
-        value of b, and store the results in self.nsrdbars.
+        the center of the feature.  Calculate the mean Hausdorff distance (MHD)
+        between the prototype (self) and this doppelganger for every value of
+        b, normalized by the feature's length, and store the results in
+        self.nsrdbars.
 
         """
 
@@ -355,7 +378,7 @@ class Lineament(object): #{{{1
 
         self.nsrstresswts = ((tile(w_length,nb)*w_stress)).reshape(nb,nsegs).sum(axis=1)
 
-        doppels = self.doppelgen_midpoint_nsr(stresscalc, d_max=d_max)
+        doppels = self.doppelgen_midpoint_nsr(stresscalc, init_doppel_res=init_doppel_res, doppel_res=doppel_res, num_subsegs=num_subsegs)
 
         # Shift all of the doppelgangers such that they are superimposed upon
         # the prototype lineament:
@@ -404,6 +427,18 @@ class Lineament(object): #{{{1
         best_b = float(self.bs[where(fabs(nsrfits-best_fit) < 1e-9)[0][0]])
 
         return(best_fit, best_b)
+    
+    def best_dbar(self):
+        """
+        Return the lineament's smallest dbar, and the value of b at which it occurs
+
+        """
+
+        best_dbar = min(self.nsrdbars)
+        best_b = float(self.bs[where(fabs(self.nsrdbars-best_dbar) < 1e-9)[0][0]])
+
+        return(best_dbar, best_b)
+
     #}}}2
 
     def bfgc_pole(self): #{{{2
@@ -487,7 +522,7 @@ class Lineament(object): #{{{1
 ################################################################################
 # Helpers having to do with fit metrics or lineament generation.
 ################################################################################
-def lingen_nsr(stresscalc, init_lon=None, init_lat=None, max_length=2*pi, prop_dir="both", seg_len=0.01): # {{{
+def lingen_nsr(stresscalc, init_lon=None, init_lat=None, max_length=2*pi, prop_dir="both", seg_len=0.01, num_subsegs=10): # {{{
     """
     Generate a synthetic NSR feature, given a starting location, maximum
     length, propagation direction, and a step size on the surface.
@@ -525,18 +560,23 @@ def lingen_nsr(stresscalc, init_lon=None, init_lat=None, max_length=2*pi, prop_d
             assert(prop_dir == "west")
             prop_az = comp_az + pi
 
-        newlon, newlat = spherical_reckon(lons[-1], lats[-1], prop_az, seg_len)
+        # in order to ensure that the distance between the points representing the feature
+        # is unlikely to be the determining factor in how well it compares to another
+        # feature, the great-circle segment making up the feature is broken down into many
+        # pieces.  This is done by passing in a list of distances to spherical reckon, instead
+        # of just a single distance, with the linspace(0,seg_len,num_subsegs).
+        newlons, newlats = spherical_reckon(lons[-1], lats[-1], prop_az, linspace(0,seg_len,num_subsegs))
 
         # Make sure that our new longitude is within 2*pi in longitude of the
         # previous point in the feature, i.e. don't allow any big
         # discontinuities (this is a hack to deal with longitude cyclicity)
-        while (abs(newlon - lons[-1]) > abs((newlon - 2*pi) - lons[-1])):
-            newlon = newlon - 2*pi
-        while (abs(newlon - lons[-1]) > abs((newlon + 2*pi) - lons[-1])):
-            newlon = newlon + 2*pi
+        while (abs(newlons[-1] - lons[-1]) > abs((newlons[-1] - 2*pi) - lons[-1])):
+            newlons = newlons - 2*pi
+        while (abs(newlons[-1] - lons[-1]) > abs((newlons[-1] + 2*pi) - lons[-1])):
+            newlons = newlons + 2*pi
         
-        lons = concatenate([lons,array([newlon,])])
-        lats = concatenate([lats,array([newlat,])])
+        lons = concatenate([lons,newlons])
+        lats = concatenate([lats,newlats])
 
         lin_length += seg_len
 
@@ -544,13 +584,31 @@ def lingen_nsr(stresscalc, init_lon=None, init_lat=None, max_length=2*pi, prop_d
         (tens_mag, tens_az, comp_mag, comp_az) = stresscalc.principal_components(theta=(pi/2.0)-lats[-1], phi=lons[-1], t=0.0)
 
     # if we only got a single point, then we failed to initiate a fracture, and
-    # should not even try to make the second half.
-    if not done and len(lons) > 1:
-        second_half = lingen_nsr(stresscalc, init_lon=init_lon, init_lat=init_lat, max_length=max_length, prop_dir="west", seg_len=seg_len)
-        # the second_half lat/lon arrays are in reversed order here to preserve
-        # the overall directionality of the vertices (see Numpy fancy slicing):
-        lons = concatenate([second_half.lons[:0:-1], lons])
-        lats = concatenate([second_half.lats[:0:-1], lats])
+    # should not even try to make the second part.
+    if len(lons) > 1:
+        # because seg_len may be a significant portion of the length of the
+        # feature, it's easy to end up with something that's a bit too long,
+        # and because we're interpolating vertices between the actual stress
+        # calculations, it's easy to trim the feature down to be as close to
+        # the target length as possible:
+        first_part = Lineament(lons=lons, lats=lats, stresscalc=stresscalc)
+        length_to_trim = first_part.length - max_length
+
+        if length_to_trim > 0:
+            subseg_len = seg_len/num_subsegs
+            nv2t = np.int(length_to_trim/subseg_len)
+            if nv2t > 0:
+                lons = first_part.lons[:-nv2t]
+                lats = first_part.lats[:-nv2t]
+
+        if not done:
+            second_part = lingen_nsr(stresscalc, init_lon=init_lon, init_lat=init_lat, max_length=max_length, prop_dir="west", seg_len=seg_len, num_subsegs=num_subsegs)
+            # the second_part lat/lon arrays are in reversed order here to preserve
+            # the overall directionality of the vertices (see Numpy fancy slicing).
+            # also, we don't want to include the midpoint twice, so we only use up through the
+            # next-to-last point in the reversed second part.
+            lons = concatenate([second_part.lons[:0:-1], lons])
+            lats = concatenate([second_part.lats[:0:-1], lats])
 
     return(Lineament(lons=lons, lats=lats, stresscalc=stresscalc))
 
@@ -587,16 +645,9 @@ def lingen_greatcircle(init_lon, init_lat, fin_lon, fin_lat, seg_len=0.01): #{{{
     """
 
     gc_length  = spherical_distance(init_lon, init_lat, fin_lon, fin_lat)
-
     # this forces each feature to have at least 10 segments
     num_segs = max(10, gc_length/seg_len)
-
-    # randomizing the lengths of the segments in order to prevent creation of
-    # artifacts in the fit curves.
-    shape(gc_length)
-    shape(gc_length*random(num_segs))
-    seg_dists = concatenate([[0,],sort(gc_length*random(num_segs)),ravel(array([gc_length,]))])
-
+    seg_dists = linspace(0,gc_length,num_segs)
     init_az    = spherical_azimuth(init_lon, init_lat, fin_lon, fin_lat)
     lons, lats = spherical_reckon(init_lon, init_lat, init_az, seg_dists)
     return(Lineament(lons=lons, lats=lats))
@@ -680,6 +731,72 @@ def find_nearest_lins(lins=None, lons=None, lats=None, d_max=0.01): #{{{
 
     return(nearest_lins)
 #}}}
+
+def mhd_by_lat(init_lat, init_lon, stresscalc, seg_len, num_subsegs, lin, max_length, lonshift): #{{{
+    """
+    A function to be used with optimizers, for finding the best latitude at
+    which to initiate a synthetic NSR feature, given a longitude (init_lon),
+    the lineament it is meant to replicate (lin), the stress field to use
+    (stresscalc) the number of segments the doppelgangers should have (nsegs),
+    the maximum length for the synthetic features (max_length) and how far away
+    in longitude from the lineament's true (mapped) location the synthesis is
+    happening so that they can be shifted to the same longitude for shape
+    comparison (lonshift)
+
+    """
+
+    # generate a doppelganger at the given location
+    doppel = lingen_nsr(stresscalc=stresscalc, init_lon=init_lon+lonshift, init_lat=init_lat, seg_len=seg_len, num_subsegs=num_subsegs, max_length=max_length)
+    doppel.lons -= lonshift
+
+    # calculate and return the MHD from the prototype to it
+    return(mhd(lin, doppel))
+
+#}}} end mhd_by_lat()
+
+def best_nsr_init_points(lin, stresscalc=None, seg_len=0.01, num_subsegs=10): #{{{
+    """
+    Given a lineament and a stresscalc object, find the best latitude at which
+    to initiate tensile cracking when generating NSR doppelgangers.  Find one
+    latitude for each value of lin.bs, and return both the lons and the lats
+    found.
+
+    Also returns max_length, which is the target length for the doppelgangers,
+    based on the length of the best fit great circle segment representing lin.
+
+    """
+    from scipy.optimize import brent
+
+    if stresscalc is None:
+        stresscalc=lin.stresscalc
+
+    # Figure out where to initiate the formation of the doppelganger:
+    ep1_lon, ep1_lat, ep2_lon, ep2_lat = lin.bfgcseg_endpoints()
+    mp_lon, mp_lat = spherical_midpoint(ep1_lon, ep1_lat, ep2_lon, ep2_lat)
+
+    # Set the max_length of the doppelganger to be the length of the best
+    # fit great circle, and not the prototype, since NSR features are almost
+    # perfectly straight.
+    max_length = spherical_distance(ep1_lon, ep1_lat, ep2_lon, ep2_lat)
+
+    # The simplest thing to do now, in choosing the initiation point is
+    # just to use (mp_lon, mp_lat), but that point won't always be very
+    # close to the mapped feature.  The separation between the initiation
+    # point and the mapped lineament ends up being a strong determinant of
+    # how good of a fit can be attained ultimately for those features which
+    # fit NSR well.  This isn't really acceptable.  One way to get around
+    # this would be to use the longitude of the bfgc, and try several
+    # different latitudes, choosing the one which generates the best
+    # doppelganger.
+    
+    # Now we use the Brent scalar function optimizer to search to find the
+    # right latitude for each of those longitudes.
+    init_lats = []
+    for b in lin.bs:
+        init_lats.append(brent(mhd_by_lat, args=(mp_lon, stresscalc, seg_len, num_subsegs, lin, max_length, b), full_output=1)[0])
+
+    return(lin.bs+mp_lon, init_lats, max_length)
+#}}} end best_nsr_init_points
 
 ################################################################################
 # Helpers having to do with spherical geometry
