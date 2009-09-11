@@ -19,36 +19,93 @@
 #     - solid if kept
 #     - dotted if removed
 #
-# * Come up with a set of relatively simple sorting test cases just to make
-#   sure that the old code does what it's supposed to.
-#
+# ============================================================================== 
 # Things GSNs need to do (v1.0):
-# ===========================================
+# ============================================================================== 
 # Given:
 #   - a list of Lineament objects, ordered by time of formation
 # Generate:
-#   - ordered lists of intersections along each lineament
-#     (This is actually the primary dataset)
-#     - location (lon,lat)
-#     - z-order (bottomlin_id, toplin_id)
-#     - confidence of intersection (0 < K < 1)
-#   - unweighted GSN corresponding to that map
+#   - an ordered list of intersections for each lineament, where an
+#     "intersection" consists of:
+#     - a location (lon,lat)
+#     - a z-order pair (bottomlin, toplin)
+#     - a confidence weighting (0 <= K <= 1)
 # Why:
 #   - allows easy creation of test datasets
+#   - more sensible structure for dealing with geography
 #
-# Given a GSN:
-#   - enumerate all the simple cycles
-#     - may need to use a confidence cutoff to keep it computable...
-#   - render the GSN acyclic
-#   - display the GSN graphically (see above)
-#   - perform a stratigraphic sort on the GSN
-#     - bottom-up topologic sort defines upper bounds
-#     - top-down topologic sort defines lower bounds
+# Given:
+#   - a set of intersection lists, as described above (a GSN_Map)
+# Generate:
+#   - the GSN corresponding to that map
+#     - GSN_Nodes:
+#       - Lineament object
+#     - GSN_Edges:
+#       - confidence weighting
 #
-# Given a stratigraphic sort:
-#   - Create a graphical representation of the sort
-#   - Calculate a metric of how much of the ordering information was retrieved
-#   - Calculate mean value of best_b for each set of equivalent features
+# Given:
+#   - a GSN_Map
+# Generate:
+#   - a similar GSN_Map, that has experienced re-activation
+#     - reverse the z-order pair for a portion of some features
+#
+# Given:
+#   - a GSN_Graph
+# Generate:
+#   - an ordered list of the nodes/edges making up each simple cycle
+#     - if there are lots of cycles, may take too long
+#     - allow filtering by minimum acceptable confidence 
+#
+# Given:
+#   - a GSN_Graph containing cycles
+# Generate:
+#   - an acyclic GSN_Graph
+#   - retain as much information as practical
+#   - filter intersections by confidence
+#   - set number of recursive calls to allow
+#
+# Given:
+#   - a GSN_Graph containing cycles
+# Generate:
+#   - a guess as to which lineament segment reactivated
+#
+# Given:
+#   - a GSN_Graph
+# Generate:
+#   - A figure showing lineaments sorted by net weighted degree
+#     with forward and back edges on different sides of the nodes
+#     - Show the nodes stacked vertically
+#     - Put oldest nodes at the bottom (high in-degree)
+#     - Will allow left-to-right time series
+#       - good for showing the sorting process
+#       - good for showing the DAG enforcement
+#
+# Given:
+#   - an acyclic GSN_Graph
+# Generate:
+#   - a StratSort of the GSN_Graph, i.e. for each lineament (node):
+#     - nearest neighbor(s) up in the stack
+#     - nearest neighbor(s) down in the stack
+#     - may have more than one of each, if there are indistinguishable
+#       nodes in the graph (topologically)
+#   - when removing a set of source (or sink) nodes, the next set of source
+#     (or sink) nodes is their potential nearest neighbors (actual nearest
+#     neighbors if they had an intersection)
+#
+# Given:
+#   - a StratSort
+# Generate:
+#   - metric of how much ordering information was recovered
+#   - a figure showing the history schematically, including the ambiguity
+#   - a figure showing the history, in map form... hard.
+#
+# ============================================================================== 
+# GSN Data Structures/Objects:
+# ============================================================================== 
+#   - Intersection
+#   - GSN_Map (the ordered Intersection lists)
+#   - GSN_Graph (the network data structure for sorting)
+#   - StratSort (the output)
 #
 ################################################################################
 
