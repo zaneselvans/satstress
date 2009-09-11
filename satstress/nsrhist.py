@@ -667,7 +667,7 @@ def synthpeak(lins, N=100, peak_frac=0.4, scale=np.radians(15)): #{{{
     return(mu, maps)
 #}}}
 
-def linlatstats(lins):
+def linlatstats(lins): #{{{
     """
     returns a triple (linlons, linlats, linlens) corresponding to the
     longitudes and latitudes of the midpoings of the segments making up the
@@ -686,6 +686,7 @@ def linlatstats(lins):
         linlats = np.concatenate([linlats,mp_lats])
 
     return(linlons, linlats, linlens)
+    #}}}
 
 ###############################################################################
 # PLOTTING
@@ -1282,9 +1283,9 @@ def ActHist_RMDProb(maplins, tpwlins): #{{{
 
     the_fig = figure(figsize=(12,8))
     hist_ax = the_fig.add_subplot(1,1,1)
-    spin_counts, spin_bins, spin_patches = hist_ax.hist(spin_RMDs, bins=120, range=(0.0,0.6), color='red',   lw=2, normed=True, histtype='step', label='spin (N=%d)' % (len(spin_RMDs),))
-    jack_counts, jack_bins, jack_patches = hist_ax.hist(jack_RMDs, bins=60,  range=(0.0,0.6), color='green', lw=2, normed=True, histtype='step', label='jack (N=%d)' % (len(jack_RMDs),))
-    pnp_counts,  pnp_bins,  pnp_patches  = hist_ax.hist(pnp_RMDs,  bins=60,  range=(0.0,0.6), color='blue',  lw=2, normed=True, histtype='step', label='TPW (N=%d)'  % (len(pnp_RMDs),))
+    spin_counts, spin_bins, spin_patches = hist_ax.hist(spin_RMDs, bins=96, range=(0.0,0.6), color='red',   lw=2, normed=True, histtype='step', label='spin (N=%d)' % (len(spin_RMDs),))
+    jack_counts, jack_bins, jack_patches = hist_ax.hist(jack_RMDs, bins=48,  range=(0.0,0.6), color='green', lw=2, normed=True, histtype='step', label='jack (N=%d)' % (len(jack_RMDs),))
+    pnp_counts,  pnp_bins,  pnp_patches  = hist_ax.hist(pnp_RMDs,  bins=48,  range=(0.0,0.6), color='blue',  lw=2, normed=True, histtype='step', label='TPW (N=%d)'  % (len(pnp_RMDs),))
     hist_ax.set_xlim(0,0.6)
     hist_ax.set_xticks(linspace(0,0.6,13))
 
@@ -1352,7 +1353,7 @@ def ActHist_RMDMap(tpwdir="tpw_polesearch", maplins=None, ncols=50, cmap='jet', 
         np_ax = the_fig.add_subplot(1,1,1)
         cb_ax,kw = colorbar.make_axes(np_ax, fraction=0.1, aspect=20, orientation='horizontal')
     else:
-        the_fig = figure(figsize=(10,10))
+        the_fig = figure(figsize=(12,12))
         lowlat_ax = the_fig.add_subplot(2,1,1)
         np_ax = the_fig.add_subplot(2,2,3)
         sp_ax = the_fig.add_subplot(2,2,4)
@@ -1375,11 +1376,17 @@ def ActHist_RMDMap(tpwdir="tpw_polesearch", maplins=None, ncols=50, cmap='jet', 
     np_map.contourf(np_x_gridmesh, np_y_gridmesh, np_pnp_amps, levels, cmap=cm.get_cmap(cmap, ncols-1), linewidth=0)
     np_map.contour(np_x_gridmesh, np_y_gridmesh, np_pnp_amps, [map_acthist_RMD,], colors='black', linewidths=[2,])
     #np_map.scatter(np_x_data, np_y_data, s=1, alpha=0.5, color='black')
-    np_map.drawparallels(arange(-60.,61.,30.), labels=[1,1,0,0], dashes=[2,5], linewidth=0.5)
-    np_map.drawmeridians(arange(-180.,181.,30.), labels=[1,1,0,1], dashes=[2,5], linewidth=0.5)
-    np_ax.set_title("Non-uniformity (RMD) of activity history (H(b))")
+    np_map.drawparallels(arange(-60.,61.,30.), labels=[1,0,0,1], dashes=[2,5], linewidth=0.5)
+    np_map.drawmeridians(arange(-180.,181.,30.), labels=[1,0,0,0], dashes=[2,5], linewidth=0.5)
+
+    if npole is True:
+        np_ax.set_title("Non-uniformity (RMD) of activity history H(b)")
+        np_map.drawparallels(arange(-60.,61.,30.), labels=[0,1,0,0], dashes=[2,5], linewidth=0.5)
+        np_map.drawmeridians(arange(-180.,181.,30.), labels=[0,1,0,0], dashes=[2,5], linewidth=0.5)
 
     if npole is False:
+    # change some labels so things aren't cluttered...
+        np_ax.set_title("North Pole")
     # South Pole:
         sp_map = Basemap(projection='spstere',boundinglat=-40,lon_0=270, ax=sp_ax)
         sp_x_data, sp_y_data = sp_map(degrees(pnp_lons), degrees(pnp_lats))
@@ -1390,8 +1397,8 @@ def ActHist_RMDMap(tpwdir="tpw_polesearch", maplins=None, ncols=50, cmap='jet', 
         sp_map.contourf(sp_x_gridmesh, sp_y_gridmesh, sp_pnp_amps, levels, cmap=cm.get_cmap(cmap, ncols-1))
         sp_map.contour(sp_x_gridmesh, sp_y_gridmesh, sp_pnp_amps, [map_acthist_RMD,], colors='black', linewidths=[2,])
         #sp_map.scatter(sp_x_data, sp_y_data, s=2, alpha=0.5, color='black', linewidth=0)
-        sp_map.drawparallels(arange(-60.,61.,30.), labels=[1,1,0,0])
-        sp_map.drawmeridians(arange(-180.,181.,30.), labels=[1,1,0,1])
+        sp_map.drawparallels(arange(-60.,61.,30.), labels=[0,1,0,1], dashes=[2,5], linewidth=0.5)
+        sp_map.drawmeridians(arange(-180.,181.,30.), labels=[0,1,0,0], dashes=[2,5], linewidth=0.5)
         sp_ax.set_title("South Pole")
 
     # Low Latitudes:
@@ -1406,8 +1413,8 @@ def ActHist_RMDMap(tpwdir="tpw_polesearch", maplins=None, ncols=50, cmap='jet', 
         lowlat_map.contourf(degrees(lowlat_x_gridmesh), degrees(lowlat_y_gridmesh), lowlat_pnp_amps, levels, cmap=cm.get_cmap(cmap, ncols-1))
         lowlat_map.contour(degrees(lowlat_x_gridmesh),  degrees(lowlat_y_gridmesh), lowlat_pnp_amps, [map_acthist_RMD,], colors='black', linewidths=[2,])
         #lowlat_map.scatter(degrees(lowlat_x_data), degrees(lowlat_y_data), s=2, alpha=0.5, color='black', linewidth=0)
-        lowlat_map.drawparallels(arange(-60.,61.,30.), labels=[1,1,0,1])
-        lowlat_map.drawmeridians(arange(-180.,181.,30.), labels=[1,1,0,1])
+        lowlat_map.drawparallels(arange(-60.,61.,30.), labels=[1,1,0,1], dashes=[2,5], linewidth=0.5)
+        lowlat_map.drawmeridians(arange(-180.,181.,30.), labels=[1,1,0,1], dashes=[2,5], linewidth=0.5)
         lowlat_ax.set_title("Equatorial and Mid-Latitudes")
 
     colorbar.ColorbarBase(cb_ax, cmap=cm.get_cmap(cmap, ncols-1), norm=colors.Normalize(vmin=levels[0],vmax=levels[-1]), orientation='horizontal', format='%.2f')
@@ -1683,8 +1690,8 @@ def FitCurveExamples(lins, labels=[], dbar_max=0.125): #{{{
     urcrnrlon=180
     urcrnrlat=90
     eg_map = Basemap(llcrnrlon=llcrnrlon,llcrnrlat=llcrnrlat,urcrnrlon=urcrnrlon,urcrnrlat=urcrnrlat, ax=eg_map_ax)
-    eg_map.drawmeridians(range(llcrnrlon,urcrnrlon+1,15), labels=[1,0,0,1])
-    eg_map.drawparallels(range(llcrnrlat,urcrnrlat+1,15), labels=[1,0,0,1])
+    eg_map.drawmeridians(range(llcrnrlon,urcrnrlon+1,15), labels=[1,1,0,1], linewidth=0.25, dashes=(2,5))
+    eg_map.drawparallels(range(llcrnrlat,urcrnrlat+1,15), labels=[1,1,0,1], linewidth=0.25, dashes=(2,5))
 
     for lin,eg_ax,N in zip(lins,eg_axes,range(len(lins))):
         # Plot the lineament, and color it
@@ -1697,6 +1704,8 @@ def FitCurveExamples(lins, labels=[], dbar_max=0.125): #{{{
     [ setp(ax.get_yticklabels(),visible=False) for ax in ys_to_hide ]
     [ setp(ax.get_xticklabels(),visible=False) for ax in the_fig.axes[0:6] ]
     [ setp(ax.get_xticklabels(),visible=False) for ax in the_fig.axes[8:17] ]
+    [ the_fig.axes[N].set_ylabel(r'$\bar{D}(b)$') for N in (0,2,4,6) ]
+    [ the_fig.axes[N].set_ylabel(r'$f_{nsr}(b)$', rotation=270) for N in (10,12,14,16) ]
 
     eg_map_ax.set_title(r'Example Lineaments and Fit Probabilities')
 
@@ -1704,7 +1713,7 @@ def FitCurveExamples(lins, labels=[], dbar_max=0.125): #{{{
         the_fig.savefig(os.path.join(figdir,'FitCurveExamples.'+save_fmt))
 #}}}
 
-def LinLatStatsCompare(maplins, synlins=None, bins=30, fold=False):
+def LinLatStatsCompare(maplins, synlins=None, bins=30, fold=False): #{{{
 
     the_fig = plt.figure(figsize=(12,6))
     hist_ax = the_fig.add_subplot(1,1,1)
@@ -1764,6 +1773,8 @@ def LinLatStatsCompare(maplins, synlins=None, bins=30, fold=False):
     if save_fmt is not None:
         the_fig.savefig(os.path.join(figdir,'LinLatStatsCompare.'+save_fmt))
 
+#}}}
+
 ###############################################################################
 #    Plotting Helper Functions
 ###############################################################################
@@ -1819,7 +1830,7 @@ def fitcurve(lin, color='black', ax=None, dbar_max=0.125, show_dbar=True, show_w
     fit_ax  = twinx(ax=dbar_ax)
 
     # Plot the mapped lineament's fit curve:
-    dbar_ax.set_xlabel("westward translation (b)")
+    dbar_ax.set_xlabel(r'$b$')
     if show_dbar is True:
         dbar_ax.plot(degrees(lin.bs), lin.nsrdbars, ls='-', linewidth=2, color=color)
         dbar_ax.grid()
@@ -1921,6 +1932,9 @@ def activity_history(lins_list, the_fig=None, labels=[], colors=[], alphas=[], l
     if norm_by_all is True:
         titlestr += ' (Normalized)'
     hist_ax.set_title(titlestr)
+
+    # show the results, so we don't have some long awkward wait...
+    draw()
 
     if save_fmt is not None:
         the_fig.savefig(os.path.join(figdir,outfile+'.'+save_fmt))

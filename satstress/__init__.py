@@ -166,14 +166,14 @@ A few notes on the general architecture of the C{satstress} package.
   of science is funded by the public, and our code is a major product of that
   funding.  It is unethical to make it proprietary.
 """
-__all__ = ["satstress", "gridcalc", "lineament", "nsrhist", "stressplot"]
+__all__ = ["satstress", "lineament", "nsrhist", "stressplot", "gsn"]
 __author__ = "Zane Selvans"
 __contact__ = "zane.selvans@colorado.edu"
 __maintainer__ = "Zane Selvans"
 __maintainer_email__ = "zane.selvans@colorado.edu"
 __license__ = "http://www.gnu.org/licenses/gpl.html"
 __docformat__ = 'epytext en'
-__version__ = '0.1.2'
+__version__ = '0.2.0'
 __projecturl__ = 'http://code.google.com/p/satstress'
 __downloadurl__ = 'http://code.google.com/p/satstress/downloads/list'
 __description__ = 'Tools for modeling tidal stresses and tectonics on icy satellites.'
