@@ -2230,4 +2230,3 @@ def test_brent_init(lin, nb=180, init_dop_res=[], dop_res=[]): #{{{2
 
 #}}} end testing functions
 ###############################################################################
-

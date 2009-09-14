@@ -49,11 +49,73 @@ class Lineament(object): #{{{1
             self.nsrstresswts = array(nsrstresswts)
     #}}}2
 
-    def __str__(): #{{{2
+    def __hash__(self): #{{{2
         """
+        In order to be able to use a Lineament as a node in a NetworkX graph,
+        it needs to be hashable.  The hash value depends on the all the
+        longitude and latitude values of the lineament, and on their adjacency,
+        but not on which order they appear in.  For example, if the lineament
+        is composed of 5 vertices: A,B,C,D,E, and it's hash is X, then
+        reversing the order of the verticies: E,D,C,B,A will result in the same
+        hash, X, but re-arranging their ordering: C,D,B,A,E would result in
+        some other hash value.
+
         """
-        pass
+
+        # Concatenate lons and their reverse, to get same hash either direction
+        hash_lons = np.append(self.lons, self.lons[::-1])
+        # Periodicity of longitude should not affect hash value:
+        hash_lons = np.mod(hash_lons,2.0*np.pi)
+        # Needs to be an integer output ultimately, and we don't want any floating point
+        # inaccuracies screwing up the equality values:
+        hash_lons = (1e9*hash_lons).astype('int')
+
+        hash_lats = np.append(self.lats, self.lats[::-1])
+        hash_lats = (1e9*hash_lats).astype('int')
+
+        hash_ns = (1e9*np.tile(arange(len(hash_lons)),2)).astype('int')
+
+        hash=0
+        for lon, lat, n in zip(hash_lons, hash_lats, hash_ns):
+            hash = hash^(lon-lat+n)
+
+        hash = hash^(np.int(1e9*self.length))
+        return(hash)
+
     #}}}2
+
+    def __cmp__(self, other): #{{{2
+        """
+        Basic comparison operator for Lineaments, depends on their __hash__()
+        values.  A lineament is defined by a series of lat/lon points, and will
+        compare equal if the same series of lat/lon points are used for both
+        features (to within one part in 10^9).  The order of the points may be
+        reversed, and they objects will still compare equal.
+
+        """
+
+        return(self.__hash__()-other.__hash__())
+    #}}}2
+
+    def __str__(self): #{{{2
+        """
+        Outputs the geographic data associated with the lineament using the
+        so-called "well known text" (wkt) representation, in order to allow
+        easy output and use with the GDAL/OGR open source geospatial libraries.
+
+
+        """
+
+        linestr_geom_wkt = 'LINESTRING('
+        for lon, lat in zip(self.lons, self.lats):
+            linestr_geom_wkt = linestr_geom_wkt + "%f %f, " % (np.degrees(lon), np.degrees(lat))
+        # get rid of the trailing comma and space...
+        linestr_geom_wkt = linestr_geom_wkt[:-2]
+        # close the parentheses
+        linestr_geom_wkt = linestr_geom_wkt +')'
+
+        return(linestr_geom_wkt)
+#}}}2
 
     def calc_length(self): #{{{2
         """
