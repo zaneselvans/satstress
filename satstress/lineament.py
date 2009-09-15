@@ -97,7 +97,7 @@ class Lineament(object): #{{{1
         return(self.__hash__()-other.__hash__())
     #}}}2
 
-    def __str__(self): #{{{2
+    def wkt(self): #{{{2
         """
         Outputs the geographic data associated with the lineament using the
         so-called "well known text" (wkt) representation, in order to allow
@@ -108,7 +108,7 @@ class Lineament(object): #{{{1
 
         linestr_geom_wkt = 'LINESTRING('
         for lon, lat in zip(self.lons, self.lats):
-            linestr_geom_wkt = linestr_geom_wkt + "%f %f, " % (np.degrees(lon), np.degrees(lat))
+            linestr_geom_wkt = linestr_geom_wkt + "%f %f, " % (lon, lat)
         # get rid of the trailing comma and space...
         linestr_geom_wkt = linestr_geom_wkt[:-2]
         # close the parentheses
