@@ -49,7 +49,7 @@ class Lineament(object): #{{{1
             self.nsrstresswts = array(nsrstresswts)
     #}}}2
 
-    def __hash__(self): #{{{2
+    def calc_hash(self): #{{{2
         """
         In order to be able to use a Lineament as a node in a NetworkX graph,
         it needs to be hashable.  The hash value depends on the all the
@@ -59,7 +59,6 @@ class Lineament(object): #{{{1
         reversing the order of the verticies: E,D,C,B,A will result in the same
         hash, X, but re-arranging their ordering: C,D,B,A,E would result in
         some other hash value.
-
         """
 
         # Concatenate lons and their reverse, to get same hash either direction
@@ -80,7 +79,22 @@ class Lineament(object): #{{{1
             hash = hash^(lon-lat+n)
 
         hash = hash^(np.int(1e9*self.length))
+
         return(hash)
+    #}}}2
+
+    def __hash__(self): #{{{2
+        """
+        Return the lineament's cached hash value (see calc_hash)
+
+        """
+
+        try:
+            hashval = self.hashval
+        except(AttributeError):
+            self.hashval = self.calc_hash()
+
+        return(self.hashval)
 
     #}}}2
 
@@ -95,6 +109,18 @@ class Lineament(object): #{{{1
         """
 
         return(self.__hash__()-other.__hash__())
+    #}}}2
+
+    def __str__(self): #{{{2
+        """
+        This string method only gives an ID number for the feature (it's hash
+        value).  If you want a real string representation of the feature's
+        geographic information, use Lineament.wkt() to get the "well known
+        text" format.
+
+        """
+
+        return(str(hash(self)))
     #}}}2
 
     def wkt(self): #{{{2
