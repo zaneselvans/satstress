@@ -25,6 +25,10 @@ class GeoSupNet(nx.MultiDiGraph): #{{{
     geologically active icy bodies.
 
     """
+
+    # In the event that we're actually generating this GSN from an ordered list
+    # of features, we should store that information for later reference.
+    linstack = []
     
     def lincross(self): #{{{2
         """
@@ -45,9 +49,10 @@ class GeoSupNet(nx.MultiDiGraph): #{{{
         return self.edges(data=True)
     #}}}2
 
-    def get_sub_GSNs(self): #{{{2
+    def get_sub_GSNs(self, minsize=2): #{{{2
         """
-        Return a list of all the disconnected components of the GSN.
+        Return a list of all the connected components of the GSN having size
+        greater than or equal to minsize.
 
         """
 
@@ -57,9 +62,87 @@ class GeoSupNet(nx.MultiDiGraph): #{{{
         U.add_edges_from(self.edges())
         connected_nbunches = nx.connected_components(U)
         # re-constitute those connected bunches as a new list of GSNs:
-        return([ self.subgraph(nbunch) for nbunch in connected_nbunches ])
+        return([ self.subgraph(nbunch) for nbunch in connected_nbunches if len(nbunch) >= minsize ])
 
     #}}}2
+
+    def get_sub_linstacks(self, linstack=None): #{{{2
+        """
+        Given a GSN and a list of lineaments, ordered by time of formation
+        (earliest first), return a list of lists of lineaments, maintaining
+        the relative orderings of the linstack, but separating the features
+        depending on what connected component of the GSN they are in.
+        
+        If a feature exists in the linstack, but not in the GSN, it is not
+        included in any of the returned lists.
+
+        if linstack is None, it is assumed that the GSN has its own embedded
+        linstack (self.linstack) as a result of having been constructed from
+        a known ordering, and that is used.
+
+        """
+
+        if linstack is None:
+            assert(len(self.linstack) > 0)
+            linstack = self.linstack
+
+        sub_GSNs = self.get_sub_GSNs()
+        linstacks = []
+
+        for sub_gsn in sub_GSNs:
+            sub_stack = [ lin for lin in linstack if lin in sub_gsn ]
+            linstacks.append(sub_stack)
+
+        return(linstacks)
+    #}}}2
+
+    def net_in_degree(self, with_labels=True, weighted=True, normalized=True): #{{{2
+        """
+        Length normalized weighted net in degree is a decent heuristic metric
+        of a feature's order of formation.  If it has lots of successors in the
+        graph (i.e. lots of intersections in which it is on the bottom), per
+        unit length of the feature, then all else being equal, we expect it to
+        be an older feature.
+
+        The greater the lineament density (length of lineaments per unit area
+        of map), and the longer the features involved, the better this metric
+        will reflect reality.
+
+        Returns either a list (if with_labels is False) or a dictionary (if
+        with_labels is True) of length normalized net in degrees.  The values
+        are:
+
+            ( in_degree - out_degree )
+            --------------------------
+                     lennorm
+
+        if normalized is True then lennorm = node.length (the nodes in a GSN
+        are satstress.Lineament objects, so this is the length of the feature
+        as measured in radians of arc)
+
+        If weighted is True then the weighted in and out degrees are used.
+        
+        If with_labels is True then the dictionary returned is keyed by node.
+
+        """
+
+        in_degs  = self.in_degree(with_labels=with_labels, weighted=weighted)
+        out_degs = self.out_degree(with_labels=with_labels, weighted=weighted)
+
+        net_in_degs = {}
+        for lin in self.nodes():
+            if normalized is True:
+                norm_length = lin.length
+            else:
+                norm_length = 1.0
+
+            net_in_degs[lin] = (in_degs[lin]-out_degs[lin])/norm_length
+
+        if with_labels is False:
+            net_in_degs = [ net_in_degs[lin] for lin in net_in_degs.keys() ]
+
+        return(net_in_degs)
+    #}}}
 
     def stratigraphic_sort(self): #{{{2
         """
@@ -86,17 +169,11 @@ class GeoSupNet(nx.MultiDiGraph): #{{{
 
     #}}}2 end stratigraphic_sort
 
-    def draw_map(self, ax=None, cmap=pylab.cm.jet_r): #{{{2
+    def draw_map(self, intersections=False, ax=None, cmap=pylab.cm.jet_r, minsize=2): #{{{2
         """
         Draw a map view of the GSN using Basemap and Matplotlib.
 
         """
-        # TODO: allow coloring by things other than connected component...
-
-        gsn_edges = self.edges(data=True)
-        edge_lons = [ edge[2]['lon'] for edge in gsn_edges ]
-        edge_lats = [ edge[2]['lat'] for edge in gsn_edges ]
-
         if ax is None:
             the_fig = plt.figure(figsize=(12,6))
             ax = the_fig.add_subplot(1,1,1)
@@ -105,37 +182,149 @@ class GeoSupNet(nx.MultiDiGraph): #{{{
             map_ax.drawparallels(range(-90,91,30), labels=[1,0,0,1])
 
         sub_GSNs = self.get_sub_GSNs()
+        if minsize > 2:
+            sub_GSNs = [ sub_gsn for sub_gsn in sub_GSNs if len(sub_gsn) > minsize ]
+
         for sub_gsn,n in zip(sub_GSNs, range(len(sub_GSNs))):
             lines, gsn_map = lineament.plotlinmap(sub_gsn.nodes(), map=map_ax, linewidth=2,\
                                                   color=cmap(float(n)/len(sub_GSNs)))
+            if intersections is True:
+                edges = sub_gsn.edges(data=True)
+                edge_lons = [ edge[2]['lon'] for edge in edges ]
+                edge_lats = [ edge[2]['lat'] for edge in edges ]
+                gsn_map.scatter(np.degrees(edge_lons), np.degrees(edge_lats), lw=0, color='black', s=50)
+                gsn_map.scatter(np.degrees(edge_lons)+360.0, np.degrees(edge_lats), lw=0, color='black', s=50)
+                gsn_map.scatter(np.degrees(edge_lons)-360.0, np.degrees(edge_lats), lw=0, color='black', s=50)
 
-        gsn_map.scatter(np.degrees(edge_lons), np.degrees(edge_lats), lw=0, color='black', s=50)
-        gsn_map.scatter(np.degrees(edge_lons)+360.0, np.degrees(edge_lats), lw=0, color='black', s=50)
-        gsn_map.scatter(np.degrees(edge_lons)-360.0, np.degrees(edge_lats), lw=0, color='black', s=50)
+        plt.draw()
+
     #}}}2 end draw_map
 
-    def draw_sort(self, orderby='mean', trueorder=None, ax=None, colorby='graph', cmap=pylab.cm.jet_r, label=""): #{{{2
-       """
-       Draw a graph view of the GSN using Matplotlib
-
-       """
-       # TODO: Allow coloring by things other than connected components.
-       # TODO: Allow ordering in ways other than a true order of formation.
-
-       if ax is None:
-           the_fig = plt.figure(figsize=(12,6))
-           ax = the_fig.add_subplot(1,1,1)
-
-       draw_stratsort(self.stratigraphic_sort(), orderby=orderby, trueorder=trueorder, ax=ax, colorby=colorby, label=label, cmap=cmap)
-
-   #}}}2 end draw_graph
-
-    def draw_graph(self, ax=None, cmap=pylab.cm.jet_r): #{{{2
+    def draw_sort(self, orderby='mean', trueorder=None, ax=None, colorby='graph', cmap=pylab.cm.jet_r, title="", weighted=True, normalized=True, minsize=2): #{{{2
         """
-        Draw a graph view of the GSN using Matplotlib
+        Make a plot showing the retrieved stratigraphic sort.
+
+        The true ordering is indicated by the order of the features in the list
+        trueorder.
+    
+        Eventually this needs to deal with things with no known ordering, by adding
+        an 'orderby' parameter, which may also have the following values:
+
+             'nid' -- net in degree (default)
+            'true' -- the actual ordering, as implied by trueorder
+            'mean' -- mean stratigraphic location
+              'lb' -- lower bound (earliest possible formation time)
+              'ub' -- upper bound (latest possible formation time)
+    
+        If any of weighted or normalized are set, they are passed on to the
+        GeoSupNet.net_in_degree() function.
+
+        minsize determines how many features have to be the connected subgraph
+        in order for it to be displayed.  This allows you to avoid showing a
+        bunch of sorts that only include 2 or 3 features if you want to.
+
+        """
+
+        stratsorts = self.stratigraphic_sort()
+
+        if minsize > 2:
+            stratsorts = [ stratsort for stratsort in stratsorts if len(stratsort) > minsize ]
+
+        if ax is None:
+            the_fig = plt.figure(figsize=(12,6))
+            ax = the_fig.add_axes((0.05,0.1,0.9,0.8))
+
+        N_tot = np.array([len(subsort) for subsort in stratsorts]).sum()
+
+        x0 = 0
+        for subsort,n_col in zip(stratsorts,range(len(stratsorts))):
+
+            # Figure out what order we're going to plot the features in, and
+            # generate the appropriate x, y, and (yerr_lo, yerr_hi) arrays for
+            # plotting:
+            if orderby == 'mean':
+                sort_key = [ 0.5*(subsort[lin][0]+subsort[lin][1]) for lin in subsort.keys() ]
+                lins_to_plot = subsort.keys()
+            elif orderby == 'lb':
+                sort_key = [ subsort[lin][0] for lin in subsort.keys() ]
+                lins_to_plot = subsort.keys()
+            elif orderby == 'ub':
+                sort_key = [ subsort[lin][1] for lin in subsort.keys() ]
+                lins_to_plot = subsort.keys()
+            elif orderby == 'nid':
+                lnwnids = self.net_in_degree(normalized=normalized, weighted=weighted, with_labels=True)
+                sort_key = [ lnwnids[node] for node in subsort.keys() ]
+                lins_to_plot = subsort.keys()
+            elif orderby == 'true':
+                if trueorder is None:
+                    trueorder=self.linstack
+                assert(len(trueorder) > 0)
+                sort_key = []
+                lins_to_plot = []
+                for lin in trueorder:
+                    if lin in subsort.keys():
+                        sort_key.append(trueorder.index(lin))
+                        lins_to_plot.append(lin)
+            else: # Uh, we should never get here
+                print("Bad orderby string found in draw_stratsort")
+
+            # Create a structured array so we can sort by whatever key we want:
+            if trueorder is not None:
+                dtype = [('lin',object),('sort_key',float),('trueorder',int)]
+            else:
+                dtype = [('lin',object),('sort_key',float)]
+            arr_to_sort = np.zeros(len(lins_to_plot), dtype=dtype)
+            arr_to_sort['lin'] = lins_to_plot
+            arr_to_sort['sort_key'] = sort_key
+
+            if trueorder is not None:
+                sub_trueorder=[]
+                for lin in trueorder:
+                    if lin in subsort.keys():
+                        sub_trueorder.append(lin)
+
+                arr_to_sort['trueorder'] = [ sub_trueorder.index(lin) for lin in lins_to_plot ]
+
+            arr_to_sort.sort(order='sort_key')
+
+            symb_size = 810.0/N_tot
+            X = np.arange(len(arr_to_sort))
+            lower_bounds = np.array([ subsort[lin][0] for lin in arr_to_sort['lin'] ])-0.5
+            upper_bounds = np.array([ subsort[lin][1] for lin in arr_to_sort['lin'] ])+0.5
+            ax.vlines(X+x0, lower_bounds, upper_bounds, colors=cmap(float(n_col)/len(stratsorts)), linewidth=symb_size)
+
+            if trueorder is not None:
+                ax.plot(X+x0, arr_to_sort['trueorder'], 'k_', markeredgewidth=2, markersize=0.85*symb_size, color='k', lw=0)
+
+            x0 = x0 + len(subsort)
+
+        ax.set_xlim(-1,N_tot)
+        ax.set_xlabel('N')
+        ax.set_ylim(-1,len(stratsorts[0]))
+        ax.set_ylabel('N')
+        sortnames = {  'ub':'upper stratigraphic bound',\
+                       'lb':'lower stratigraphic bound',\
+                     'mean':'mean stratigraphic location',\
+                     'true':'a priori formation time',\
+                      'nid':'net in degree'}
+        ax.set_title("StratSort of "+title+" (ordered by "+sortnames[orderby]+")")
+        ax.grid(True)
+
+    #}}}2 end draw_sort
+
+    def draw_graph(self, ax=None, minsize=2, cmap=pylab.cm.jet_r): #{{{2
+        """
+        Draw graph view of the GSN.  Plot each sub-GSN in a separate figure.
+        This is janky and should be replace with something that will plot using
+        graphviz instead of matplotlib.
+
+        minsize allows you to limit which connected components are plotted, and
+        avoid showing a bunch of uninteresting size 2 and 3 graphs.
 
         """
         sub_GSNs = self.get_sub_GSNs()
+        if minsize > 2:
+            sub_GSNs = [ sub_gsn for sub_gsn in sub_GSNs if len(sub_gsn) > minsize ]
 
         if ax is None:
             for sub_gsn,n in zip(sub_GSNs, range(len(sub_GSNs))):
@@ -144,14 +333,78 @@ class GeoSupNet(nx.MultiDiGraph): #{{{
 
                 nc_array = np.array([ cmap(float(n)/len(sub_GSNs)) for i in range(len(sub_gsn)) ])
                 nx.draw_circular(sub_gsn, ax=gax, node_color=nc_array, labels={})
-            #nx.draw_circular(sub_gsn, ax=graph_axes[n], node_color=cmap(float(n)/len(sub_GSNs)), labels={})
-            #nxs = np.ceil(np.sqrt(len(sub_GSNs)))
-            #graph_axes = [ the_fig.add_subplot(nxs,nxs,n+1) for n in range(len(sub_GSNs)) ]
 
         else:
            nx.draw_circular(self, ax=ax, labels={})
 
    #}}}2 end draw_graph
+
+    def valid_order(self, linstack): #{{{2
+        """
+        Given a list of features, ordered by their hypothesized times of formation
+        (linstack), and stratigraphic sort (stratsort, as returned from
+        GeoSupNet.stratigraphic_sort(), potentially having several members),
+        determine whether the ordering of linstack is consistent with the
+        constraints encoded within the stratsort.  Return True if it is, and False
+        if it is not.
+
+        """
+
+        # Split up linstack according to which member of stratsort each feature
+        # within it belongs to (if any).
+        sub_GSNs = self.get_sub_GSNs()
+        linstacks = self.get_sub_linstacks(linstack)
+
+        # Go through each sub-stack and sub-GSN, and see if the orderings are
+        # consistent.  If any of the implied predecessors in the stack are
+        # found in a feature's *actual* successors, then the ordering is
+        # invalid.  Otherwise it is valid.
+        for sub_stack, sub_gsn in zip(linstacks, sub_GSNs):
+            for n in range(len(sub_stack)):
+                true_successors = nx.single_source_shortest_path(sub_gsn, sub_stack[n]).keys()
+                supposed_predecessors = sub_stack[:n]
+                for lin in supposed_predecessors:
+                    if lin in true_successors:
+                        return(False)
+        return(True)
+
+#}}}2 end valid_order
+
+    def exclusion_coeff(self, iterations=100, numlins=2, minsize=3): #{{{2
+        """
+        Determine what fraction of possible feature orderings the GSN can
+        exclude.
+
+        iterations is the number of trials to run.
+
+        minsize is the minimum size of the connected components you wish to
+        include.  It allows you to only look at the features which actually
+        have ordering information (i.e. intersections).  This value must be
+        larger than numlins.
+
+        numlins is the number of lineaments to try and validate in each
+        ordering.  Those lineaments are chosen at random from the set of all
+        features, and re-shuffled on each iteration.
+
+        """
+
+        sub_GSNs = self.get_sub_GSNs(minsize=minsize)
+
+        if np.min([ len(sub_gsn) for sub_gsn in sub_GSNs ]) < minsize:
+            assert(minsize > numlins)
+
+        lins = []
+        for sub_gsn in sub_GSNs:
+            lins += sub_gsn.nodes()
+
+        excluded = 0.0
+        for i in range(iterations):
+            pylab.shuffle(lins)
+            if self.valid_order(lins[:numlins]) is False:
+                excluded += 1.0
+
+        return(excluded/iterations)
+    #}}}
 
     def enumerate_cycles(self): #{{{2
         """
@@ -220,6 +473,17 @@ def lincross2gsn(lincross): #{{{
 
 #}}} end lincross2gsn
 
+def gsn2gsn(old_gsn): #{{{
+    """
+    Create a new GSN from an old one.
+
+    """
+    new_gsn = GeoSupNet()
+    new_gsn.add_edges_from(old_gsn.edges(data=True, keys=True))
+    new_gsn.linstack = old_gsn.linstack
+    return(new_gsn)
+#}}}
+
 def linstack2gsn(linstack): #{{{
     """
     Takes a list of Lineament objects, ordered by their times of formation
@@ -244,11 +508,11 @@ def linstack2gsn(linstack): #{{{
 
     # Initialize the graph
     the_gsn = GeoSupNet()
+    the_gsn.linstack = linstack
 
     # need to reverse the ordering of linstack if we want to keep the ordering as we said...
     backstack = linstack[::-1]
     the_gsn.add_nodes_from(backstack)
-
 
     # Because longitude is periodic, but fucking OGR doesn't understand that,
     # we have to do this a few times, over several different ranges of 2*pi:
@@ -273,33 +537,7 @@ def linstack2gsn(linstack): #{{{
     return(the_gsn)
 #}}}
 
-def validate_ordering(linstack, stratsort): #{{{
-    """
-    Given a list of features, ordered by their hypothesized times of formation
-    (linstack), and stratigraphic sort (stratsort, as returned from
-    GeoSupNet.stratigraphic_sort(), potentially having several members),
-    determine whether the ordering of linstack is consistent with the
-    constraints encoded within the stratsort.  Return True if it is, and False
-    if it is not.
-
-    """
-
-    # Split up linstack according to which member of stratsort each feature
-    # within it belongs to (if any).
-    linstacks = []
-    for sub_sort in stratsort:
-        sub_stack = [ lin for lin in linstack if lin in sub_sort.keys() ]
-        linstacks.append(sub_stack)
-
-    # Go through each sub-stack and sub-sort, and see if the orderings are
-    # consistent.
-    for sub_stack, sub_sort in zip(linstacks, stratsort):
-        for lin, n in zip(sub_stack, range(len(sub_stack))):
-            pass # Still not entirely clear what to do here....
-
-#}}} end validate_ordering
-
-def test_sort(nlins=50, lintype='nsr', ncross=10, draw_map=True, draw_sort=True, draw_graph=True): #{{{
+def test_sort(nlins=50, lintype='nsr', orderby='true', ncross=10, draw_map=True, draw_sort=True, draw_graph=True): #{{{
    """
    A short unit test of the sorting functionality.
    
@@ -324,109 +562,17 @@ def test_sort(nlins=50, lintype='nsr', ncross=10, draw_map=True, draw_sort=True,
 
    print("Sorting GSN")
    test_sort = test_gsn.stratigraphic_sort()
+   print("Found %d connected components" % (len(test_sort),) )
 
    print("Plotting results")
    if draw_sort is True:
-       test_gsn.draw_sort(trueorder=test_lins, orderby='true', label=lintype)
+       test_gsn.draw_sort(trueorder=test_lins, orderby=orderby, label=lintype)
    if draw_map is True:
        test_gsn.draw_map()
    if draw_graph is True:
        test_gsn.draw_graph()
 
    return(test_lins, test_gsn, test_sort)
-
-#}}}
-
-def draw_stratsort(stratsorts, orderby='mean', trueorder=None, ax=None, colorby='graph', cmap=pylab.cm.jet_r, label=""): #{{{
-    """
-    Make a plot showing the retrieved stratigraphic sort.
-
-    The true ordering is indicated by the order of the features in the list
-    trueorder.
-    
-    Eventually this needs to deal with things with no known ordering, by adding
-    an 'orderby' parameter, which may also have the following values:
-
-        'true' -- the actual ordering, as implied by trueorder
-        'mean' -- mean stratigraphic location (default)
-          'lb' -- lower bound (earliest possible formation time)
-          'ub' -- upper bound (latest possible formation time)
-
-    """
-
-    if ax is None:
-        the_fig = plt.figure(figsize=(12,6))
-        ax = the_fig.add_axes((0.05,0.1,0.9,0.8))
-
-    N_tot = np.array([len(subsort) for subsort in stratsorts]).sum()
-
-    x0 = 0
-    for subsort,n_col in zip(stratsorts,range(len(stratsorts))):
-
-        # Figure out what order we're going to plot the features in, and
-        # generate the appropriate x, y, and (yerr_lo, yerr_hi) arrays for
-        # plotting:
-        if orderby == 'mean':
-            sort_key = [ 0.5*(subsort[lin][0]+subsort[lin][1]) for lin in subsort.keys() ]
-            lins_to_plot = subsort.keys()
-        elif orderby == 'lb':
-            sort_key = [ subsort[lin][0] for lin in subsort.keys() ]
-            lins_to_plot = subsort.keys()
-        elif orderby == 'ub':
-            sort_key = [ subsort[lin][1] for lin in subsort.keys() ]
-            lins_to_plot = subsort.keys()
-        elif orderby == 'true':
-            assert(trueorder is not None)
-            sort_key = []
-            lins_to_plot = []
-            for lin in trueorder:
-                if lin in subsort.keys():
-                    sort_key.append(trueorder.index(lin))
-                    lins_to_plot.append(lin)
-        else: # Uh, we should never get here
-            print("Bad orderby string found in draw_stratsort")
-
-        # Create a structured array so we can sort by whatever key we want:
-        if trueorder is not None:
-            dtype = [('lin',object),('sort_key',float),('trueorder',int)]
-        else:
-            dtype = [('lin',object),('sort_key',float)]
-        arr_to_sort = np.zeros(len(lins_to_plot), dtype=dtype)
-        arr_to_sort['lin'] = lins_to_plot
-        arr_to_sort['sort_key'] = sort_key
-
-        if trueorder is not None:
-            sub_trueorder=[]
-            for lin in trueorder:
-                if lin in subsort.keys():
-                    sub_trueorder.append(lin)
-
-            arr_to_sort['trueorder'] = [ sub_trueorder.index(lin) for lin in lins_to_plot ]
-
-        arr_to_sort.sort(order='sort_key')
-
-        yerr_lo = np.array([ n-subsort[lin][0] for lin,n in zip(arr_to_sort['lin'],range(len(arr_to_sort))) ])+0.5
-        yerr_hi = np.array([ subsort[lin][1]-n for lin,n in zip(arr_to_sort['lin'],range(len(arr_to_sort))) ])+0.5
-
-        X = np.arange(len(arr_to_sort))
-        ax.errorbar(X+x0, X, (yerr_lo, yerr_hi), fmt=None, capsize=0, elinewidth=(500.0/N_tot),\
-                    ecolor=cmap(float(n_col)/len(stratsorts)))
-
-        if trueorder is not None:
-            ax.plot(X+x0, arr_to_sort['trueorder'], 'k_', markersize=1.2*(500.0/N_tot), markeredgewidth=3, color='k', lw=0)
-
-        x0 = x0 + len(subsort)
-
-    ax.set_xlim(-1,N_tot)
-    ax.set_xlabel('N')
-    ax.set_ylim(-1,len(stratsorts[0]))
-    ax.set_ylabel('N')
-    sortnames = {  'ub':'upper stratigraphic bound',\
-                   'lb':'lower stratigraphic bound',\
-                 'mean':'mean stratigraphic location',\
-                 'true':'a priori formation time' }
-    ax.set_title("StratSort of "+label+" (ordered by "+sortnames[orderby]+")")
-    ax.grid(True)
 
 #}}}
 
@@ -458,6 +604,35 @@ def mapgen_regular(nlins=10, ncross=None): #{{{
     return(outlins)
 
 #}}} end mapgen_regular
+
+def mapgen_fromfile(nlins=100, linfile = 'output/lins/map_nsrfit', spin=False, tpw=False): #{{{
+    """
+    Draw nlins lineaments from a saved pool of features, and create a linstack
+    from them.
+
+    """
+
+    # read in the features, and update them to make sure we've got whatever
+    # interesting data they have, in the new Lineament object form.
+    lins = lineament.update_lins(nsrhist.load_lins(linfile))
+
+    if nlins == 0:
+        nlins = len(lins)
+
+    # If we're not randomizing, we can't resample with replacement, or we'll
+    # get repeats that overlap themselves.
+    if spin is False and tpw is False:
+        # choose nlins random features from the dataset:
+        # this will fail if they've asked for more features than we can get without randomizing.
+        assert(nlins <= len(lins))
+        pylab.shuffle(lins)
+        linstack = lins[:nlins]
+    else:
+        linstack = nsrhist.make_crazy(nsrhist.linresample_byN(lins), tpw=tpw, spin=spin)
+
+    return(linstack)
+        
+#}}}
 
 def mapgen_nsr(nlins=50, ncross=5): #{{{
     """
@@ -511,24 +686,21 @@ def mapgen_nsr(nlins=50, ncross=5): #{{{
 # ============================================================================== 
 # GSN v1.0 (DAG only):
 # ==============================================================================
-# VISUALIZATION:
-#   Allow StratSort to be ordered by any of true order, lower bound, upper
-#   bound, or average stratigraphic location ((ub+lb)/2).  Always display the
-#   true order of formation using the black bars.
 
-# SORT VALIDITY:
-#   Given a StratSort and a hypothesized ordering, return True or False based
-#   on whether the ordering is consistent with or conflicts with the results of
-#   the sort
+# SUCCESS METRICS:
+#   Given a GSN and a true order of formation, calculate the proportion
+#   of the original ordering information that was recovered, i.e. the change in
+#   entropy, or "entropy reduction".  Need to consult with Lada and/or Aaron on
+#   this.
+#
+#   Exclusion Coefficient: the proportion of orderings that can be excluded
+#   based on the information in the GSN.  Varies as a function of how many
+#   elements there are in the ordering.
 
-# SUCCESS METRIC:
-#   Given a StratSort and a true order of formation, calculate the proportion
-#   of the original ordering information that was recovered.  Need to consult
-#   with Lada and/or Aaron on this.  (Conditional entropy, mutual information).
-#   
-#   One possibility is to submit a large number of completely random orderings
-#   for validation.  The proportion of them that are rejected would indicate
-#   how much of the potential ordering space has been excluded.
+# FAILURE METRIC:
+#   Given a StratSort and a true order of formation, extend the above metric
+#   (proportion of ordering information recovered) to include a metric of how
+#   wrong the recovered ordering is, if it is inconsistent with the true order.
 
 # ============================================================================== 
 # GSN v1.1 (non-DAG): #{{{
@@ -554,11 +726,6 @@ def mapgen_nsr(nlins=50, ncross=5): #{{{
 #     - Remove them one-by-one until the graph is a DAG
 #     - Reverse their direction if they are heavily clustered
 #     - Split the feature they lie on and re-sort.
-
-# FAILURE METRIC:
-#   Given a StratSort and a true order of formation, extend the above metric
-#   (proportion of ordering information recovered) to include a metric of how
-#   wrong the recovered ordering is, if it is inconsistent with the true order.
 
 # DISPLAY GRAPH SORTING:
 #   Get pyGraphViz installed and working
