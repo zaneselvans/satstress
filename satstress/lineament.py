@@ -1099,7 +1099,7 @@ def plotlinmap(lins, map=None, color='black', alpha=1.0, linewidth=1.0, lon_cyc=
     return([line for line in flatten(lines)], map)
 #}}} end plotlinmap
 
-def shp2lins(shapefile, stresscalc=None): #{{{
+def shp2lins(shapefile, stresscalc=None, lin_ids=False): #{{{
     """
     Create a list of L{Lineament} objects from an ESRI shapefile.
 
@@ -1107,10 +1107,15 @@ def shp2lins(shapefile, stresscalc=None): #{{{
     coordinates using decimal degrees.  The shapefile is read in using the GDAL/OGR
     geospatial library.
 
+    If lin_ids is True, then a second list is also returned, containing the
+    unique gid value stored in the attribute table associated with the
+    shapefile.  This is for use in creating GSNs.
+
     """
 
     # This is the list of lineaments we are going to return eventually:
     linlist = []
+    lin_id_list = []
 
     # First read in the shapefile as an OGR "data source"
     data_source = ogr.Open(shapefile, update=0)
@@ -1134,10 +1139,16 @@ def shp2lins(shapefile, stresscalc=None): #{{{
             newlats = radians(pointlist[:,1])
             newlons = radians(pointlist[:,0])
             linlist.append(Lineament(lons=newlons, lats=newlats, stresscalc=stresscalc))
+            if lin_ids is True:
+                lin_id_list.append(ogr_lin_feat.GetField(ogr_lin_feat.GetFieldIndex('gid')))
 
         ogr_lin_feat = lineaments.GetNextFeature()
 
-    return linlist
+    if lin_ids is False:
+        return(linlist)
+    else:
+        return(linlist, lin_id_list)
+
 # }}} end shp2lins
 
 def lins2kml(lins=[], kmlfile=None): #{{{ TODO: WRITE IT!
