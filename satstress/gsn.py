@@ -50,6 +50,7 @@ directed graph.
 """
 
 import networkx as nx
+import pygraphviz as pgv
 import numpy as np
 from matplotlib import pyplot as plt
 from matplotlib import pylab
@@ -63,6 +64,9 @@ from . import nsrhist
 # define the coordinate system we're working in:
 # This is lame, but for the moment, let's assume that we're on Europa:
 IAU2000_Europa_SRS_WKT="""GEOGCS["Europa 2000",DATUM["D_Europa_2000",SPHEROID["Europa_2000_IAU_IAG",1564130.0,488.79062499999998]],PRIMEM["Greenwich",0],UNIT["Radian",1.000000000]]"""
+
+e15_lin_shp="""/Users/zane/Desktop/GSN_Mapping/E15_LinsGSN_byGID"""
+e15_cross_shp="""/Users/zane/Desktop/GSN_Mapping/E15_LinCrossClean"""
 
 class GeoSupNet(nx.MultiDiGraph): #{{{
     """
@@ -84,49 +88,512 @@ class GeoSupNet(nx.MultiDiGraph): #{{{
     # Translation:
     ##########################################################################
 
-    def lincross(self): #{{{2
+    def to_bidirected(self): #{{{2
         """
-        Output a list of GSN edges that can be used to re-instantiate the
-        connected components of the GSN.  Each edge is a 3-tuple, consisting of
-        two Lineament objects (the first is the older, the second is the
-        younger) and a dictionary containing the 'lon', 'lat' and 'weight'
-        (confidence) values associated with the intersection.
-
-          lincross[0] = bottom (older) feature (Lineament object)
-          lincross[1] = top (younger) feature (Lineament object)
-          lincross[2]['lon'] = lon of intersection (east-positive, radians)
-          lincross[2]['lat'] = lat of intersection (radians)
-          lincross[2]['weight'] = -log(conf) where 0 <= conf <= 0.5
+        Take a unidirectional GSN, in which all intersection confidences are
+        greater than or equal to 0.5, and return the equivalent bidirected GSN,
+        in which every edge with confidence P from A to B has a corresponding
+        edge with confidence 1-P from B to A.
 
         """
+        bidirected_gsn = GeoSupNet()
+        forward_edges = self.edges(data=True, keys=True)
+        back_edges = []
+        for e in forward_edges:
+            top_lin = e[0]
+            bottom_lin = e[1]
+            key = e[2]
+            lon = e[3]['lon']
+            lat = e[3]['lat']
+            weight = -np.log(1.0-np.exp(-e[3]['weight']))
+            edge_data = {'weight':weight,'lon':lon,'lat':lat}
+            back_edges.append((bottom_lin,top_lin,key,edge_data))
 
-        return self.edges(data=True)
+        bidirected_gsn.add_edges_from(forward_edges)
+        bidirected_gsn.add_edges_from(back_edges)
+        return(bidirected_gsn)
     #}}}2
 
-    def pairs(self): #{{{2
+    def to_shp(lin_shp_file, cross_shp_file): #{{{2 # TODO: write it!
         """
-        Return a list of sets of all the pairwise stratigraphic relationships,
-        as ordered tuples of lineament objects, which are determined by each
-        sub graph of the GSN
+        Output shapefiles representing the GSN, for display in a GIS
+        application.
+
+        """
+        pass
+    #}}}2
+
+    def get_sub_GSNs(self, minconf=0.5, minsize=2): #{{{2
+        """
+        Return a list of all the connected components of the GSN having size
+        greater than or equal to minsize, when only intersections with weights
+        corresponding to confidences greater than minconf. If the original GSN
+        has a linstack associated with it, add the subset of lineaments in each
+        sub_GSN to its associated linstack in the same order in which they
+        appear in the original GSN.
 
         """
 
-        pairwise_sets = []
+        # Convert the GSN to an undirected graph
+        # and find the connected subcomponents
+        good_edges = [ e for e in self.edges(data=True, keys=True) if np.exp(-e[3]['weight']) >= minconf ]
+        U = nx.MultiGraph()
+        U.add_edges_from(good_edges)
+        connected_nbunches = nx.connected_components(U)
+        G = GeoSupNet()
+        G.add_edges_from(good_edges)
+
+        # re-constitute those connected bunches as a new list of GSNs:
+        sub_GSNs = []
+        for nbunch in connected_nbunches:
+            if len(nbunch) >= minsize:
+                sub_gsn = G.subgraph(nbunch)
+                # Add the appropriate sub-linstack if it's available:
+                sub_gsn.linstack = [ ]
+                for lins in self.linstack:
+                    sub_gsn.linstack.append( [ lin for lin in lins if lin in sub_gsn ] )
+                sub_GSNs.append(sub_gsn)
+
+        return(sub_GSNs)
+    #}}}2 end get_sub_GSNs()
+
+    ##########################################################################
+    # GSN Manipulation
+    ##########################################################################
+
+    def stratigraphic_sort(self): #{{{2 # TODO: bi-directed, log-weights
+        """
+        Find upper and lower bounds on the stratigraphic location of each
+        feature in the GSN.
+
+        This is done by finding the sizes of the successor and predecessor
+        digraphs.  Anything that isn't in one of those graphs is of
+        indistinguishable age.
+
+        """
+
+        stratsorts = []
         for sub_gsn in self.get_sub_GSNs():
-            pairwise_subset = set([])
-            for source in sub_gsn.nodes():
-                for dest in nx.single_source_shortest_path(sub_gsn, source).keys():
-                    if source != dest:
-                        pairwise_subset.add((source, dest))
-            pairwise_sets.append(pairwise_subset)
+            stratsort = {}
+            rev_gsn = sub_gsn.reverse()
+            for lin in sub_gsn.nodes():
+                ub = len(sub_gsn) - len(nx.single_source_shortest_path_length(sub_gsn, lin))
+                lb = len(nx.single_source_shortest_path_length(rev_gsn, lin)) - 1
+                stratsort[lin] = (lb, ub)
+            stratsorts.append(stratsort)
+        
+        return(stratsorts)
 
-        return(pairwise_sets)
+    #}}}2 end stratigraphic_sort
 
-    #}}}2 end pairwise_orderings
+    ##########################################################################
+    # Metrics and Analysis:
+    ##########################################################################
+
+    def shortest_paths(self, minconf=0.5): #{{{2
+        """
+        For each ordered pair of nodes (A,B) in the GSN, find the shortest
+        weighted path from A to B.  Return both the paths, and their
+        confidences, as two dictionaries of dictionaries such that for example:
+
+        conf[A][B]
+
+        would be the confidence of the path from A to B, which are part of the
+        largest sub-GSN, and:
+
+        path[A][B]
+
+        would be the corresponding path, represented as an ordered list of
+        nodes.
+
+        Paths with confidences less than minconf are excluded.
+
+        """
+
+        path = {}
+        dist = {}
+        conf = {}
+        maxdist = -np.log(minconf)
+
+        # Find the shortest path from every node to every other reachable node.
+        # Store the results (both the distances and the paths) in two
+        # dictionaries of dictionaries, keyed by source and target node:
+        for source in self.nodes():
+            dist[source], path[source] = nx.single_source_dijkstra(self, source, cutoff=maxdist)
+            conf[source] = {}
+
+        # Transform the "distance" dictionary into a "confidence" dictionary,
+        # since that's the metric we're mostly using.
+        for source in dist.keys():
+            for target in dist[source].keys():
+                conf[source][target] = np.exp(-dist[source][target])
+
+        return(conf, path)
+    #}}}2
+
+    def enumerate_cycles(self, minconf=0.5): #{{{2
+        """
+        Find all pairs of nodes (A,B) for which there exist paths both from A
+        to B and B to A with confidences greater than minconf.  Many of these
+        paths will be isomorphic with each other (i.e. passing through all of
+        the same nodes... but with different starting and ending points A and
+        B).  Compare all of the paths, and return one from each isomorphic
+        group, as a list of nodes.  Also return the confidences of the cycles.
+
+        (confs, cycles)
+
+        """
+
+        cycles = []
+        cycle_confs = []
+        conf, path = self.shortest_paths(minconf=np.sqrt(minconf))
+
+        for n1 in self.nodes():
+            for n2 in self.nodes():
+                try:
+                    if conf[n1][n2] and conf[n2][n1] and n1 != n2:
+                        cycles.append(path[n1][n2][:-1]+path[n2][n1][:-1])
+                        cycle_confs.append(conf[n1][n2]*conf[n2][n1])
+
+                except(KeyError):
+                    continue
+
+        # only include one copy of each isomorphic cycle
+        unique_cycles = []
+        unique_cycle_confs = []
+        cycles_as_sets = []
+        for i in range(len(cycles)):
+            cyc_set = set(cycles[i])
+            if cyc_set not in cycles_as_sets:
+                cycles_as_sets.append(cyc_set)
+                unique_cycles.append(cycles[i])
+                unique_cycle_confs.append(cycle_confs[i])
+
+        # sort the returned cycles first by confidence, and then by number of
+        # nodes involved in the cycle, so that the most important, and easily 
+        # understood cycles come first.
+        dtype = [('cycle',object),('path_length',int),('conf',float)]
+        cycle_sort = np.zeros(len(unique_cycles), dtype=dtype)
+        cycle_sort['cycle'] = unique_cycles
+        cycle_sort['path_length'] = np.array([ len(c) for c in unique_cycles ])
+        cycle_sort['conf'] = -np.array(unique_cycle_confs)
+        cycle_sort.sort(order=['conf','path_length'])
+
+        return(-cycle_sort['conf'], cycle_sort['cycle'])
+
+    #}}}2 end enumerate_cycles
+
+    def net_relations(self, minconf=0.0, minsize=2): #{{{2
+        """
+        In a GSN with N features, here are N*(N-1) possible ordered binary
+        relationships which could be defined.  Relationships which have
+        confidences less than unity we consider to only be partially defined.
+        If both the ordered relations (A,B) and (B,A) are defined, then there
+        is ambiguity as to the actual ordering of the features, and the net
+        definition is: |P(A,B)-P(B,A)|.  The sum of those terms, for all
+        possible pairs (A,B) is what this function returns.
+        
+        """
+
+        info_sums = []
+        for sub_gsn in self.get_sub_GSNs(minconf=minconf, minsize=minsize):
+            conf, path = sub_gsn.shortest_paths(minconf=minconf)
+
+            info_sum = 0.0
+            for source in conf.keys():
+                for target in conf[source].keys():
+                    try:
+                        forward = conf[source][target]
+                    except(KeyError):
+                        forward = 0.0
+                    try:
+                        backward = conf[target][source]
+                    except(KeyError):
+                        backward = 0.0
+
+                    info_sum += np.fabs(forward-backward)
+
+            # need to divide the sum by two, because we'll catch each one twice
+            # iterating over the whole set of nodes as above:
+            info_sums.append(info_sum/2.0)
+        
+        return(info_sums)
+    #}}}2
+
+    def completeness(self, minconf=0.0, minsize=2): #{{{2
+        """
+        The completeness of a GSN is an indication of how many of the possible
+        pairwise stratigraphic relationships between the mapped features are
+        actually defined by their cross cutting relationships.  If both the
+        relations (A,B) and (B,A) are defined, then the stratigraphic
+        relationship between A and B has actually been made ambiguous, and so
+        the magnitude of the difference between them is used as a metric.  I.e.
+        if P(A,B)=0.9 and P(B,A)=0.1 then the net definition is 0.8, and that's
+        the contribution to the overall completeness that comes from the pair
+        (A,B).  The total number of relationships which could be defined is
+        N choose 2 = N*(N-1)/2 if there are N features in the GSN.
+        
+        """
+
+        sub_GSNs = self.get_sub_GSNs(minconf=minconf, minsize=minsize)
+        gsn_lens = np.array([ len(sub_gsn) for sub_gsn in sub_GSNs ])
+
+        net_rels = np.array(self.net_relations(minconf=minconf,minsize=minsize))
+
+        return( net_rels/(gsn_lens*(gsn_lens-1.0)/2.0) )
+    #}}}2
+
+    def intersection_confidences(self): #{{{2
+        """
+        Return an array containing the confidence values for all of the
+        intersections in the GSN.
+
+        """
+        weights = np.array([e[2]['weight'] for e in self.edges(data=True)])
+        return(np.exp(-weights))
+    #}}}2
+
+    def shortest_path_confidences(self): #{{{2
+        """
+        Return an array containing the confidence values for all of the
+        shortest paths calculated within the GSN.
+
+        """
+        confs, paths = self.shortest_paths(minconf=0)
+        out_confs = []
+        for source in self.nodes():
+            for target in confs[source].keys():
+                out_confs.append(confs[source][target])
+
+        return(out_confs)
+    #}}}2
+
+    def agreement(self, linstack, minconf_path=0.0): #{{{2
+        """
+        Calculate a metric of how consistent the relationships defined by
+        linstack are with the relationships defined by the GSN.
+
+             agree
+        ----------------
+        agree + disagree
+
+        where agree is the sum of the confidences of the paths from A to B for
+        all paths (A,B) defined by both the GSN and the linstack, and disagree
+        is the sum of the confidences of all the paths (A,B) defined in the GSN
+        where the path (B,A) is defined in the linstack.
+
+        This calculation is currently excruciatingly slow, apparently because
+        the lineament objects are taking forever to __hash__.  I don't know
+        why.
+
+        """
+
+        my_confs, my_paths = self.shortest_paths(minconf=minconf_path)
+
+        linstack_pairs = linstack2pairs(linstack)
+
+        agree = 0.0
+        disagree = 0.0
+        for n1 in my_confs.keys():
+            for n2 in my_confs[n1].keys():
+                if (n1,n2) in linstack_pairs:
+                    agree += my_confs[n1][n2]
+                if (n2,n1) in linstack_pairs:
+                    disagree += my_confs[n1][n2]
+
+        if agree+disagree == 0.0:
+            return(1.0)
+        else:
+            return(agree/(agree+disagree))
+    #}}}2
+
+    def disagreement(self, confs): #{{{2
+        """
+        The complement to "agreement", a metric of how much in conflict two
+        sets of binary relations are.
+
+        """
+        return(1-self.agreement(confs))
+    #}}}2
+
+    def reorder(linstack): #{{{2 TODO
+        """
+        Adjust the direction and confidences of the edges in the GSN to be
+        consistent with the ordering of the features in linstack.
+
+        - In order to be able to tell how remarkable a particular ordering is, i.e.
+          whether it's agreement() is better than we'd expect from chance, we need
+          to be able to know how well chance does.
+        - Need to be able to re-order a linstack quickly, so we can calculate many
+          different values of agreement() and find out what the distribution is like.
+        - Doing it quickly means that we need not to re-calculate all of the locations
+          of the intersections, we need to be able to just switch the direction of the
+          intersections, if need be.
+        - Several different kinds of random reordering are possible:
+          a) Keep the same layers, but re-shuffle their ordering.
+          b) Keep the same number of layers, and the same number of features in each
+             one, but shuffle which features are in which layer.
+          c) Keep the same number of layers, but randomly assign features to each one
+          d) Get rid of layers altogether, and choose a complete ordering.
+        """
+    #}}}2
+
+    def geometric_information_distribution(gsn, iterations=100, minsize=2): #{{{2 TODO
+        """
+        Calculate the relative information content of a GSN repeatedly, re-ordering
+        its true order of formation (linstack) repeatedly, while holding its
+        geometry constant.  Do this for each connected component separately, and
+        return 2D array of the results, with one row for each sub GSN.
+
+        """
+
+        # TODO: totally broken: doesn't work with weighted edges, no longer have a
+        # fast reordering function.  May or may not re-write.  Saved here for
+        # reference.
+
+        # Make a copy of the GSN so we don't alter the original:
+        test_gsn = gsn2gsn(gsn)
+
+        sub_GSNs = test_gsn.get_sub_GSNs(minsize=minsize, minconf=minconf)
+        sub_comps = np.zeros((len(sub_GSNs),iterations))
+        for sub_gsn,n in zip(sub_GSNs,range(len(sub_GSNs))):
+            for i in range(iterations):
+                pylab.shuffle(sub_gsn.linstack)
+                sub_gsn.reorder(sub_gsn.linstack)
+                sub_comps[n,i] = sub_gsn.completeness()[0]
+
+        return(sub_comps)
+    #}}}2
+
+    def significance(self, linstack, num_iter=100, minconf_cross=0.7, minconf_path=0.0): #{{{2
+        """
+        Calculate the agreement between linstack and the GSN, using only those
+        edges in the GSN with confidence greater than minconf_cross, and those
+        paths with confidence greater than minconf_path.
+
+        Then try to figure out whether or not that level of agreement is
+        actually statistically significant, by calculating the agreement
+        between the GSN and a suite of num_iter randomly ordered linstacks.
+
+        Return a tuple (hyp_A, rand_As) where hyp_A is the agreement between
+        the linstack passed in (the hypothesis) and rand_As is a list of the
+        agreements between the randomized linstacks and the GSN.  These can be
+        used to make a histogram, or calculate the percentile score of the
+        hypothesis.
+
+        """
+
+        test_gsn = gsn2gsn(self, minconf=minconf_cross)
+        print("Calculating agreement between hypothesis and GSN:")
+        hyp_A = test_gsn.agreement(linstack, minconf_path=minconf_path)
+        print("    hyp_A = %g" % (hyp_A,) )
+
+        flat_linstack = []
+        for lins in linstack:
+            for lin in lins:
+                flat_linstack.append([lin,])
+        rand_A = []
+        print("Calculating agreement between random linstacks and GSN:")
+        while len(rand_A) < num_iter:
+            pylab.shuffle(flat_linstack)
+            rand_A.append(test_gsn.agreement(flat_linstack, minconf_path=minconf_path))
+            print("    A = %g (%d / %d) " % (rand_A[-1], len(rand_A)+1, num_iter) )
+
+        return(hyp_A, rand_A)
+    #}}}2
+
+    def nsr_compare(self, nsr_stresscalc=None, nb=180, nbins=9, num_iter=1000): #{{{2
+        """
+        Calculate NSR fits for the features in the GSN, and using those that do fit
+        NSR, create a linstack (having nbins layers) based on their best fit
+        backrotation.  Calculate the agreement between that ordering and the
+        ordering relationships implied by the GSN.  Also calculate the agreement
+        between num_iters different random orderings of the features and the GSN
+        for comparison.
+
+        """
+        lins = self.nodes()
+        if nsr_stresscalc is None:
+            print("Initializing satellite")
+            satfile="input/ConvectingEuropa_GlobalDiurnalNSR.ssrun"
+            europa = satstress.Satellite(open(satfile,'r'))
+            nsr_stresscalc = satstress.StressCalc([satstress.NSR(europa),])
+
+        print("Calculating NSR fits:")
+        nsr_linstack = [ [] for i in range(nbins) ]
+        # we only need to calculate the fits if they haven't been done already
+        for lin,n in zip(lins,range(len(lins))):
+            if len(lin.bs) != nb or\
+               len(lin.nsrdbars) != nb or\
+               len(lin.nsrstresswts) != nb:
+
+                if np.mod(n,10) == 0:
+                    print("    %d / %d" % (n+1,len(lins)))
+                lin.calc_nsrfits(nb=nb, stresscalc=nsr_stresscalc,\
+                                 init_doppel_res=0.0, doppel_res=0.1,\
+                                 num_subsegs=10)
+
+            best_fit, best_b = lin.best_fit()
+            if best_fit > 0.0:
+                n = -int(nbins*best_b/np.pi)
+                nsr_linstack[n].append(lin)
+
+        hyp_A, rand_A = self.significance(nsr_linstack, num_iter=num_iter)
+
+        return(hyp_A, rand_A)
+
+    #}}}2
 
     ##########################################################################
     # Display Routines:
     ##########################################################################
+
+    def draw_graph(self, ax=None, minsize=2, minconf=0.5, cmap=pylab.cm.jet_r): #{{{2
+        """
+        Draw graph view of the GSN.  Plot each sub-GSN in a separate figure.
+        This is janky and should be replace with something that will plot using
+        graphviz instead of matplotlib.
+
+        minsize allows you to limit which connected components are plotted, and
+        avoid showing a bunch of uninteresting size 2 and 3 graphs.
+
+        """
+        from matplotlib.colors import rgb2hex
+        from matplotlib import rcParams
+        import Image
+
+        sub_GSNs = self.get_sub_GSNs(minsize=minsize, minconf=minconf)
+
+        rel_info = self.completeness(minconf=minconf)
+        for sub_gsn,n in zip(sub_GSNs, range(len(sub_GSNs))):
+
+            # generate an array of colors to use on the nodes:
+            nc_array = np.array([ cmap(float(n)/len(sub_GSNs)) for i in range(len(sub_gsn)) ])
+
+            sub_agsn = nx.to_agraph(sub_gsn)
+            sub_agsn.graph_attr.update(splines  = 'true',\
+                                       rankdir  = 'BT',\
+                                       nslimit1 = '100',\
+                                       nodesep  = '0.2',\
+                                       ranksep  = '0.5 equally',\
+                                       rank     = 'source')
+            sub_agsn.node_attr.update(color=rgb2hex(nc_array[0][0:3]), shape='point', width='0.25')
+            sub_agsn.layout(prog='dot')
+            sub_agsn.draw('output/graphs/test_agsn.png')
+
+            png_out = Image.open('output/graphs/test_agsn.png')
+            dpi = rcParams['figure.dpi']
+            fig_width  = png_out.size[0]/dpi
+            fig_height = png_out.size[1]/dpi
+            the_fig = plt.figure(figsize=(fig_width, fig_height))
+            gax = the_fig.add_subplot(111, frameon=False)
+            im = plt.imshow(png_out, origin='lower')
+            gax.set_xticks([])
+            gax.set_yticks([])
+            gax.set_xlabel('I=%.3g' % (rel_info[n],))
+
+                
+    #}}}2 end draw_graph
 
     def draw_map(self, intersections=False, ax=None, cmap=pylab.cm.jet_r, minsize=2, minconf=0.5): #{{{2
         """
@@ -157,7 +624,7 @@ class GeoSupNet(nx.MultiDiGraph): #{{{
 
     #}}}2 end draw_map
 
-    def draw_sort(self, orderby='mean', ax=None, colorby='graph', cmap=pylab.cm.jet_r, title="", weighted=True, normalized=True, minsize=2): #{{{2
+    def draw_sort(self, orderby='mean', ax=None, colorby='graph', cmap=pylab.cm.jet_r, title="", weighted=True, normalized=True, minsize=2): #{{{2 TODO: Borken!
         """
         Make a plot showing the retrieved stratigraphic sort.
         
@@ -262,55 +729,7 @@ class GeoSupNet(nx.MultiDiGraph): #{{{
 
     #}}}2 end draw_sort
 
-    def draw_graph(self, ax=None, minsize=2, minconf=0.5, cmap=pylab.cm.jet_r): #{{{2
-        """
-        Draw graph view of the GSN.  Plot each sub-GSN in a separate figure.
-        This is janky and should be replace with something that will plot using
-        graphviz instead of matplotlib.
-
-        minsize allows you to limit which connected components are plotted, and
-        avoid showing a bunch of uninteresting size 2 and 3 graphs.
-
-        """
-        from matplotlib.colors import rgb2hex
-        from matplotlib import rcParams
-        import Image
-
-
-        sub_GSNs = self.get_sub_GSNs(minsize=minsize, minconf=minconf)
-
-        rel_info = self.completeness()
-        for sub_gsn,n in zip(sub_GSNs, range(len(sub_GSNs))):
-
-            nc_array = np.array([ cmap(float(n)/len(sub_GSNs)) for i in range(len(sub_gsn)) ])
-            sub_agsn = nx.to_agraph(sub_gsn)
-
-            sub_agsn.graph_attr.update(splines  = 'true',\
-                                       rankdir  = 'BT',\
-                                       nslimit1 = '100',\
-                                       nodesep  = '0.2',\
-                                       ranksep  = '0.5 equally',\
-                                       mclimit  = '10.0',\
-                                       rank     = 'source')
-            sub_agsn.node_attr.update(color=rgb2hex(nc_array[0][0:3]), shape='point', width='0.25')
-            sub_agsn.layout(prog='dot')
-            sub_agsn.draw('output/graphs/test_agsn.png')
-
-            png_out = Image.open('output/graphs/test_agsn.png')
-            dpi = rcParams['figure.dpi']
-            fig_width  = png_out.size[0]/dpi
-            fig_height = png_out.size[1]/dpi
-            the_fig = plt.figure(figsize=(fig_width, fig_height))
-            gax = the_fig.add_subplot(111, frameon=False)
-            im = plt.imshow(png_out, origin='lower')
-            gax.set_xticks([])
-            gax.set_yticks([])
-            gax.set_xlabel('I=%.3g' % (rel_info[n],))
-
-                
-    #}}}2 end draw_graph
-
-    def draw_idist(self, iterations=100, minsize=4, cmap=pylab.cm.jet_r): #{{{2
+    def draw_idist(self, iterations=100, minsize=4, cmap=pylab.cm.jet_r): #{{{2 TODO: Borken!
         """
         Calculate some statistics of the possible information content within the
         GSN, depending on what order the features formed in.
@@ -334,393 +753,65 @@ class GeoSupNet(nx.MultiDiGraph): #{{{
 
         return(GIDs)
     #}}}2
-
-    ##########################################################################
-    # GSN Manipulation
-    ##########################################################################
-
-    def get_sub_GSNs(self, minconf=0.5, minsize=2): #{{{2
-        """
-        Return a list of all the connected components of the GSN having size
-        greater than or equal to minsize, when only intersections with weights
-        corresponding to confidences greater than minconf. If the original GSN
-        has a linstack associated with it, add the subset of lineaments in each
-        sub_GSN to its associated linstack in the same order in which they
-        appear in the original GSN.
-
-        """
-
-        # Convert the GSN to an undirected graph
-        # and find the connected subcomponents
-        U = nx.MultiGraph()
-        good_edges = [ e for e in self.edges(data=True) if np.exp(-e[2]['weight']) >= minconf ]
-        U.add_edges_from(good_edges)
-        connected_nbunches = nx.connected_components(U)
-        G = GeoSupNet()
-        G.add_edges_from(good_edges)
-
-        # re-constitute those connected bunches as a new list of GSNs:
-        sub_GSNs = []
-        for nbunch in connected_nbunches:
-            if len(nbunch) >= minsize:
-                sub_gsn = G.subgraph(nbunch)
-                # Add the appropraite sub-linstack if it's available:
-                sub_gsn.linstack = [ lin for lin in self.linstack if lin in sub_gsn ]
-                sub_GSNs.append(sub_gsn)
-
-        return(sub_GSNs)
-    #}}}2 end get_sub_GSNs()
-
-    def find_sub_linstacks(self, linstack, minsize=2, minconf=0.5): #{{{2
-        """
-        Return a list of lists of lineaments containing any features in
-        linstack which are also found in self, in the same order as they appear
-        in linstack, but grouped according to which sub_GSN of self they're in.
-
-        """
-
-        linstacks = []
-        for sub_gsn in self.get_sub_GSNs(minsize=minsize, minconf=minconf):
-            linstack.append([ lin for lin in linstack if lin in sub_gsn ])
-
-        return(linstacks)
-
-    #}}}2 end get_sub_linstacks()
-
-    def stratigraphic_sort(self): #{{{2
-        """
-        Find upper and lower bounds on the stratigraphic location of each
-        feature in the GSN.
-
-        This is done by finding the sizes of the successor and predecessor
-        digraphs.  Anything that isn't in one of those graphs is of
-        indistinguishable age.
-
-        """
-
-        stratsorts = []
-        for sub_gsn in self.get_sub_GSNs():
-            stratsort = {}
-            rev_gsn = sub_gsn.reverse()
-            for lin in sub_gsn.nodes():
-                ub = len(sub_gsn) - len(nx.single_source_shortest_path_length(sub_gsn, lin))
-                lb = len(nx.single_source_shortest_path_length(rev_gsn, lin)) - 1
-                stratsort[lin] = (lb, ub)
-            stratsorts.append(stratsort)
-        
-        return(stratsorts)
-
-    #}}}2 end stratigraphic_sort
-
-    def reorder(self, linstack): #{{{2
-        """
-        Given a new order of formation of the features in the GSN, defined by
-        linstack, change the directions of the edges as required to reflect the
-        new ordering, without needing to re-calculate the locations of all the
-        intersections, which is computationally expensive.
-
-        """
-        # Make sure that linstack is a superset of nodes:
-        sub_linstack = [ lin for lin in linstack if lin in self.nodes() ]
-        assert(len(sub_linstack) == len(self))
-
-        # for every edge in the GSN, check to see if it, or its reverse, is
-        # consistent with the new linstack.  If its reverse is consistent, flip
-        # the direction.  If neither is implied by the linstack, 
-        linstack_pairs = linstack2pairs(linstack)
-        old_edges=self.edges(data=True, keys=True)
-        for edge in old_edges:
-            if (edge[1],edge[0]) in linstack_pairs:
-                self.add_edge(edge[1],edge[0],edge[2],edge[3])
-                self.remove_edge(edge[0],edge[1],edge[2])
-            else:
-                assert((edge[0],edge[1]) in linstack_pairs)
-
-        self.linstack = sub_linstack
-
-    #}}}2
-
-    ##########################################################################
-    # Metrics and Analysis:
-    ##########################################################################
-
-    def conf_dist(self): #{{{2
-        """
-        Return an array containing the confidence values for all of the
-        intersections in the GSN.
-
-        """
-        weights = np.array([e[2]['weight'] for e in self.edges(data=True)])
-        return(np.exp(-weights))
-    #}}}2
-
-    def path_conf_dist(self): #{{{2
-        """
-        Return an array containing the confidence values for all of the
-        shortest paths calculated within the GSN.
-
-        """
-        confs, paths = self.best_paths(minconf=0)
-        out_confs = []
-        for source in self.nodes():
-            for target in confs[source].keys():
-                out_confs.append(confs[source][target])
-
-        return(out_confs)
-
-    #}}}2
-
-    def completeness(self): #{{{2 TODO: log-weights
-        """
-        Return a list of the proportion of pairwise orderings which are
-        specified for each sub-GSN.  Indicates how information rich the
-        GSNs are.
-
-        """
-        
-        comps = []
-        sub_gsns   = self.get_sub_GSNs()
-        sub_npairs = [ len(pairs) for pairs in self.pairs() ]
-        for sub_gsn, sub_npair in zip(sub_gsns, sub_npairs):
-            L = len(sub_gsn)
-            comps.append(sub_npair/((L*(L-1))/2.0))
-        return(comps)
-    #}}}2
-
-    def best_paths(self, minconf=0.5): #2{{{
-        """
-        For each ordered pair of nodes (A,B) in the GSN, find the shortest
-        weighted path from A to B.  Return both the paths, and their
-        confidences, as two dictionaries of dictionaries such that for example:
-
-        conf[A][B]
-
-        would be the confidence of the path from A to B, which are part of the
-        largest sub-GSN, and:
-
-        path[A][B]
-
-        would be the corresponding path, represented as an ordered list of
-        nodes.
-
-        Paths with confidences less than minconf are excluded.
-
-        """
-
-        path = {}
-        conf = {}
-        nodelist = self.nodes()
-
-        for source in nodelist:
-            conf[source], path[source] = nx.single_source_dijkstra(self, source)
-            # restrict the output to only sufficiently confident paths
-            for target in conf[source].keys():
-                conf[source][target] = np.exp(-conf[source][target])
-                if conf[source][target] < minconf:
-                    del path[source][target]
-                    del conf[source][target]
-
-        return(conf, path)
-    #2}}}
-
-    def enumerate_cycles(self, minconf=0.5): #{{{2
-        """
-        Find all pairs of nodes (A,B) for which there exist paths both from A
-        to B and B to A with confidences greater than minconf.  Many of these
-        paths will be isomorphic with each other (i.e. passing through all of
-        the same nodes... but with different starting and ending points A and
-        B).  Compare all of the paths, and return one from each isomorphic
-        group, as a list of edge tuples, (lin, lin, dict).
-
-        """
-
-        cycles = []
-        cycle_confs = []
-        conf, path = self.best_paths(minconf=np.sqrt(minconf))
-
-        for n1 in self.nodes():
-            for n2 in self.nodes():
-                try:
-                    if conf[n1][n2] and conf[n2][n1] and n1 != n2:
-                        cycles.append(path[n1][n2][:-1]+path[n2][n1][:-1])
-                        cycle_confs.append(conf[n1][n2]*conf[n2][n1])
-
-                except(KeyError):
-                    continue
-
-        # only include one copy of each isomorphic cycle
-        unique_cycles = []
-        unique_cycle_confs = []
-        cycles_as_sets = []
-        for i in range(len(cycles)):
-            cyc_set = set(cycles[i])
-            if cyc_set not in cycles_as_sets:
-                cycles_as_sets.append(cyc_set)
-                unique_cycles.append(cycles[i])
-                unique_cycle_confs.append(cycle_confs[i])
-
-        # TODO: sort the returned cycles first by confidence, and then by number of nodes
-        dtype = [('cycle',object),('path_length',int),('conf',float)]
-        cycle_sort = np.zeros(len(unique_cycles), dtype=dtype)
-        cycle_sort['cycle'] = unique_cycles
-        cycle_sort['path_length'] = np.array([ len(c) for c in unique_cycles ])
-        cycle_sort['conf'] = -np.array(unique_cycle_confs)
-        cycle_sort.sort(order=['conf','path_length'])
-
-        return(cycle_sort['cycle'], -cycle_sort['conf'])
-
-    #}}}2 end enumerate_cycles
-
-    def weighted_pairs(self, minsize=2, minconf=0.5): #{{{ TODO
-        """
-        Find the shortest weighted path between all pairs of nodes in the GSN.
-
-        """
-
-    #}}}
-
-
-    ##########################################################################
-    # Obsolete:
-    ##########################################################################
-
-    def valid_order(self, linstack): #{{{2
-        """
-        Given a list of features, ordered by their hypothesized times of formation
-        (linstack), and stratigraphic sort (stratsort, as returned from
-        GeoSupNet.stratigraphic_sort(), potentially having several members),
-        determine whether the ordering of linstack is consistent with the
-        constraints encoded within the stratsort.  Return True if it is, and False
-        if it is not.
-
-        """
-
-        sub_GSNs = self.get_sub_GSNs()
-        sub_linstacks = self.find_sub_linstacks(linstack)
-
-        # Go through each sub-stack and sub-GSN, and see if the orderings are
-        # consistent.  If any of the implied predecessors in the stack are
-        # found in a feature's *actual* successors, then the ordering is
-        # invalid.  Otherwise it is valid.
-        for sub_stack, sub_gsn in zip(sub_linstacks, sub_GSNs):
-            # create a dictionary of the successors for each lineament in the
-            # GSN, so we're not doing the same work over and over again
-            # TODO: Actually, for exclusion_coeff... this only needs to be done once!
-            true_successors = {}
-            for lin in sub_stack:
-                true_successors[lin] = nx.single_source_shortest_path(sub_gsn, lin).keys()
-
-            for n in range(len(sub_gsn.linstack)):
-                # run through all the lineaments in the stack below n
-                for lin in sub_stack[:n]:
-                    # if any of those features are a successor of the nth lin, the ordering fails
-                    if lin in true_successors[sub_stack[n+1]]:
-                        return(False)
-        return(True)
-
-#}}}2 end valid_order
-
-    def exclusion_coeff(self, numlins=2, iterations=100, minsize=3): #{{{2
-        """
-        Determine what fraction of possible feature orderings the GSN can
-        exclude.
-
-        numlins is the number of lineaments to try and validate in each
-        ordering.  Those lineaments are chosen at random from the set of all
-        features, and re-shuffled on each iteration.
-
-        iterations is the number of trials to run.
-
-        minsize is the minimum size of the connected components you wish to
-        include.  It allows you to only look at the features which actually
-        have ordering information (i.e. intersections).  This value must be
-        larger than numlins.
-
-        """
-
-        sub_GSNs = self.get_sub_GSNs(minsize=minsize)
-
-        if np.min([ len(sub_gsn) for sub_gsn in sub_GSNs ]) < minsize:
-            assert(minsize > numlins)
-
-        lins = []
-        for sub_gsn in sub_GSNs:
-            lins += sub_gsn.nodes()
-
-        excluded = 0.0
-        for i in range(iterations):
-            pylab.shuffle(lins)
-            if self.valid_order(lins[:numlins]) is False:
-                excluded += 1.0
-
-        return(excluded/iterations)
-    #}}}
-
-    def net_in_degree(self, with_labels=True, weighted=True, normalized=False): #{{{2
-        """
-        Length normalized weighted net in degree is a decent heuristic metric
-        of a feature's order of formation.  If it has lots of successors in the
-        graph (i.e. lots of intersections in which it is on the bottom), per
-        unit length of the feature, then all else being equal, we expect it to
-        be an older feature.
-
-        The greater the lineament density (length of lineaments per unit area
-        of map), and the longer the features involved, the better this metric
-        will reflect reality.
-
-        Returns either a list (if with_labels is False) or a dictionary (if
-        with_labels is True) of length normalized net in degrees.  The values
-        are:
-
-            ( in_degree - out_degree )
-            --------------------------
-                     lennorm
-
-        if normalized is True then lennorm = node.length (the nodes in a GSN
-        are satstress.Lineament objects, so this is the length of the feature
-        as measured in radians of arc)
-
-        If weighted is True then the weighted in and out degrees are used.
-        
-        If with_labels is True then the dictionary returned is keyed by node.
-
-        """
-
-        in_degs  = self.in_degree(with_labels=with_labels, weighted=weighted)
-        out_degs = self.out_degree(with_labels=with_labels, weighted=weighted)
-
-        net_in_degs = {}
-        for lin in self.nodes():
-            if normalized is True:
-                norm_length = lin.length
-            else:
-                norm_length = 1.0
-
-            net_in_degs[lin] = (in_degs[lin]-out_degs[lin])/norm_length
-
-        if with_labels is False:
-            net_in_degs = [ net_in_degs[lin] for lin in net_in_degs.keys() ]
-
-        return(net_in_degs)
-    #}}}
-
 #}}} end GeoSupNet
 
 ################################################################################
-# GSN Generation and Translation:
+# GSN Generation:
 ################################################################################
 
-def shp2gsn(lin_shp, cross_shp): #{{{
-    the_gsn = lincross2gsn(shp2lincross(lin_shp, cross_shp))
-    return(the_gsn)
+# There are three different representations of a GSN:
+#
+#   1.) The canonical graph representation, based on the nx.MultiDiGraph object
+#
+#   2.) A set of two shapefiles, one defining the geometries of the lineaments
+#       and another defining their crosscutting relationships at those points
+#       where they intersect.
+#
+#   3.) A "linstack", which is an ordered list of lists of Lineament objects,
+#       with all the members of each set having indistinguishable stratigraphic
+#       locations.  The list is ordered chronologically, such that the first
+#       set is the oldest features, and the last set is the youngest.  A
+#       linstack thus defines a known a priori order of formation, from which
+#       the crosscutting relationships at their intersections can be inferred.
+#
+#       A linstack is the structure used both to create a synthetic GSN, and to
+#       phrase a hypothesized order of formation to the GSN for corroboration
+#       or denial.  When creating a synthetic GSN from a linstack, any
+#       intersection involving two features from the same stratigraphic set
+#       (the ordering of which we have no information about) is assigned a
+#       confidence of 0.5.  When posing a hypothesized ordering, 
+#
+# Additionally, there is a data structure which is derivable from a GSN, which
+# describes all of the stratigraphic relationships it implies, and their
+# confidences, based on the shortest (highest confidence) path between all
+# connected ordered pairs of features in the graph.  This is the GSN's
+# path_conf, and it is represented as a dictionary of dictionaries, indexed
+# first by source node (older feature) and second by target node (younger
+# feature), with the value stored being the confidence of the shortest path
+# from the source to the target.
+
+def gsn2gsn(old_gsn, minconf=0.0): #{{{
+    """
+    Create a new GSN from an old one.  Only include those intersections whose
+    confidence is greater than or equal to minconf (useful for pruning out
+    intersections deemed too ambiguous for inclusion)
+
+    """
+    new_gsn = GeoSupNet()
+    old_edges = old_gsn.edges(data=True, keys=True)
+    good_old_edges = [ e for e in old_edges if np.exp(-e[3]['weight']) >= minconf ]
+    new_gsn.add_edges_from(good_old_edges)
+    for lins in old_gsn.linstack:
+        new_gsn.linstack.append([ lin for lin in lins if lin in new_gsn ])
+
+    return(new_gsn)
 #}}}
 
-def shp2lincross(lin_shp, cross_shp): #{{{
+def shp2gsn(lin_shp, cross_shp): #{{{
     """
     Given the paths to two shapefiles, one defining a set of mapped lineaments
     (lin_shp) and one describing the superposition relationships at their
-    intersections (cross_shp) return a list of lincross tuples, from which a GSN
-    may be constructed.
+    intersections (cross_shp) return a GSN.
 
     Each feature within lin_shp must have a field in its attribute table named
     'gid', which contains an integer uniquely identifying it within the
@@ -737,28 +828,27 @@ def shp2lincross(lin_shp, cross_shp): #{{{
     0.5 are prohibited, because they would in effect be indicating that the
     ordering of features ought to be reversed.
 
-    The set of lineament crossings returned is compatible with lincross2gsn,
-    defined below, and takes the form of a list of 3-tuples containing two
-    lineament objects, and a dictionary of data with which to construct an edge
-    in the GSN:
-
-    (bottom_lin, top_lin, {'weight':-log(conf),'lon':LON,'lat':LAT})
-
     The confidence is transformed to -log(conf) in the graph weighting to allow
     us to use the sums of weights to infer the products of probabilities.
 
     """
 
+    # this is the GSN that we're going to construct and return
+    the_gsn = GeoSupNet()
+
     # Create a dictionary of all the lineaments defined in lin_shp, keyed by
-    # their LIN_ID values:
-    lins, lin_ids = lineament.shp2lins(lin_shp, lin_ids=True)
-
-    # check and make sure that all of the lin_id values are unique
-    # How do I do that?  Need to look it up.
-
+    # their gid values:
+    lins = lineament.shp2lins(lin_shp)
+    # need to be able to look up a lineament object based on its gid:
     lindict = {}
-    for lin, lin_id in zip(lins, lin_ids):
-        lindict[lin_id] = lin
+    for lin in lins:
+        lindict[lin.gid] = lin
+    # check and make sure that all of the gid values were unique:
+    assert(len(lindict) == len(lins))
+
+    # Add all of the lineament object to the GSN, just in case any of them don't
+    # have any intersections, so they don't get left out:
+    the_gsn.add_nodes_from(lins)
 
     # Iterate over the set of points described in cross_shp, and for each one
     # look up the lineament objects involved in the intersection in the
@@ -766,8 +856,6 @@ def shp2lincross(lin_shp, cross_shp): #{{{
     # edge data we can read from the points
     cross_pt_data = ogr.Open(cross_shp, update=0)
     cross_pt_layer = cross_pt_data.GetLayer(0)
-
-    lincross = []
     cross_pt = cross_pt_layer.GetNextFeature()
     while cross_pt is not None:
         bottom_lin_idx = cross_pt.GetFieldIndex('bottom_lin')
@@ -790,82 +878,147 @@ def shp2lincross(lin_shp, cross_shp): #{{{
         # transform the confidence into a weight, logarithmically:
         pt_wt = -np.log(conf)
 
+        # read in the lon/lat location of the feature:
         cross_pt_geom = cross_pt.GetGeometryRef()
         pt_lon, pt_lat, no_z_coord = cross_pt_geom.GetPoint()
-        pt_lon = np.radians(pt_lon)
+        pt_lon = np.mod(np.radians(pt_lon),2.0*np.pi)
         pt_lat = np.radians(pt_lat)
 
-        lincross.append( (bottom_lin, top_lin, {'weight':pt_wt, 'lon':pt_lon, 'lat':pt_lat}) )
+        # add the edge:
+        the_gsn.add_edge(bottom_lin, top_lin, key=lonlat2key(pt_lon,pt_lat),\
+                         lon=pt_lon, lat=pt_lat, weight=pt_wt)
+
+        # If conf=0.5, no superposition relationship is defined, and we add
+        # edges in both directions:
+        if np.fabs(conf-0.5) < 1e-6:
+            the_gsn.add_edge(top_lin, bottom_lin, key=lonlat2key(pt_lon,pt_lat),\
+                             lon=pt_lon, lat=pt_lat, weight=pt_wt)
 
         # grab the next intersection:
         cross_pt = cross_pt_layer.GetNextFeature()
 
-    return(lincross)
-
-#}}} end shp2lincross
-
-def lincross2gsn(lincross): #{{{
-    """
-    Generates a GSN from a list of lineament intersections.  This is the method
-    to use when creating a GSN from a map for actual stratigraphic analysis.
-
-    Because it is possible for two lineaments to have more than one
-    intersection, it's necessary to associate the location of each intersection
-    with its confidence.
-
-    lincross is a 3-tuple, such that:
-
-       lincross[0] = bottom (older) feature (Lineament object)
-       lincross[1] = top (younger) feature (Lineament object)
-       lincross[2]['lon'] = lon of intersection (east-positive, radians)
-       lincross[2]['lat'] = lat of intersection (radians)
-       lincross[2]['weight'] = confidence K of intersection (0 <= K <= 1).
-
-    """
-
-    # Create an empty GSN:
-    the_gsn = GeoSupNet()
-
-    # Add each specified intersection, and thereby populate the nodes and edges
-    # of the GSN
-    for e in lincross:
-        the_gsn.add_edge(e[0], e[1], lon=e[2]['lon'], lat=e[2]['lat'],\
-                         weight=e[2]['weight'], key=lonlat2key(e[2]['lon'],e[2]['lat']) )
-
     return(the_gsn)
+#}}}
 
-#}}} end lincross2gsn
-
-def gsn2gsn(old_gsn): #{{{
+def before(linstack, n): #{{{
     """
-    Create a new GSN from an old one.
+    Return a flat list of all the features in the layers prior to layer n
 
     """
-    new_gsn = GeoSupNet()
-    new_gsn.add_edges_from(old_gsn.edges(data=True, keys=True))
-    new_gsn.linstack = [ lin for lin in old_gsn.linstack ]
-    return(new_gsn)
+    assert(n < len(linstack))
+    assert(n >= 0)
+
+    before_lins = []
+    if n == 0:
+        pass
+    else:
+        before_lins = [ j for i in linstack[:n] for j in i ]
+
+    return(before_lins)
+#}}}
+
+def after(linstack, n): #{{{
+    """
+    Return a flat list of all the features in the layers following layer n.
+
+    """
+    assert(n < len(linstack))
+    assert(n >= -1)
+    after_lins = []
+    if n == len(linstack)-1:
+        pass
+    else:
+        after_lins = [ j for i in linstack[n+1:] for j in i ]
+
+    return(after_lins)
 #}}}
 
 def linstack2pairs(linstack): #{{{
     """
-    Takes a list of Lineament objects, ordered by their times of formation, and
-    returns a set of tuples describing all of the pairwise orderings implied by
-    the stack, such that (A,B) means that A formed before B.
-    """
+    Create a list of pairs of lineaments, (A,B) where B comes after A in the
+    linstack.
 
+    """
     pairs = set([])
-    for n in range(len(linstack)):
-        for m in range(n+1,len(linstack)):
-            pairs.add((linstack[n],linstack[m]))
+    for n in range(len(linstack)-1):
+        for A in linstack[n]:
+            for B in [ j for i in linstack[n+1:] for j in i ]:
+                pairs.add((A,B))
     return(pairs)
-#}}} end linstack2pairs
 
-def linstack2gsn(linstack): #{{{
+#}}}
+
+def linstack2gsn(linstack, conf_dist=None): #{{{
     """
-    Takes a list of Lineament objects, ordered by their times of formation
-    (i.e. linstack[0] is the first/oldest feature), and returns a GSN object in
-    which all of the intersection confidences are 1.0.
+    A linstack is a list of lists of Lineament objects.  The ordering of the
+    list of lists indicates the order of formation, with the first list being
+    the oldest features, and the last list being the newest.  Each sub-list
+    describes a set of features having indistinguishable stratigraphic
+    locations.  This allows one to specify a hypothesized order of formation
+    of classes of features, without having to artificially specify the 
+    temporal relationships between the features within one particular class.
+
+    If conf_dist is None, any intersection between two features in different
+    classes will be given a confidence of 1.0.  Intersections between two
+    features in the same class are given a confidence of 0.5 (indicating that
+    there is no information contained in the intersection), and edges in both
+    directions will be added (as there is no reason to prefer one direction
+    over the other when the confidence is 0.5)
+
+    If conf_dist is not None, it is taken to be a pool of confidences to draw
+    from, when assigning a confidence to each intersection in the network.
+    This allows the creation of ambiguous, imperfect networks for testing, or
+    for accurately modeling the dynamics of a given mapped network.
+    
+    """
+
+    # Initialize the GSN
+    the_gsn = GeoSupNet()
+    # clear out any empty slots in the linstack:
+    linstack = [ lins for lins in linstack if len(lins) > 0 ]
+    # Save the linstack for later reference:
+    the_gsn.linstack = linstack
+
+    # Add all of the lineaments in the stack to the GSN as nodes.
+    [ the_gsn.add_nodes_from(lins) for lins in linstack ]
+
+    # For each layer within the linstack we want to do two things.  First, any
+    # intersections between features in the same layer of the linstack should
+    # be added with confidences of 0.5.  Then, any intersections between two
+    # features in different linstack layers should be added with confidence 1.0
+    for n in range(len(linstack)):
+        new_edges = []
+        # if we haven't been given a distribution of confidences to use, assume
+        # that we're building an idealized network, in which we get all of the
+        # confidences correct (based on the ordering of the linstack):
+        if conf_dist is None:
+            new_edges += build_gsn_edges(bottom_lins = linstack[n],\
+                                         top_lins    = linstack[n],\
+                                         conf_dist   = np.array([0.5,]))
+
+            new_edges += build_gsn_edges(bottom_lins = linstack[n],\
+                                          top_lins    = after(linstack, n),\
+                                          conf_dist   = np.array([1.0,]))
+
+        # if we've been given a distribution of confidences (conf_dist) then
+        # we're trying to recreate the reliability of an existing network, or
+        # synthesize an imperfectly understood set of relationships:
+        else:
+            new_edges += build_gsn_edges(bottom_lins = linstack[n],\
+                                         top_lins    = after(linstack, n-1),\
+                                         conf_dist   = conf_dist)
+            
+        the_gsn.add_edges_from(new_edges)
+
+    return(the_gsn)
+
+#}}} end linstack2gsn
+
+def build_gsn_edges(bottom_lins, top_lins, conf_dist): #{{{
+    """
+    Create and return a list of edge tuples representing intersections in the
+    GSN between bottom_lins and top_lins.  Assign those intersections a
+    confidence of conf.
 
     In order to do this all of the intersections between the features (which
     are implied by their geometry), have to be calculated.  This is done with
@@ -883,44 +1036,94 @@ def linstack2gsn(linstack): #{{{
     # See beginning of file for definition of the WKT SRS
     Europa_SRS = osr.SpatialReference(IAU2000_Europa_SRS_WKT)
 
-    # Initialize the graph
-    the_gsn = GeoSupNet()
-    the_gsn.linstack = linstack
-
-    # need to reverse the ordering of linstack if we want to keep the ordering as we said...
-    backstack = linstack[::-1]
-    the_gsn.add_nodes_from(backstack)
-
-    # Because longitude is periodic, but fucking OGR doesn't understand that,
-    # we have to do this a few times, over several different ranges of 2*pi:
-    # Convert Lineaments to OGR Geometries:
-    backstack_ogr_noshift = [ ogr.CreateGeometryFromWkt(lin.wkt(), Europa_SRS) for lin in backstack ]
-
-    for lonshift in (-2.0*np.pi, 0.0, 2.0*np.pi):
-
-        backstack_ogr_shifted = [ ogr.CreateGeometryFromWkt(lin.lonshift(lonshift).wkt(), Europa_SRS) for lin in backstack ]
-
-        for n in range(len(backstack)):
-            for m in range(n):
-                lin_cross = backstack_ogr_noshift[n].Intersection(backstack_ogr_shifted[m])
+    edges = []
+    for bottom_lin in bottom_lins:
+        bottom_ogr = ogr.CreateGeometryFromWkt(bottom_lin.wkt(), Europa_SRS)
+        for top_lin in top_lins:
+            if top_lin == bottom_lin:
+                continue
+            
+            # We have to iterate over a few different ranges of 2*pi to make
+            # sure that we get all the intersections, because, unfortunately,
+            # OGR doesn't know the world is round.
+            for lonshift in 2*np.pi*np.array([-1,0,1]):
+                top_ogr = ogr.CreateGeometryFromWkt(top_lin.lonshift(lonshift).wkt(), Europa_SRS)
+                lin_cross = bottom_ogr.Intersection(top_ogr)
 
                 if lin_cross is not None:
                     for point in [ lin_cross.GetPoint(i) for i in range(lin_cross.GetPointCount()) ]:
                         lon = np.mod(point[0],2*np.pi)
                         lat = point[1]
+                        # choose a random confidence from the proffered distribution:
+                        weight = -np.log(conf_dist[np.random.randint(len(conf_dist))])
+                        key = lonlat2key(lon, lat)
+                        edges.append( (bottom_lin, top_lin, key, {'lon':lon, 'lat':lat, 'weight':weight}) )
 
-                        the_gsn.add_edge(backstack[n], backstack[m], weight=1.0, key=lonlat2key(lon,lat), lon=lon, lat=lat)
+    return(edges)
 
-    return(the_gsn)
+#}}} end build_gsn_edges
+
+################################################################################
+# Linstack generation:
+################################################################################
+
+def linstack_random(nlins=100, nbins=10, maxlen=1.25): #{{{
+    """
+    Create a random population of great circle segments, and transform it into a
+    binned linstack for testing, having nbins separate peer classes.  To get a
+    linstack in which each feature has a unique stratigraphic position, make
+    nbins >> nlins.
+
+    """
+
+    linstack = [ [] for i in range(nbins) ]
+    lins = nsrhist.random_gclins(nlins, maxlen=maxlen)
+    for lin,n in zip(lins,np.random.randint(nbins,size=nlins)):
+        lin.lons = lineament.fixlons(lin.lons)
+        linstack[n].append(lin)
+
+    return(linstack)
 #}}}
+
+def linstack_nsr(nlins=100, nbins=18, length_scale=1.0): #{{{
+    """
+    Create a set of synthetic NSR lineaments at a variety of values of
+    backrotation, and transform them into a linstack having nbins separate peer
+    classes.  To get a linstack in which each feature has a unique peer class,
+    make nbins >> nlins.
+
+    """
+
+    # read in what we need to calculate the NSR stresses:
+    satfile = "input/ConvectingEuropa_GlobalDiurnalNSR.ssrun"
+    europa = satstress.Satellite(open(satfile,'r'))
+    nsr_stresscalc = satstress.StressCalc([satstress.NSR(europa),])
+
+    # create some random NSR features
+    lins = []
+    while len(lins) < nlins:
+        lon, lat = lineament.random_lonlatpoints(1)
+        length = np.abs(np.random.normal(scale=length_scale))
+        newlin = lineament.lingen_nsr(nsr_stresscalc, init_lon=lon[0], init_lat=lat[0], max_length=length)
+        lins.append(newlin)
+
+    bs = np.random.uniform(low=-np.pi, high=0.0, size=nlins)
+
+    nsr_linstack = [ [] for i in range(nbins) ]
+    for lin, b in zip(lins, bs):
+        lin.lons = lin.lons - b
+        n = int(nbins*b/np.pi)
+        nsr_linstack[n].append(lin)
+
+    return(nsr_linstack)
+
+#}}} end linstack_nsr
 
 def linstack_regular(nlins=10, overpole=False): #{{{
     """
     Create a regular map with a known order of formation for testing the GSN
     algorithms. nlins indicates how many features there are in each of the
-    north-south and east-west orientations.  ncross indicates where in the
-    sequence of east-west features the north-south features should appear.  If
-    ncross is none, the whole ordering is randomized.
+    north-south and east-west orientations.
 
     """
 
@@ -948,17 +1151,16 @@ def linstack_regular(nlins=10, overpole=False): #{{{
 
     pylab.shuffle(outlins)
 
-    return(outlins)
+    return([ [lin,] for lin in outlins ])
 
 #}}} end linstack_regular 
 
-def linstack_file(nlins=0, linfile='output/lins/map_nsrfit', spin=False, tpw=False): #{{{
+def linstack_file(nlins=0, linfile='output/lins/map_nsrfit', spin=False, tpw=False, nbins=10): #{{{
     """
     Draw nlins lineaments from a saved pool of features, and create a linstack
     from them.
 
     """
-
     # read in the features, and update them to make sure we've got whatever
     # interesting data they have, in the new Lineament object form.
     lins = lineament.update_lins(nsrhist.load_lins(linfile))
@@ -974,175 +1176,13 @@ def linstack_file(nlins=0, linfile='output/lins/map_nsrfit', spin=False, tpw=Fal
         assert(nlins <= len(lins))
         pylab.shuffle(lins)
     else:
-        linstack = nsrhist.make_crazy(nsrhist.linresample_byN(lins), tpw=tpw, spin=spin)
+        lins = nsrhist.make_crazy(nsrhist.linresample_byN(lins), tpw=tpw, spin=spin)
 
-    linstack = lins[:nlins]
+    linstack = [ [] for i in range(nbins) ]
+    for lin,n in zip(lins[:nlins],np.random.randint(nbins,size=nlins)):
+        linstack[n].append(lin)
 
     return(linstack)
-        
-#}}}
-
-def linstack_nsr(nlins=50, ncross=5): #{{{
-    """
-    Create a regular map with a known order of formation for testing the GSN
-    algorithms. nlins indicates how many features there are in each of the
-    north-south and east-west orientations.  ncross indicates where in the
-    sequence of east-west features the north-south features should appear.  If
-    ncross is none, the whole ordering is randomized.
-
-    """
-
-    # read in what we need to calculate the NSR stresses:
-    satfile = "input/ConvectingEuropa_GlobalDiurnalNSR.ssrun"
-    europa = satstress.Satellite(open(satfile,'r'))
-    nsr_stresscalc = satstress.StressCalc([satstress.NSR(europa),])
-
-    # create some random NSR features, in the northern hemisphere
-
-    nsr_linstack = []
-    while len(nsr_linstack) < nlins:
-        lon, lat = lineament.random_lonlatpoints(1)
-        lon = np.mod(lon[0], np.pi)-np.pi/2.0
-        lat = np.abs(lat[0])
-        length = np.abs(np.random.normal())
-        newlin = lineament.lingen_nsr(nsr_stresscalc, init_lon=lon, init_lat=lat, max_length=length)
-        nsr_linstack.append(newlin)
-
-    for xlon in np.linspace(-np.pi/3.0, np.pi/3.0, ncross):
-        nsr_linstack.append(lineament.lingen_greatcircle(xlon,0,xlon+np.pi,np.pi/2.1))
-
-    pylab.shuffle(nsr_linstack)
-
-    bs = np.sort(np.random.uniform(np.pi, size=nlins+ncross))[::-1]-np.pi
-
-    for lin, b in zip(nsr_linstack, bs):
-        lin.lons = lin.lons - b
-
-    return(nsr_linstack)
-
-#}}} end linstack_nsr
-
-def linstack2lincross(linstack): #{{{
-    """
-    Take an ordered list of lineaments, and return it as a list of GSN edges.
-
-    """
-
-    new_gsn = linstack2gsn(linstack)
-    lincross = new_gsn.edges(data=True)
-    return(lincross)
-
-#}}}
-
-def linstack_random(nlins=100): #{{{
-   """
-   Create a random collection of great circle segments.
-
-   """
-
-   test_lins = nsrhist.random_gclins(nlins)
-   for lin in test_lins:
-       lin.lons = lineament.fixlons(lin.lons)
-   return(test_lins)
-#}}}
-
-def random_gsn(nlins=100): #{{{
-    """
-    Create a random collection of great circle segments, with intersections
-    having ambiguous superposition relationships.
-
-    """
-    lincross = linstack2lincross(linstack_random(nlins=nlins))
-
-    for cross in lincross:
-        cross[2]['weight'] = -np.log(np.random.uniform(low=0.5, high=1.0))
-
-    return(lincross2gsn(lincross))
-
-#}}}
-
-################################################################################
-# GSN Metrics
-################################################################################
-
-def pairs_relevance(A, B): #{{{
-    """
-    Within two sets of statements (about the ordering of features), A and B,
-    each statement has to be in one of three classes: either they agree (the
-    statement is in both A and B), they disagree (the statement is in A, and
-    its reverse is in B) or they are unrelated (the statement appears in A or
-    B, but not in the other)
-
-    This function returns the number of statements which the two sets share
-    either in agreement or disagreement) divided by the number of statements
-    within A, and so indicates how relevant B as a whole is to A.
-
-    """
-    
-    agree    = A.intersection(B)
-    disagree = A.intersection(set([ pair[::-1] for pair in B ]))
-
-    return(float(len(agree)+len(disagree))/len(A))
-#}}}
-
-def pairs_agreement(A, B): #{{{
-    """
-    Within two sets of statements (about the ordering of features), A and B,
-    each statement has to be in one of three classes: either they agree (the
-    statement is in both A and B), they disagree (the statement is in A, and
-    its reverse is in B) or they are unrelated (the statement appears in A or
-    B, but not in the other)
-
-    This function returns the number of statements on which the two sets agree,
-    divided by the number of statements which they share at all (either in
-    agreement or disagreement)
-
-    """
-
-    agree    = A.intersection(B)
-    disagree = A.intersection(set([ pair[::-1] for pair in B ]))
-
-    return(len(agree)/(len(agree)+len(disgree)))
-#}}}
-
-def pairs_disagreement(A, B): #{{{
-    """
-    Within two sets of statements (about the ordering of features), A and B,
-    each statement has to be in one of three classes: either they agree (the
-    statement is in both A and B), they disagree (the statement is in A, and
-    its reverse is in B) or they are unrelated (the statement appears in A or
-    B, but not in the other)
-
-    This function returns the number of statements on which the two sets
-    disagree, divided by the number of statements which they share at all
-    (either in agreement or disagreement).
-
-    """
-
-    return(1.0-pairs_disagreement(A,B))
-#}}}
-
-def geometric_information_distribution(gsn, iterations=100, minsize=2): #{{{
-    """
-    Calculate the relative information content of a GSN repeatedly, re-ordering
-    its true order of formation (linstack) repeatedly, while holding its
-    geometry constant.  Do this for each connected component separately, and
-    return 2D array of the results, with one row for each sub GSN.
-
-    """
-
-    # Make a copy of the GSN so we don't alter the original:
-    test_gsn = gsn2gsn(gsn)
-
-    sub_GSNs = test_gsn.get_sub_GSNs(minsize=minsize, minconf=minconf)
-    sub_comps = np.zeros((len(sub_GSNs),iterations))
-    for sub_gsn,n in zip(sub_GSNs,range(len(sub_GSNs))):
-        for i in range(iterations):
-            pylab.shuffle(sub_gsn.linstack)
-            sub_gsn.reorder(sub_gsn.linstack)
-            sub_comps[n,i] = sub_gsn.completeness()[0]
-
-    return(sub_comps)
 #}}}
 
 ################################################################################
@@ -1177,46 +1217,141 @@ def lonlat2key(lon, lat): #{{{
 # Testing Functions:
 ################################################################################
 
-def test(nlins=100, lintype='real', orderby='mean', ncross=None, spin=False, tpw=False, minsize=4, draw_map=True, draw_sort=True, draw_graph=True, draw_idist=True): #{{{
+def test(lintype='nsr', nlins=300, nbins=9, minconf=0.5, maxconf=1.0,\
+         clon=0, clat=0, maxdist=np.pi/4.0, maxlen=1.0, minsize=8, iterations=100,\
+         draw_map=True, draw_graph=True, draw_idist=False, draw_sort=False): #{{{
    """
-   A short unit test of the sorting functionality.
+   Create a set of synthetic NSR features, binned according to the amount of
+   shell rotation at which they formed.  Transform them into a GSN, calculate
+   some metrics, and display the data in several ways, to see if things are
+   working, generally.
    
-   lintype may be one of: 'nsr', 'regular', or 'random', corresponding to the
-   similarly named linstack routines defined below.
-
    """
 
-   print("Generating linstack")
+   print("Generating %s linstack (N=%d)" % (lintype,nlins) )
    if lintype == 'nsr':
-       test_lins = linstack_nsr(nlins=nlins, ncross=ncross)
-   elif lintype == 'regular':
-       test_lins = linstack_regular(nlins=nlins)
-   elif lintype == 'real':
-       test_lins = linstack_file(nlins=nlins, spin=spin, tpw=spin)
+       linstack = linstack_nsr(nlins=nlins, nbins=nbins, length_scale=maxlen)
    else:
        assert(lintype == 'random')
-       test_lins = linstack_random(nlins=nlins)
+       linstack = linstack_random(nlins=nlins, nbins=nbins, maxlen=maxlen)
+
+   lines, linmap = lineament.plotlinmap([])
+   colors = pylab.cm.jet(np.linspace(0,1,len(linstack)))
+   for n in range(len(linstack)):
+       linstack[n] = lineament.crop_circle(linstack[n], clon=clon, clat=clat, maxdist=maxdist)
+       lines, linmap = lineament.plotlinmap(linstack[n], map=linmap, color=colors[n], linewidth=2.0)
 
    print("Converting map to GSN")
-   test_gsn = linstack2gsn(test_lins)
+   the_gsn = linstack2gsn(linstack)
 
    print("Plotting results")
+   if draw_map is True:
+       the_gsn.draw_map(minsize=minsize, minconf=minconf)
+   if draw_graph is True:
+       the_gsn.draw_graph(minsize=minsize, minconf=minconf)
    if draw_sort is True:
        test_gsn.draw_sort(orderby=orderby, title=lintype, minsize=minsize)
-   if draw_map is True:
-       test_gsn.draw_map(minsize=minsize)
-   if draw_graph is True:
-       test_gsn.draw_graph(minsize=minsize)
    if draw_idist is True:
-       test_gsn.draw_idist(minsize=minsize, iterations=iterations)
+       test_gsn.draw_idist(minsize=minsize, minconf=minconf, iterations=iterations)
 
-   return(test_gsn)
+   return(the_gsn)
 
 #}}} end test()
+
+def test_agreement(nlins=300, nbins=10, conf_dist=None, layers=True, keep_order=True): #{{{
+    """
+    Create a linstack having nlins features, organized into nbins layers, with
+    intersections conforming to the confidence distribution passed in via
+    conf_dist (or having perfect confidences, if conf_dist is None).
+
+    If layers is True, remove one or several layers at a time from the
+    linstack, and re-calculate the agreement with the previously generated GSN.
+    If layers is False, then remove individual lineaments randomly instead of
+    whole layers.
+
+    If keep_order is True, don't re-order the linstack, just remove things.  If
+    keep_order is False, then shuffle things around instead, swapping either
+    layers or lineaments (depending on whether layers is True), and see how the
+    agreement degrades.  Perform iters swaps, and then return.
+
+    """
+
+    print("Generating synthetic linstack and GSN (nlins=%d, nbins=%d)" % (nlins,nbins) )
+    the_linstack = linstack_random(nlins=nlins, nbins=nbins)
+
+    # the density and connectivity of the network is important for these
+    # results, so we're going to confine it:
+    the_linstack = [ lineament.crop_circle(lins, clon=0, clat=0, maxdist=np.pi/4.0) for lins in the_linstack ]
+
+    the_gsn = linstack2gsn(the_linstack, conf_dist=conf_dist)
+    # just keep the biggest connected component:
+    the_gsn = the_gsn.get_sub_GSNs()[0]
+    the_linstack = the_gsn.linstack
+    # see what we got:
+    the_gsn.draw_map()
+    plt.draw()
+
+    results = []
+    # this should always start out 1.0...
+    results.append(the_gsn.agreement(the_linstack))
+    print("A = %g" % (results[-1],))
+
+    if keep_order is True:
+        print("Running test without re-ordering...")
+        # Only makes sense to continue while the linstack actually still
+        # defines some relationships.
+        while len(the_linstack) >= 2:
+            if layers is True:
+                del the_linstack[np.random.randint(len(the_linstack))]
+                results.append(the_gsn.agreement(the_linstack))
+            else:
+                # randomly remove one feature at a time, and any empty layers:
+                layer_idx = np.random.randint(len(the_linstack))
+                lin_idx = np.random.randint(len(the_linstack[layer_idx]))
+                del the_linstack[layer_idx][lin_idx]
+                the_linstack = [ lins for lins in the_linstack if len(lins) > 0 ]
+                results.append(the_gsn.agreement(the_linstack))
+            print("A = %g" % (results[-1],))
+
+    else: # we're shuffling things
+        if layers is True:
+            maxiters = len(the_linstack)
+            print("Running %d tests with %d shuffled layers." % (maxiters, maxiters))
+        else:
+            maxiters = np.sum( [ len(lins) for lins in the_linstack ] )
+            print("Running %d tests with %d shuffled lins." % (maxiters, maxiters))
+
+        while len(results) < maxiters+1:
+            if layers is True:
+                # pick two random layers and swap them:
+                i1, i2 = np.random.randint(len(the_linstack), size=2)
+                tmp_1 = [ lin for lin in the_linstack[i1] ]
+                tmp_2 = [ lin for lin in the_linstack[i2] ]
+                the_linstack[i1] = tmp_2
+                the_linstack[i2] = tmp_1
+                results.append(the_gsn.agreement(the_linstack))
+
+            else:
+                # pick two random features and swap them:
+                lay_idx_1, lay_idx_2 = np.random.randint(len(the_linstack), size=2)
+                lin_idx_1 = np.random.randint(len(the_linstack[lay_idx_1]))
+                lin_idx_2 = np.random.randint(len(the_linstack[lay_idx_2]))
+                lin_1 = the_linstack[lay_idx_1][lin_idx_1]
+                lin_2 = the_linstack[lay_idx_2][lin_idx_2]
+                the_linstack[lay_idx_1][lin_idx_1] = lin_2
+                the_linstack[lay_idx_2][lin_idx_2] = lin_1
+                results.append(the_gsn.agreement(the_linstack))
+            print("A = %g" % (results[-1],))
+
+    return(results)
+
+#}}}
+
 
 ################################################################################
 # TODO:
 ################################################################################
+
 # Mapping:
 # --------
 # add descriptive attributes to lineaments:
@@ -1230,52 +1365,23 @@ def test(nlins=100, lintype='real', orderby='mean', ncross=None, spin=False, tpw
 #     - mid
 #     - dark
 
-# ============================================================================== 
-# GSN v1.1 (intersection confidences):
-# ==============================================================================
+# Analysis:
+# ---------
+# Fit the mapped features to the NSR stress fields, and create a binned
+# linstack ordering them by their best bit backrotations.  Test that
+# hypothesized order of formation against the cross cutting relationships.
+# Does it do better or worse than a random ordering?  By how much?  What's the
+# spread on a random ordering?
 
-# Introduce weights on the edges which are less than unity, to represent the
-# uncertainty in the relationships they depict.
-
-# Use bi-directed graph with P and 1-P as the weights for any given
-# intersection, where P (>= 0.5) is the confidence (probability) that the edge
-# goes in the more probable direction.
-
-# Find the shortest path between all ordered pairs of nodes in the graph using
-# Dijkstra's algorithm.  As weights for the edges, use -log(P), such that the
-# sums of the weights correspond to the product of the probabilities.
-
-# With bi-directed graph, the interesting question, regarding cycles, becomes
-# for a given threshold (maximum path length) do there exist paths both from A
-# to B *and* from B to A such that the sum of the weights of the edges involved
-# is below the threshold.  The right threshold is probably 0.5
-
-# The distribution of shortest path lengths (instead of proportion of
-# relationships which are defined) becomes the interesting thing to look at,
-# because all relationships within a connected network of features are
-# "defined", though some of them have miniscule (or zero) probability.
+# Is there a better than chance correlation between superposition age and
+# width or color?
 
 # We want to be able ask questions like:
 #   - given three classes of features (X,Y,Z) how consistent are the intersections
 #     we mapped with X forming first, then Y, then Z?
-#   - Are there any clear instances of lineament re-activation?
 #   - How consistent are the cross cutting relationships with the order of formation
 #     one would infer from NSR?  Is it much more consistent with NSR than with a
 #     random order of formation?
-
-# A binary ordering of two features is well defined if P(A,B) >> P(B,A).  Can
-# define a metric of clarity which is the magnitude of the difference between
-# the two: C = |P(A,B) - P(B,A)|.
-#   - If one is large, and the other small, then C is large.
-#   - If both are small, then C is small.
-#   - If both are large, things get weird.  What if instead, we use:
-#     max(P(A,B),P(B,A))
-#     - |1.0-0.0| - |0.5-0.5| =  1.0
-#     - |0.9-0.1| - |0.6-0.4| =  0.6
-#     - |0.8-0.2| - |0.7-0.3| =  0.2
-#     - |0.7-0.3| - |0.8-0.2| = -0.2
-#     - |0.6-0.4| - |0.9-0.1| = -0.6
-#     - |0.5-0.5| - |1.0-0.0| = -1.0
 
 # How does retrieveable information vary as a function of geometry
 # Create a circular or otherwise geometrically unbiased map space, and show how
@@ -1287,50 +1393,3 @@ def test(nlins=100, lintype='real', orderby='mean', ncross=None, spin=False, tpw
 # showing how much information was retrieved (sweet plot)
 
 ################################################################################
-
-# ============================================================================== 
-# GSN v1.2 (allow cycles): #{{{
-# ============================================================================== 
-
-# INDUCE CYCLES ON A TEST DAG:
-# ----------------------------
-#   Given an acyclic GSN, generate a similar GSN, that has experienced
-#   re-activation by reversing the direction of some proportion of the edges.
-
-# ENUMERATE CYCLES:
-# ----------------------------
-#   Given a GSN containing cycles, return a set of "path" graphs describing all
-#   of the simple cycles in the original GSN.  Give the option of removing all
-#   the intersections below a particular confidence threshold first in order to
-#   speed things up, and focus on the most interesting features.
-#
-#   To first order, this is probably just finding all the strongly connected
-#   components of the digraph.
-
-# IDENTIFY REACTIVATION SITES:
-# ----------------------------
-#   Figure out exactly what algorithm the 'dot' program uses to draw
-#   hierarchical graphs.  It's probably about as good as we're going to get at
-#   identifying the back-edges.
-
-#   Test whether multiple back edges clustered along a given lineament are a
-#   good indication of reactivation having reversed them, by using test
-#   datasets.
-
-#}}}
-
-# ============================================================================== 
-# GSN v1.3 (cycle resolution): #{{{ FUTURE WORK
-# ============================================================================== 
-
-# LINEAMENT SPLITTING:
-#   Given a best guess at which intersections have been affected by reactivation,
-#   determine where to cut the lineament most involved in order to separate out
-#   the reactivated portion, and allow it to sort independently.
-
-# RENDER GSN ACYCLIC:
-#   - Either remove back edges one-by-one until the graph is acyclic or
-#   - Split the feature they lie on and attempt to re-sort.
-
-#}}}
-

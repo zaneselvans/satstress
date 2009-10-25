@@ -12,7 +12,7 @@ class Lineament(object): #{{{1
 
     """
 
-    def __init__(self, lons=None, lats=None, stresscalc=None, bs=None, nsrdbars=None, nsrstresswts=None): #{{{2
+    def __init__(self, lons=None, lats=None, stresscalc=None, bs=None, nsrdbars=None, nsrstresswts=None, gid=None): #{{{2
         """
         Create a lineament from a given list of (lon,lat) points.
 
@@ -37,6 +37,8 @@ class Lineament(object): #{{{1
         self.lats = array(lats)
         self.length = self.calc_length()
         self.stresscalc = stresscalc
+        self.gid = gid
+        self.hashval = self.calc_hash()
 
         if bs is None or nsrdbars is None or nsrstresswts is None:
             self.bs = None
@@ -1057,6 +1059,36 @@ def fixlons(lons): #{{{
     return(lons)
 #}}}
 
+def crop_circle(lins, clon=0, clat=0, maxdist=None): #{{{
+    """
+    Take a set of lineaments, lins, and remove any vertices which are more than
+    maxdist radians away from the point clon, clat.  Recalculate all the
+    lineament lengths, and return the resulting cropped features.  If none of
+    a feature's points are within range, it is removed entirely.
+
+    This may do strange things if you have high sinuosity features, as it does
+    not split the features into separate entities if they leave and re-enter
+    the area being considered.  Should be fine in general for NSR lineaments
+    and great circle segments.
+
+    """
+    if maxdist is None:
+        cropped_lins = lins
+    else:
+        cropped_lins = []
+        newlins = update_lins(lins)
+        for lin in newlins:
+            keep_idx = np.where(spherical_distance(clon, clat, lin.lons, lin.lats) < maxdist)
+            if len(keep_idx[0]) > 1:
+                lin.lons = lin.lons[keep_idx]
+                lin.lats = lin.lats[keep_idx]
+                lin.length = lin.calc_length()
+                cropped_lins.append(lin)
+
+    return(cropped_lins)
+            
+#}}}
+
 ################################################################################
 # Helpers for input/output/saving/updating: (TODO: portable output...)
 ################################################################################
@@ -1099,24 +1131,23 @@ def plotlinmap(lins, map=None, color='black', alpha=1.0, linewidth=1.0, lon_cyc=
     return([line for line in flatten(lines)], map)
 #}}} end plotlinmap
 
-def shp2lins(shapefile, stresscalc=None, lin_ids=False): #{{{
+def shp2lins(shapefile, stresscalc=None): #{{{
     """
     Create a list of L{Lineament} objects from an ESRI shapefile.
 
-    The shapefile must contain one or more linear features, defined in geographic
-    coordinates using decimal degrees.  The shapefile is read in using the GDAL/OGR
-    geospatial library.
+    The shapefile must contain one or more linear features, defined in
+    geographic coordinates using decimal degrees.  The shapefile is read in
+    using the GDAL/OGR geospatial library.
 
-    If lin_ids is True, then a second list is also returned, containing the
-    unique gid value stored in the attribute table associated with the
-    shapefile.  This is for use in creating GSNs.
+    If there is a field named 'gid' in the attribute table of the features,
+    then each Lineament object's 'gid' value is set using it.  This is useful
+    for pulling features back into GIS afterward, and having them be
+    identifiable.
 
     """
 
     # This is the list of lineaments we are going to return eventually:
     linlist = []
-    lin_id_list = []
-
     # First read in the shapefile as an OGR "data source"
     data_source = ogr.Open(shapefile, update=0)
 
@@ -1138,16 +1169,15 @@ def shp2lins(shapefile, stresscalc=None, lin_ids=False): #{{{
         if(len(pointlist) > 0):
             newlats = radians(pointlist[:,1])
             newlons = radians(pointlist[:,0])
-            linlist.append(Lineament(lons=newlons, lats=newlats, stresscalc=stresscalc))
-            if lin_ids is True:
-                lin_id_list.append(ogr_lin_feat.GetField(ogr_lin_feat.GetFieldIndex('gid')))
+            try:
+                gid = ogr_lin_feat.GetField(ogr_lin_feat.GetFieldIndex('gid'))
+            except(ValueError):
+                gid = None
+            linlist.append(Lineament(lons=newlons, lats=newlats, stresscalc=stresscalc, gid=gid))
 
         ogr_lin_feat = lineaments.GetNextFeature()
 
-    if lin_ids is False:
-        return(linlist)
-    else:
-        return(linlist, lin_id_list)
+    return(linlist)
 
 # }}} end shp2lins
 
