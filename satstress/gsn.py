@@ -382,10 +382,6 @@ class GeoSupNet(nx.MultiDiGraph): #{{{
         is the sum of the confidences of all the paths (A,B) defined in the GSN
         where the path (B,A) is defined in the linstack.
 
-        This calculation is currently excruciatingly slow, apparently because
-        the lineament objects are taking forever to __hash__.  I don't know
-        why.
-
         """
 
         my_confs, my_paths = self.shortest_paths(minconf=minconf_path)
@@ -513,30 +509,8 @@ class GeoSupNet(nx.MultiDiGraph): #{{{
 
         """
         lins = self.nodes()
-        if nsr_stresscalc is None:
-            print("Initializing satellite")
-            satfile="input/ConvectingEuropa_GlobalDiurnalNSR.ssrun"
-            europa = satstress.Satellite(open(satfile,'r'))
-            nsr_stresscalc = satstress.StressCalc([satstress.NSR(europa),])
-
-        print("Calculating NSR fits:")
-        nsr_linstack = [ [] for i in range(nbins) ]
-        # we only need to calculate the fits if they haven't been done already
-        for lin,n in zip(lins,range(len(lins))):
-            if len(lin.bs) != nb or\
-               len(lin.nsrdbars) != nb or\
-               len(lin.nsrstresswts) != nb:
-
-                if np.mod(n,10) == 0:
-                    print("    %d / %d" % (n+1,len(lins)))
-                lin.calc_nsrfits(nb=nb, stresscalc=nsr_stresscalc,\
-                                 init_doppel_res=0.0, doppel_res=0.1,\
-                                 num_subsegs=10)
-
-            best_fit, best_b = lin.best_fit()
-            if best_fit > 0.0:
-                n = -int(nbins*best_b/np.pi)
-                nsr_linstack[n].append(lin)
+        nsr_linstack = nsr_linstack(lins, nb=nb, nbins=nbins,\
+                                    nsr_stresscalc=nsr_stresscalc)
 
         hyp_A, rand_A = self.significance(nsr_linstack, num_iter=num_iter)
 
@@ -1185,6 +1159,72 @@ def linstack_file(nlins=0, linfile='output/lins/map_nsrfit', spin=False, tpw=Fal
     return(linstack)
 #}}}
 
+def nsr_linstack(lins, nsr_stresscalc=None, nb=180, nbins=180): #{{{
+    """
+    Take a list of lineaments, and turn them into a linstack ordered by
+    the value of their best fit backrotation.
+
+    """
+    if nsr_stresscalc is None:
+        print("Initializing satellite")
+        satfile="input/ConvectingEuropa_GlobalDiurnalNSR.ssrun"
+        europa = satstress.Satellite(open(satfile,'r'))
+        nsr_stresscalc = satstress.StressCalc([satstress.NSR(europa),])
+
+    print("Calculating NSR fits:")
+    nsr_linstack = [ [] for i in range(nbins) ]
+    # we only need to calculate the fits if they haven't been done already
+    for lin,n in zip(lins,range(len(lins))):
+        if lin.bs is None or len(lin.bs) != nb:
+            if np.mod(n+1,10) == 0:
+                print("    %d / %d" % (n+1,len(lins)))
+            lin.calc_nsrfits(nb=nb, stresscalc=nsr_stresscalc,\
+                             init_doppel_res=0.0, doppel_res=0.1,\
+                             num_subsegs=10)
+
+        best_fit, best_b = lin.best_fit()
+        if best_fit > 0.0:
+            n = -int(nbins*best_b/np.pi)
+            nsr_linstack[n].append(lin)
+
+    nsr_linstack = [ lins for lins in nsr_linstack if len(lins) > 0 ]
+
+    return(nsr_linstack)
+
+#}}}
+
+def linstack_swap_element(linstack, nswaps=1, by_layer=False): #{{{
+    """
+    Take two randomly selected elements in the linstack and swap them.  Perform
+    this operation nswaps times.
+
+    If by_layer is True, swap two entire layers within the linstack.  If it is
+    False, choose two individual features and swap them.
+
+    """
+    tmp_linstack = [ [ lin for lin in lins ] for lins in linstack ]
+    for swaps in range(nswaps):
+        if by_layer is True:
+            # pick two random layers and swap them:
+            i1, i2 = np.random.randint(len(tmp_linstack), size=2)
+            tmp_1 = [ lin for lin in tmp_linstack[i1] ]
+            tmp_2 = [ lin for lin in tmp_linstack[i2] ]
+            tmp_linstack[i1] = tmp_2
+            tmp_linstack[i2] = tmp_1
+
+        else:
+            # pick two random features and swap them:
+            lay_idx_1, lay_idx_2 = np.random.randint(len(tmp_linstack), size=2)
+            lin_idx_1 = np.random.randint(len(tmp_linstack[lay_idx_1]))
+            lin_idx_2 = np.random.randint(len(tmp_linstack[lay_idx_2]))
+            lin_1 = tmp_linstack[lay_idx_1][lin_idx_1]
+            lin_2 = tmp_linstack[lay_idx_2][lin_idx_2]
+            tmp_linstack[lay_idx_1][lin_idx_1] = lin_2
+            tmp_linstack[lay_idx_2][lin_idx_2] = lin_1
+
+    return(tmp_linstack)
+#}}}
+
 ################################################################################
 # Helper Functions:
 ################################################################################
@@ -1297,20 +1337,20 @@ def test_agreement(nlins=300, nbins=10, conf_dist=None, layers=True, keep_order=
     print("A = %g" % (results[-1],))
 
     if keep_order is True:
-        print("Running test without re-ordering...")
+        print("Testing agreement with removed elements...")
         # Only makes sense to continue while the linstack actually still
         # defines some relationships.
         while len(the_linstack) >= 2:
             if layers is True:
                 del the_linstack[np.random.randint(len(the_linstack))]
-                results.append(the_gsn.agreement(the_linstack))
             else:
                 # randomly remove one feature at a time, and any empty layers:
                 layer_idx = np.random.randint(len(the_linstack))
                 lin_idx = np.random.randint(len(the_linstack[layer_idx]))
                 del the_linstack[layer_idx][lin_idx]
                 the_linstack = [ lins for lins in the_linstack if len(lins) > 0 ]
-                results.append(the_gsn.agreement(the_linstack))
+
+            results.append(the_gsn.agreement(the_linstack))
             print("A = %g" % (results[-1],))
 
     else: # we're shuffling things
@@ -1323,34 +1363,58 @@ def test_agreement(nlins=300, nbins=10, conf_dist=None, layers=True, keep_order=
 
         while len(results) < maxiters+1:
             if layers is True:
-                # pick two random layers and swap them:
-                i1, i2 = np.random.randint(len(the_linstack), size=2)
-                tmp_1 = [ lin for lin in the_linstack[i1] ]
-                tmp_2 = [ lin for lin in the_linstack[i2] ]
-                the_linstack[i1] = tmp_2
-                the_linstack[i2] = tmp_1
-                results.append(the_gsn.agreement(the_linstack))
-
+                the_linstack = linstack_swap_element(the_linstack, by_layer=True, nswaps=1)
             else:
-                # pick two random features and swap them:
-                lay_idx_1, lay_idx_2 = np.random.randint(len(the_linstack), size=2)
-                lin_idx_1 = np.random.randint(len(the_linstack[lay_idx_1]))
-                lin_idx_2 = np.random.randint(len(the_linstack[lay_idx_2]))
-                lin_1 = the_linstack[lay_idx_1][lin_idx_1]
-                lin_2 = the_linstack[lay_idx_2][lin_idx_2]
-                the_linstack[lay_idx_1][lin_idx_1] = lin_2
-                the_linstack[lay_idx_2][lin_idx_2] = lin_1
-                results.append(the_gsn.agreement(the_linstack))
+                the_linstack = linstack_swap_element(the_linstack, by_layer=False, nswaps=1)
+            
+            results.append(the_gsn.agreement(the_linstack))
             print("A = %g" % (results[-1],))
 
     return(results)
+#}}}
 
+def transpose_degradation(linstack, perfect_gsn=None, nsamples=50, nswaps=10, iters=100): #{{{
+    results = np.zeros((iters, nsamples))
+    if perfect_gsn is None:
+        print("converting linstack to GSN")
+        perfect_gsn = linstack2gsn(linstack)
+
+    for i in range(iters):
+        print(" %d / %d " % (i+1,iters) )
+        swapped = linstack
+        for j in range(nsamples):
+            results[i,j] = perfect_gsn.agreement(swapped)
+            swapped = linstack_swap_element(swapped, by_layer=False, nswaps=nswaps)
+
+    results = np.mean(results, axis=0)
+
+    return(results)
 #}}}
 
 
 ################################################################################
 # TODO:
 ################################################################################
+
+# Figures:
+# --------
+# A.) Significance of correlation:
+#     - Histogram of random orderings and their agreement with the GSN
+#     - Vertical line on the histogram showing measured agreement
+#     - Fit gaussian curve to the histogram:
+#       - find mean and standard deviation
+#       - based on fit, calculate probability that measured value is chance
+
+# B.) Degradation of correlation with number of lineament transpositions:
+#     - Generate GSN from NSR linstack
+#     - use test_agreement to perform lineament transpositions
+#     - run many tests, showing how agreement degrades with number of transpositions
+#     - How variable is the degradation?
+#     - How many transpositions does it take on average to get to our measured A=0.70?
+#     - Plot the curves with x-axis = # of transpositions, and y-axis = A
+#     - Needs to be normalized according to the average path confidence one
+#       would expect given the distribution of intersection confidences that we
+#       have in the real GSN and unfortunately, this can't currently be done.
 
 # Mapping:
 # --------
@@ -1367,29 +1431,11 @@ def test_agreement(nlins=300, nbins=10, conf_dist=None, layers=True, keep_order=
 
 # Analysis:
 # ---------
-# Fit the mapped features to the NSR stress fields, and create a binned
-# linstack ordering them by their best bit backrotations.  Test that
-# hypothesized order of formation against the cross cutting relationships.
-# Does it do better or worse than a random ordering?  By how much?  What's the
-# spread on a random ordering?
-
-# Is there a better than chance correlation between superposition age and
-# width or color?
-
-# We want to be able ask questions like:
-#   - given three classes of features (X,Y,Z) how consistent are the intersections
-#     we mapped with X forming first, then Y, then Z?
-#   - How consistent are the cross cutting relationships with the order of formation
-#     one would infer from NSR?  Is it much more consistent with NSR than with a
-#     random order of formation?
-
-# How does retrieveable information vary as a function of geometry
-# Create a circular or otherwise geometrically unbiased map space, and show how
-# information retrieved varies with:
-#   - lineament density per unit area.
-#   - lineament length (as a fraction of the scale of the area)
 #
-# This could be a 2D plot: length on one axis, density on the other, with color
-# showing how much information was retrieved (sweet plot)
+# When testing significance of an ordering's consistency with the GSN, also
+# measure how many lineament transpositions are required on average to degrade
+# the perfect ordering down to the measured consistency.
 
-################################################################################
+# - Test correlation between superposition age and:
+#   - lineament width
+#   - lineament color

@@ -104,6 +104,86 @@ def fromscratch(satfile="input/ConvectingEuropa_GlobalDiurnalNSR.ssrun",\
 
 #}}}
 
+def deltasynth(satfile="input/ConvectingEuropa_GlobalDiurnalNSR.ssrun",\
+               linfile="input/GlobalLineaments", nb=180, nlins=500,\
+               init_doppel_res=0.0, doppel_res=0.1, num_subsegs=10): #{{{
+    """
+    Read in the mapped features and calculate their fits for a variety of
+    different values of NSR Delta.  Save the results.
+
+    """
+
+    europa = satstress.Satellite(open(satfile,'r'))
+    NSR = satstress.NSR(europa)
+    nsr_periods = europa.nsr_period*(np.logspace(-2, 1, num=7, base=10.0)/NSR.Delta())
+    nsr_stresscalc_orig = satstress.StressCalc([satstress.NSR(europa),])
+
+    labels = []
+    lins_list = []
+    for P_nsr in nsr_periods:
+        europa.nsr_period = P_nsr
+        NSR = satstress.NSR(europa)
+        nsr_stresscalc = satstress.StressCalc([satstress.NSR(europa),])
+        label = "synth_Delta_%.3g" % (NSR.Delta(),)
+        labels.append(label)
+
+        print("Synthesizing %d NSR lineaments with Delta = %g" % (nlins, NSR.Delta()) )
+        lins = random_nsrlins(nsr_stresscalc=nsr_stresscalc, nlins=nlins)
+
+        print("Calculating fits for %s..." % (label,) )
+        for lin,N in zip(lins,range(len(lins))):
+            if (mod(N+1,50)==0):
+                print("    N=%d" % (N+1,) )
+            lin.calc_nsrfits(nb=nb, stresscalc=nsr_stresscalc_orig, init_doppel_res=init_doppel_res, doppel_res=doppel_res, num_subsegs=num_subsegs)
+
+        print("Saving %s" % (label,) )
+        safe_pickle(lins, name=label, dir=lindir)
+
+        lins_list.append(lins)
+
+    return(lins_list, labels)
+#}}}
+
+def deltafits(satfile="input/ConvectingEuropa_GlobalDiurnalNSR.ssrun",\
+              linfile="input/GlobalLineaments", nb=180, nlins=0,\
+              init_doppel_res=0.0, doppel_res=0.1, num_subsegs=10): #{{{
+    """
+    Read in the mapped features and calculate their fits for a variety of
+    different values of NSR Delta.  Save the results.
+
+    """
+
+    europa = satstress.Satellite(open(satfile,'r'))
+    NSR = satstress.NSR(europa)
+    nsr_periods = europa.nsr_period*(np.logspace(-2, 2, num=9, base=10.0)/NSR.Delta())
+
+    lins_list = []
+    for P_nsr in nsr_periods:
+        europa.nsr_period = P_nsr
+        NSR = satstress.NSR(europa)
+        nsr_stresscalc = satstress.StressCalc([satstress.NSR(europa),])
+
+        label = "Delta_%.3g" % (NSR.Delta(),)
+        lins = lineament.shp2lins(linfile, stresscalc=nsr_stresscalc)
+
+        if nlins > 0:
+            lins=lins[:nlins]
+
+        print("Calculating fits for %s..." % (label,) )
+        for lin,N in zip(lins,range(len(lins))):
+            if (mod(N+1,60)==0):
+                print("    N=%d" % (N+1,) )
+            lin.calc_nsrfits(nb=nb, stresscalc=nsr_stresscalc, init_doppel_res=init_doppel_res, doppel_res=doppel_res, num_subsegs=num_subsegs)
+        # only save if we're doing the whole dataset
+        if nlins == 0:
+            print("Saving %s" % (label,) )
+            safe_pickle(lins, name=label, dir=lindir)
+
+        lins_list.append(lins)
+
+    return(lins_list)
+#}}}
+
 def calcfits(satfile="input/ConvectingEuropa_GlobalDiurnalNSR.ssrun",\
              linfile="input/GlobalLineaments",
              nb=180, pnp_lon=radians(80), pnp_lat=radians(10), nlins=0,\
