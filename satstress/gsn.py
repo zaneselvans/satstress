@@ -51,6 +51,7 @@ directed graph.
 
 import networkx as nx
 import pygraphviz as pgv
+import pickle
 import numpy as np
 from matplotlib import pyplot as plt
 from matplotlib import pylab
@@ -185,6 +186,20 @@ class GeoSupNet(nx.MultiDiGraph): #{{{
         return(stratsorts)
 
     #}}}2 end stratigraphic_sort
+
+    def load_fits(self, linfile): #{{{2
+        """
+        Insert pre-calculated NSR fits into the lineaments that are GSN nodes.
+
+        """
+        for fitlin in nsrhist.load_lins(linfile):
+            for gsnlin in self.nodes():
+                if(fitlin == gsnlin):
+                    gsnlin.stresscalc = fitlin.stresscalc
+                    gsnlin.bs = fitlin.bs
+                    gsnlin.nsrdbars = fitlin.nsrdbars
+                    gsnlin.nsrstresswts = fitlin.nsrstresswts
+    #}}}2
 
     ##########################################################################
     # Metrics and Analysis:
@@ -353,13 +368,13 @@ class GeoSupNet(nx.MultiDiGraph): #{{{
         return(np.exp(-weights))
     #}}}2
 
-    def shortest_path_confidences(self): #{{{2
+    def shortest_path_confidences(self, minconf=0.0): #{{{2
         """
         Return an array containing the confidence values for all of the
         shortest paths calculated within the GSN.
 
         """
-        confs, paths = self.shortest_paths(minconf=0)
+        confs, paths = self.shortest_paths(minconf=minconf)
         out_confs = []
         for source in self.nodes():
             for target in confs[source].keys():
@@ -493,7 +508,7 @@ class GeoSupNet(nx.MultiDiGraph): #{{{
         while len(rand_A) < num_iter:
             pylab.shuffle(flat_linstack)
             rand_A.append(test_gsn.agreement(flat_linstack, minconf_path=minconf_path))
-            print("    A = %g (%d / %d) " % (rand_A[-1], len(rand_A)+1, num_iter) )
+            print("    A = %g (%d / %d) " % (rand_A[-1], len(rand_A), num_iter) )
 
         return(hyp_A, rand_A)
     #}}}2
@@ -509,10 +524,9 @@ class GeoSupNet(nx.MultiDiGraph): #{{{
 
         """
         lins = self.nodes()
-        nsr_linstack = nsr_linstack(lins, nb=nb, nbins=nbins,\
-                                    nsr_stresscalc=nsr_stresscalc)
+        linstack = nsr_linstack(lins, nb=nb, nbins=nbins, nsr_stresscalc=nsr_stresscalc)
 
-        hyp_A, rand_A = self.significance(nsr_linstack, num_iter=num_iter)
+        hyp_A, rand_A = self.significance(linstack, num_iter=num_iter)
 
         return(hyp_A, rand_A)
 
@@ -1083,13 +1097,13 @@ def linstack_nsr(nlins=100, nbins=18, length_scale=1.0): #{{{
 
     bs = np.random.uniform(low=-np.pi, high=0.0, size=nlins)
 
-    nsr_linstack = [ [] for i in range(nbins) ]
+    linstack = [ [] for i in range(nbins) ]
     for lin, b in zip(lins, bs):
         lin.lons = lin.lons - b
         n = int(nbins*b/np.pi)
-        nsr_linstack[n].append(lin)
+        linstack[n].append(lin)
 
-    return(nsr_linstack)
+    return(linstack)
 
 #}}} end linstack_nsr
 
@@ -1172,7 +1186,7 @@ def nsr_linstack(lins, nsr_stresscalc=None, nb=180, nbins=180): #{{{
         nsr_stresscalc = satstress.StressCalc([satstress.NSR(europa),])
 
     print("Calculating NSR fits:")
-    nsr_linstack = [ [] for i in range(nbins) ]
+    linstack = [ [] for i in range(nbins) ]
     # we only need to calculate the fits if they haven't been done already
     for lin,n in zip(lins,range(len(lins))):
         if lin.bs is None or len(lin.bs) != nb:
@@ -1185,11 +1199,11 @@ def nsr_linstack(lins, nsr_stresscalc=None, nb=180, nbins=180): #{{{
         best_fit, best_b = lin.best_fit()
         if best_fit > 0.0:
             n = -int(nbins*best_b/np.pi)
-            nsr_linstack[n].append(lin)
+            linstack[n].append(lin)
 
-    nsr_linstack = [ lins for lins in nsr_linstack if len(lins) > 0 ]
+    linstack = [ lins for lins in linstack if len(lins) > 0 ]
 
-    return(nsr_linstack)
+    return(linstack)
 
 #}}}
 
@@ -1391,13 +1405,304 @@ def transpose_degradation(linstack, perfect_gsn=None, nsamples=50, nswaps=10, it
     return(results)
 #}}}
 
-
 ################################################################################
-# TODO:
-################################################################################
-
 # Figures:
-# --------
+################################################################################
+
+def makefigs(fast=True, cycle_samples=50, num_iters=500): #{{{
+    """
+    Generate all the plots required for the Geological Superposition Networks
+    portion of my thesis.
+
+    """
+    if fast is True:
+        cycle_samples = 10
+        num_iters  = 100
+
+    e15_gsn = shp2gsn(e15_lin_shp, e15_cross_shp)
+    # keep only the biggest sub-GSN:
+    e15_gsn = e15_gsn.get_sub_GSNs()[0]
+
+    # Show the features we mapped:
+    GSN_Map(e15_gsn, label='E15', min_cross_conf=0.7, K_min=0.5)
+    plt.draw()
+
+    # Create a histogram of the mapped intersection confidences:
+    Intersection_Confs(e15_gsn, label='E15')
+    plt.draw()
+
+    # Show how completeness and number of paths vary with minconf:
+    Path_Confs(e15_gsn, label='E15')
+    plt.draw()
+
+    # Show how number of cycles varies with minconf, K_min:
+    Cycle_Confs(e15_gsn, label='E15', numsamples=cycle_samples)
+    plt.draw()
+
+    GSN_vs_NSR(e15_gsn, iters=num_iters, label='E15', linfile='output/lins/E15_nsrfit')
+    plt.draw()
+
+    ActHist_Spun(e15_gsn, iters=num_iters, label='E15', linfile='output/lins/E15_nsrfit')
+    plt.draw()
+
+#}}} end makefigs
+
+def GSN_Map(the_gsn, label='GSN', min_cross_conf=0.7, K_min=0.0): #{{{
+    """
+    Plot the features making up the GSN.  Color intersections by confidence,
+    and highlight any features participating in cycles in red.
+
+    """
+
+    high_conf_gsn = gsn2gsn(the_gsn, minconf=min_cross_conf)
+    cycle_confs, cycles = high_conf_gsn.enumerate_cycles(minconf=K_min)
+    path_confs = high_conf_gsn.shortest_path_confidences(minconf=K_min)
+
+    cycle_lins = []
+    for lins in cycles:
+        cycle_lins += lins
+
+    unique_cycle_lins = []
+    for lin in cycle_lins:
+        if lin not in unique_cycle_lins:
+            unique_cycle_lins.append(lin)
+
+    mapped_lins = the_gsn.nodes()
+
+    map_cycle_fig = plt.figure(figsize=(12,12))
+    llcrnrlon, llcrnrlat = (-110.0, -65.0)
+    urcrnrlon, urcrnrlat = (-70.0,  -25.0)
+    gridspace = 5
+
+    linmap = basemap.Basemap(llcrnrlon=llcrnrlon,llcrnrlat=llcrnrlat,urcrnrlon=urcrnrlon,urcrnrlat=urcrnrlat)
+    linmap.drawmeridians(np.arange(llcrnrlon,urcrnrlon+1,gridspace), labels=[1,0,0,1])
+    linmap.drawparallels(np.arange(llcrnrlat,urcrnrlat+1,gridspace), labels=[1,0,0,1])
+    e15_map_ax = mapc_cycle_fig.axes[0]
+
+    cycle_lines, e15_map = lineament.plotlinmap(unique_cycle_lins, linewidth=6, color='red', map=linmap)
+    dag_lines, e15_map = lineament.plotlinmap(mapped_lins, map=linmap, linewidth=2, color='black')
+    e15_map_ax.set_title('%d shortest paths and %d shortest path cycles found in %s map (minconf=%g, $K_{min}=$%g)'\
+                          % (len(path_confs), len(cycles), label, min_cross_conf, K_min) )
+
+    e15_map_ax.legend((dag_lines[0], cycle_lines[0]),\
+                      ('all mapped features (N=%d)' % (len(mapped_lins),       ),\
+                       'features in cycles (N=%d)'  % (len(unique_cycle_lins), )),\
+                      loc='upper left')
+
+    map_cycle_fig.savefig('output/figs/E15_Map.pdf')
+
+#}}} end E15_Map
+
+def Intersection_Confs(the_gsn, label='Mapped'): #{{{
+    """
+    Create a histogram of intersection confidences, showing the overall
+    distribution, with only a single confidence value in each bin (0.5-1.0).
+
+    """
+
+    int_confs = np.sort(the_gsn.intersection_confidences())
+    # because we're actually interested in the number of intersections, and not
+    # the number of edges in this case, we need to chop off half of the 0.5
+    # edges (they're added bi-directionally for consistency)
+    half_fives = len(int_confs[np.where(int_confs == 0.5)])/2
+    int_confs = int_confs[half_fives:]
+    the_fig = plt.figure(figsize=(8,5))
+    hist_ax = the_fig.add_subplot(1,1,1)
+
+    hist_ax.set_ylabel('N')
+    hist_ax.set_xlabel('Confidence')
+    hist_ax.set_title('%s Intersection Confidences (N=%d)' % (label,len(int_confs)) )
+    hist_ax.grid()
+
+    n, bins, counts = hist_ax.hist(int_confs, bins=6, range=(0.45,1.05),\
+                                   facecolor='k', rwidth=0.8)
+    hist_ax.set_xticks(np.linspace(0.5,1.0,6))
+
+    the_fig.savefig('output/figs/%s_Intersection_Confs.pdf' % (label,) )
+
+#}}}
+
+def Path_Confs(the_gsn, label='GSN'): #{{{
+    """
+    Calculate and plot both the number of shortest paths defined in the GSN and
+    the GSNs completeness, as a function of the lowest confidence intersections
+    we include.
+
+    Also show how the distribution of path confidences varies as the minimum
+    intersection confidence changes.
+
+    """
+
+    C = []
+    npaths = []
+    minconfs = np.linspace(0.5,1.0,6)
+    path_conf_list = []
+    for minconf in minconfs:
+        test_gsn = gsn2gsn(the_gsn, minconf=minconf)
+        path_confs = test_gsn.shortest_path_confidences()
+        path_conf_list.append(path_confs)
+        npaths.append(len(path_confs))
+        C.append(test_gsn.completeness()[0])
+
+    plot_fig = plt.figure(figsize=(8,8))
+    ax1 = plot_fig.add_subplot(1,1,1)
+    ax1.plot(minconfs, C, linewidth=3, color='black', label='C')
+    ax1.set_ylabel('C (completeness)')
+    ax1.set_xlabel('minimum intersection confidence')
+    ax1.set_title('%s completeness and number of paths' % (label,))
+    ax1.set_ybound(lower=0)
+    ax1.set_xlim(0.5,1.0)
+    ax1.grid()
+
+    ax2 = ax1.twinx()
+    ax2.plot(minconfs, np.array(npaths)/1000, linewidth=3, color='black',
+             linestyle='dashed', label='|R(X)|')
+    ax2.set_ylabel('|R(X)| (number of paths defined, in thousands)')
+    ax2.set_ybound(lower=0)
+    ax2.set_xlim(0.5,1.0)
+
+    lines = ax1.lines + ax2.lines
+    labels = [ line.get_label() for line in lines ]
+    ax1.legend(lines, labels, 'upper right')
+
+    plot_fig.savefig('output/figs/%s_Completeness.pdf' % (label,))
+
+    hist_fig = plt.figure(figsize=(12,8))
+    hist_ax = hist_fig.add_subplot(1,1,1)
+
+    for minconf,conf_hist in zip(minconfs,path_conf_list):
+        hist_ax.hist(conf_hist, bins=np.logspace(-1,0,110), range=(0.1,1), linewidth=0, label=str(minconf))
+
+    hist_ax.set_xlim(0.1,1.05)
+    hist_ax.set_xscale('log')
+    hist_ax.grid()
+    hist_ax.legend(loc='upper right')
+    xtick_vals = np.linspace(0.1,1,10)
+    hist_ax.set_xticks(xtick_vals)
+    hist_ax.set_xticklabels([ str(x) for x in xtick_vals ])
+    hist_ax.invert_xaxis()
+    hist_ax.set_title('Distribution of path confidences in %s' % (label,) )
+    hist_ax.set_ylabel('N')
+    hist_ax.set_xlabel('Path Confidence')
+
+    hist_fig.savefig('output/figs/%s_Path_Conf_Dist.pdf' % (label,) )
+#}}}
+
+def Cycle_Confs(the_gsn, label='GSN', numsamples=50): #{{{
+    """
+    Show how the number and confidence of cycles in the GSN changes as we vary
+    K_min.
+
+    """
+    K_mins = np.linspace(0,1,numsamples)
+
+    the_fig = plt.figure(figsize=(8,8))
+    ax = the_fig.add_subplot(1,1,1)
+
+    for minconf,lw,color in zip((0.6,0.7,0.8), (15,9,3), ('0.0','0.66','0.0')):
+        hiconf_gsn = gsn2gsn(the_gsn, minconf=minconf)
+        num_cycles = []
+        for K_min in K_mins:
+            cycle_confs, cycles = hiconf_gsn.enumerate_cycles(minconf=K_min)
+            num_cycles.append(len(cycle_confs))
+
+        ax.plot(K_mins, num_cycles, linewidth=lw, color=color, label=str(minconf))
+
+    ax.grid()
+    ax.legend(labelspacing=1, handletextpad=1)
+    ax.set_title('Number of cycles vs. minimum cycle confidence in %s' % (label,) )
+    ax.set_ylabel('Number of cycles')
+    ax.set_xlabel(r'$K_{min}$ (minimum cycle confidence)')
+
+    # don't want to wipe out our good fig on testing runs...
+    if numsamples > 20:
+        the_fig.savefig('output/figs/%s_Cycle_Confs.pdf' % (label,) )
+
+#}}} end Cycle_Confs
+
+def GSN_vs_NSR(the_gsn, iters=100, nb=180, nbins=180, linfile=None, label='E15'): #{{{
+    """
+    Calculate the agreement between the lineaments in the GSN, and the ordering
+    inferred from their NSR fits.
+
+    """
+
+    # Hopefully, we've already calculated the fits for the features in the GSN,
+    # and can just read them in from linfile, but if not, we need to be ready
+    # to calculate them:
+    
+    # read in what we need to calculate the NSR stresses:
+    satfile = "input/ConvectingEuropa_GlobalDiurnalNSR.ssrun"
+    europa = satstress.Satellite(open(satfile,'r'))
+    nsr_stresscalc = satstress.StressCalc([satstress.NSR(europa),])
+
+    if linfile is not None:
+        the_gsn.load_fits(linfile)
+
+    A_nsr, A_rand = the_gsn.nsr_compare(nb=nb, nbins=nbins, nsr_stresscalc=nsr_stresscalc, num_iter=iters)
+    old_A_rand = pickle.load(open('output/E15_A_rand','r'))
+    A_rand = np.concatenate([A_rand,old_A_rand])
+    nsrhist.safe_pickle(A_rand, name='E15_A_rand', dir='output')
+
+    the_fig = plt.figure(figsize=(8,8))
+    x_min,x_max = (0.3,0.8)
+    hist_ax = the_fig.add_subplot(1,1,1)
+    hist_ax.hist(A_rand, facecolor='gray', linewidth=0, bins=len(A_rand)/20, range=(x_min,x_max), normed=True)
+    hist_ax.grid()
+    hist_ax.axvline(x=A_nsr, color='black', linewidth=5)
+    mu = np.mean(A_rand)
+    sigma = np.std(A_rand)
+    x = np.linspace(x_min,x_max,1000)
+    hist_ax.plot(x,pylab.normpdf(x,mu,sigma), color='black', linewidth=5, linestyle='dashed')
+    hist_ax.set_xlim(x_min,x_max)
+    hist_ax.set_xlabel('Agreement')
+    hist_ax.set_ylabel('N (normalized)')
+
+    hist_ax.set_title(r'N=%d, $\mu$=%.3g, $\sigma$=%.3g, $A_{nsr}$=%.3g (%.3g $\sigma$)' %
+                      (len(A_rand), mu, sigma, A_nsr, np.fabs(A_nsr-mu)/sigma) )
+
+    the_fig.savefig('output/figs/%s_GSN_vs_NSR.pdf' % (label,) )
+#}}} end GSN_vs_NSR
+
+def ActHist_Spun(the_gsn, iters=100, nb=180, nbins=180, label='E15', linfile='output/lins/E15_nsrfit'): #{{{
+    """
+    Activity history of the GSN's region, with some spun lineaments for comparison.
+
+    """
+
+    # read in what we need to calculate the NSR stresses:
+    satfile = "input/ConvectingEuropa_GlobalDiurnalNSR.ssrun"
+    europa = satstress.Satellite(open(satfile,'r'))
+    nsr_stresscalc = satstress.StressCalc([satstress.NSR(europa),])
+
+    the_gsn.load_fits(linfile)
+
+    spun_maps = [ nsrhist.make_crazy(nsrhist.linresample_byN(the_gsn.nodes()),tpw=False) for i in range(iters) ]
+    spun_maps.append(the_gsn.nodes())
+
+    # pseudo-maps in gray
+    colors = ['gray',]*iters
+    # real map in black
+    colors.append('black')
+
+    # pseudo-maps nearly transparent
+    alphas = [15./iters,]*iters
+    # real map opaque
+    alphas.append(1.0)
+
+    labels = [None,]*(iters-1)
+    labels.append('Spun Subsamples (N=%d)' % (iters,))
+    labels.append('Mapped Lineaments')
+
+    acthist_fig = plt.figure(figsize=(12,8))
+    nsrhist.activity_history(spun_maps, labels=labels, colors=colors, alphas=alphas, the_fig=acthist_fig, verbose=False)
+    acthist_fig.axes[0].set_title('Apparent Lineament Activity History for E15 region')
+    acthist_fig.savefig('output/figs/%s_ActHist.pdf' % (label,) )
+
+#}}}
+
+# Possible Figures:
+# -----------------
 # A.) Significance of correlation:
 #     - Histogram of random orderings and their agreement with the GSN
 #     - Vertical line on the histogram showing measured agreement
@@ -1415,27 +1720,3 @@ def transpose_degradation(linstack, perfect_gsn=None, nsamples=50, nswaps=10, it
 #     - Needs to be normalized according to the average path confidence one
 #       would expect given the distribution of intersection confidences that we
 #       have in the real GSN and unfortunately, this can't currently be done.
-
-# Mapping:
-# --------
-# add descriptive attributes to lineaments:
-#   - width/form:
-#     - fracture (hairline, no apparent topography)
-#     - ridge (single apparent topographic feature, or significant width)
-#     - multi-ridge (2-3 apparent topographic features)
-#     - band (many sub-parallel features taking up significant area)
-#   - color:
-#     - light
-#     - mid
-#     - dark
-
-# Analysis:
-# ---------
-#
-# When testing significance of an ordering's consistency with the GSN, also
-# measure how many lineament transpositions are required on average to degrade
-# the perfect ordering down to the measured consistency.
-
-# - Test correlation between superposition age and:
-#   - lineament width
-#   - lineament color

@@ -653,7 +653,7 @@ def jackstraws(lins, stresscalc=None, N=10, nb=36, spin=True, tpw=False): #{{{
     return(acthist_list)
 #}}}
 
-def nsrfit_Q(lins, use_stress=True): #{{{
+def nsrfit_Q(lins, use_stress=True, dbar_max=0.125): #{{{
     """
     Takes a list of lineaments which have had their NSR fits calculated and
     returns a the sum of the lineament lengths multiplied by their greatest
@@ -661,7 +661,7 @@ def nsrfit_Q(lins, use_stress=True): #{{{
 
     """
 
-    return(sum([lin.length*lin.best_fit(use_stress=use_stress)[0] for lin in lins])/sum([lin.length for lin in lins]))
+    return(sum([lin.length*lin.best_fit(use_stress=use_stress, dbar_max=dbar_max)[0] for lin in lins])/sum([lin.length for lin in lins]))
 
 #}}}
 
@@ -910,6 +910,9 @@ def makefigs(dbar_max=0.125, numhists=100, all=False, stress=False, maps=False, 
 
         DbarLengthCorr(gclins)
         DbarSinuosityCorr(maplins)
+
+        QvDbarMax(synthlins, gclins, crazylins, maplins, nq=101, use_stress=True, outfile='QvDbarMax_Wstress')
+        QvDbarMax(synthlins, gclins, crazylins, maplins, nq=101, use_stress=False, outfile='QvDbarMax_NoStress')
     #}}}2
 
     if tpw is True: #{{{2
@@ -1852,6 +1855,77 @@ def LinLatStatsCompare(maplins, synlins=None, bins=30, fold=False): #{{{
 
     if save_fmt is not None:
         the_fig.savefig(os.path.join(figdir,'LinLatStatsCompare.'+save_fmt))
+
+#}}}
+
+def QvDbarMax(synthlins, gclins, crazylins, maplins, nq=26, use_stress=False, outfile='QvDbarMax'): #{{{
+    """
+    Create a plot exploring how valid our fitness function is.
+
+    For each of the following maps, plot Q(map) as a function of Dbar_max:
+
+    * Synthetic NSR
+    * Synthetic NSR (lat > 30)
+
+    * Great Circles
+    * Great Circles (lat > 30)
+
+    * Mapped features
+    * Mapped features (lat > 30)
+
+    * Jackstraws
+    * Jackstraws (lat > 30)
+
+    Hypothesis: The only reason the NSR features do better than the GCs is the
+    lack of badly oriented features in the equatorial regions.
+
+    Both synthetic NSR and Great Circle segments have essentially zero
+    sinuosity.  The major difference between them is that GCs have some
+    features in the equatorial regions that are oriented "wrong" to be due to
+    NSR.  Both NSR and GCs should have similar Q() vs. Dbar_max curves when
+    only high latitudes are considered, but GCs should be uniformly lower when
+    the entire globe is included.
+
+    Hypothesis: The mapped and the randomized (jackstraws) features are
+    indistinguishable from each other, as far as fit quality is concerned,
+    regardless of what value of Dbar_max is used.
+
+    """
+
+    dbar_maxes = np.linspace(0.0,0.25,nq)
+
+    the_fig = plt.figure(figsize=(10,10))
+    the_ax = the_fig.add_subplot(1,1,1)
+    the_ax.grid()
+
+
+    for lins,label,color in zip((synthlins, gclins, crazylins, maplins),\
+                                ('Synthetic NSR', 'Great Circles', 'Randomized Map', 'Mapped'),\
+                                ('red','green','blue','black')):
+        hilat_lins = [ lin for lin in lins if np.degrees(np.fabs(lin.lats).min()) > 30 ]
+
+        lins_Q = [ nsrfit_Q(lins, use_stress=use_stress, dbar_max=dbar_max) for dbar_max in dbar_maxes ]
+        lins_Q_hilat = [ nsrfit_Q(hilat_lins, use_stress=use_stress, dbar_max=dbar_max) for dbar_max in dbar_maxes ]
+        the_ax.plot(dbar_maxes, lins_Q, linewidth=3, label=label, color=color)
+        the_ax.plot(dbar_maxes, lins_Q_hilat, linewidth=3, linestyle='dashed', label=label+r' (lat>30$^\circ$)', color=color)
+        plt.draw()
+
+    the_ax.set_xlabel(r'$\bar{D}_{max}$')
+    the_ax.set_xticks(np.linspace(0,0.25,11))
+    the_ax.set_ylabel('Q')
+    the_ax.legend(loc='lower right')
+    titlestr = r'Fit quality Q vs. $\bar{D}_{max}$ for several maps'
+    if use_stress is True:
+        titlestr += ' (stress weighted)'
+        the_ax.set_yticks(np.linspace(0,1.2,13))
+    else:
+        titlestr += ' (unweighted)'
+        the_ax.set_yticks(np.linspace(0,1.0,11))
+    the_ax.set_title(titlestr)
+    plt.draw()
+
+    if save_fmt is not None:
+        the_fig.savefig(os.path.join(figdir,outfile+'.'+save_fmt))
 
 #}}}
 

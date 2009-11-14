@@ -512,7 +512,7 @@ class Lineament(object): #{{{1
 
         """
 
-        nsrfits = self.nsrfits(use_stress=use_stress)
+        nsrfits = self.nsrfits(use_stress=use_stress, dbar_max=dbar_max)
         best_fit = max(nsrfits)
         best_b = float(self.bs[where(fabs(nsrfits-best_fit) < 1e-9)[0][0]])
 
