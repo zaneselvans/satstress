@@ -9,6 +9,7 @@ from . import satstress
 from . import stressplot
 from pylab import *
 from matplotlib import colors, colorbar
+from matplotlib import pyplot as plt
 from mpl_toolkits.basemap import Basemap
 import random
 import os
@@ -28,8 +29,9 @@ figdir = os.path.join(outdir,'figs')
 lindir = os.path.join(outdir,'lins')
 
 # Format to save the figures in.  If None, don't save:
-save_fmt = None
-#save_fmt = 'pdf'
+#save_fmt = None
+save_fmt = 'pdf'
+#save_fmt = 'png'
 
 ###############################################################################
 # ANALYSES ####################################################################
@@ -218,8 +220,8 @@ def calcfits(satfile="input/ConvectingEuropa_GlobalDiurnalNSR.ssrun",\
     print("  model NSR lineaments")
     synthlins = linsample(proto=maplins, pool=random_nsrlins(nsr_stresscalc=NSR, nlins=10*len(maplins), minlen=protolinlens.min(), maxlen=protolinlens.max()))
 
-    lins_list = (maplins, crazylins, tpwlins, gclins, synthlins)
-    labels = ("map_nsrfit", "crazy_nsrfit", "tpw_nsrfit", "gc_nsrfit", "synth_nsrfit")
+    lins_list = (maplins, synthlins, crazylins, gclins, tpwlins)
+    labels = ("map_nsrfit", "synth_nsrfit", "crazy_nsrfit", "gc_nsrfit", "tpw_nsrfit")
 
     # now calculate the fits...
     for lins,label in zip(lins_list, labels):
@@ -233,7 +235,7 @@ def calcfits(satfile="input/ConvectingEuropa_GlobalDiurnalNSR.ssrun",\
             print("Saving %s" % (label,) )
             safe_pickle(lins, name=label, dir=lindir)
 
-    return(maplins, synthlins, crazylins, gclins, tpwlins)
+    return lins_list
 #}}}
 
 def tpw_polesearch(satfile="input/ConvectingEuropa_GlobalDiurnalNSR.ssrun",\
@@ -736,7 +738,7 @@ def synthpeak(lins, N=100, peak_frac=0.4, scale=np.radians(15)): #{{{
     """
 
     map_acthist = calc_acthist(lins)
-    mu = int(where(np.abs(map_acthist-np.max(map_acthist)) < 1e-6)[0])*(np.pi/len(map_acthist))
+    mu = lins[0].bs[int(where(np.abs(map_acthist-np.max(map_acthist)) < 1e-6)[0])]
     maps = []
     for i in range(N):
         random_part = make_crazy(linresample_byN(lins, fraction=(1.0-peak_frac)),tpw=False)
@@ -793,32 +795,38 @@ def makefigs(dbar_max=0.125, numhists=100, all=False, stress=False, maps=False, 
 
     maplins, synthlins, crazylins, gclins, tpwlins = reload_nsrfits()
 
-    if stress is True: #{{{2
-        StressFieldNSR()
+    #if stress is True: #{{{2
+        #for Delta_nsr in np.logspace(-2,2,9):
+        #    StressFieldNSR(Delta_nsr=Delta_nsr)
+        #for orbital_pos in np.linspace(0,360,24,endpoint=False):
+        #    StressFieldDiurnal(orbital_pos=orbital_pos, scale=2e6)
 
     #}}}2
 
     if maps is True: #{{{2
         print("Plotting Mapped Lineaments")
-        FitMap(maplins, nbins=9, titlestr="Global Lineaments as Mapped", dbar_max=dbar_max, outfile='FitMap_Mapped')
+        FitMap(maplins, nbins=18, titlestr="Global Lineaments as Mapped", dbar_max=dbar_max, outfile='FitMap_Mapped')
+
+        print("Plotting Mapped Lineaments, relative to stress field")
+        FitMap(maplins, nbins=18, titlestr="Mapped Lineaments Backrotated for Best Fit", dbar_max=dbar_max, derotate=True, showbad=False, outfile='FitMap_Derotated')
 
         print("Plotting Randomized Mapped Lineaments")
-        FitMap(crazylins, nbins=9, titlestr="Randomized Global Lineaments", dbar_max=dbar_max, outfile='FitMap_Crazy')
+        FitMap(crazylins, nbins=18, titlestr="Randomized Global Lineaments", dbar_max=dbar_max, outfile='FitMap_Crazy')
+
+        print("Plotting Derotated Randomized Lineaments")
+        FitMap(crazylins, nbins=18, titlestr="Derotated Randomized Lineaments", dbar_max=dbar_max, outfile='FitMap_CrazyDerotated', showbad=False, derotate=True)
 
         print("Plotting Pre-TPW Lineaments, fit to NSR stresses")
-        FitMap(tpwlins, nbins=9, titlestr="Mapped Lineaments before TPW w/ PNP=80E10N", dbar_max=dbar_max, outfile='FitMap_PreTPW')
+        FitMap(tpwlins, nbins=18, titlestr="Mapped Lineaments before TPW w/ PNP=80E10N", dbar_max=dbar_max, outfile='FitMap_PreTPW')
 
         print("Plotting random great circle segments")
-        FitMap(gclins, nbins=9, titlestr="Random Great Circle Segments", dbar_max=dbar_max, outfile='FitMap_GreatCircle')
+        FitMap(gclins, nbins=18, titlestr="Random Great Circle Segments", dbar_max=dbar_max, outfile='FitMap_GreatCircle')
+
+        print("Plotting Derotated Great Circle Segments")
+        FitMap(gclins, nbins=18, titlestr="Random Great Circle Segments Backrotated for Best Fit", dbar_max=dbar_max, derotate=True, showbad=False, outfile='FitMap_DerotatedGC')
 
         print("Plotting synthetic NSR lineaments")
         FitMap(synthlins, titlestr="Perfect Synthetic NSR Lineaments for b=0", dbar_max=dbar_max, outfile='FitMap_SyntheticNSR')
-
-        print("Plotting Mapped Lineaments, relative to stress field")
-        FitMap(maplins, nbins=9, titlestr="Mapped Lineaments Backrotated for Best Fit", dbar_max=dbar_max, derotate=True, showbad=False, outfile='FitMap_Derotated')
-
-        print("Plotting Derotated Great Circle Segments")
-        FitMap(gclins, nbins=9, titlestr="Random Great Circle Segments Backrotated for Best Fit", dbar_max=dbar_max, derotate=True, showbad=False, outfile='FitMap_DerotatedGC')
     #}}}2
 
     if lindensity is True: #{{{2
@@ -923,33 +931,46 @@ def makefigs(dbar_max=0.125, numhists=100, all=False, stress=False, maps=False, 
 
 # end makefigs }}}
 
-def StressFieldNSR(scalar_field='w_stress', cmap=cm.gray, plot_tens=True, plot_comp=True, plot_lesser=True, plot_greater=True): #{{{
+def StressFieldNSR(scalar_field='tens', cmap=cm.gray, plot_tens=True, plot_comp=True, plot_lesser=True, plot_greater=True, Delta_nsr=None, scale=None): #{{{
 
-    min_lon = np.radians(0.0)
+    min_lon = np.radians(  0.0)
     max_lon = np.radians(180.0)
-    min_lat = np.radians(0.0)
-    max_lat = np.radians(90.0)
+    min_lat = np.radians(-90.0)
+    max_lat = np.radians( 90.0)
 
     scalar_nlons = 300
     scalar_nlats = scalar_nlons*(max_lat-min_lat)/(max_lon-min_lon)
 
     satfile="input/ConvectingEuropa_GlobalDiurnalNSR.ssrun"
     europa = satstress.Satellite(open(satfile,'r'))
-    NSR = satstress.StressCalc([satstress.NSR(europa),])
+    NSR = satstress.NSR(europa)
+    nsr_stresscalc = satstress.StressCalc([NSR,])
 
-    the_fig = figure(figsize=(11,5))
+    # We want to be able to pick a Delta value and have it shown
+    if Delta_nsr is not None:
+        europa.nsr_period *= Delta_nsr/NSR.Delta()
+        NSR = satstress.NSR(europa)
+        nsr_stresscalc = satstress.StressCalc([satstress.NSR(europa),])
+    else:
+        Delta_nsr = NSR.Delta()
+
+    the_fig = figure(figsize=(16,12))
     map_ax  = the_fig.add_subplot(1,1,1)
-    map_ax.set_title("Tidal Stresses due to NSR")
+    map_ax.set_title("Tidal Stresses due to NSR ($\Delta_{nsr}=$%.3g)" % (Delta_nsr,))
+
     grid_basemap = Basemap(llcrnrlon = np.degrees(min_lon),\
                              llcrnrlat = np.degrees(min_lat),\
                              urcrnrlon = np.degrees(max_lon),\
                              urcrnrlat = np.degrees(max_lat),\
                                     ax = map_ax)
 
-    field_data = stressplot.scalar_grid(stresscalc=NSR, nlons=scalar_nlons, nlats=scalar_nlats, min_lon=min_lon, max_lon=max_lon, min_lat=min_lat, max_lat=max_lat,\
-                                        field=scalar_field, cmap=cmap, basemap_ax=grid_basemap)
+    field_data = stressplot.scalar_grid(stresscalc=nsr_stresscalc, nlons=scalar_nlons,\
+                                        nlats=scalar_nlats, min_lon=min_lon,\
+                                        max_lon=max_lon, min_lat=min_lat,\
+                                        max_lat=max_lat, field=scalar_field,\
+                                        cmap=cmap, basemap_ax=grid_basemap)
     vector_nlons = 13
-    vector_nlats = 7
+    vector_nlats = 13
 
     vector_lons  = np.linspace(min_lon, max_lon, vector_nlons)
     vector_lats  = np.linspace(min_lat, max_lat, vector_nlats)
@@ -957,20 +978,94 @@ def StressFieldNSR(scalar_field='w_stress', cmap=cm.gray, plot_tens=True, plot_c
     vector_mesh_lons = np.ravel(vector_mesh_lons)
     vector_mesh_lats = np.ravel(vector_mesh_lats)
 
-    stressplot.vector_points(stresscalc=NSR, lons=vector_mesh_lons, lats=vector_mesh_lats, time_t=0.0, basemap_ax=grid_basemap, arrow_width=0.0015,\
-                             plot_tens=plot_tens, plot_comp=plot_comp, plot_lesser=plot_lesser, plot_greater=plot_greater)
+    if scale is None:
+        nsr_scale = max(np.fabs(nsr_stresscalc.mean_global_stressmag()))*50
+    else:
+        nsr_scale = scale
 
-    grid_basemap.drawmeridians(np.degrees(np.linspace(min_lon, max_lon, 7)), labels=[1,0,0,1], linewidth=0.5, color='gray')
-    grid_basemap.drawparallels(np.degrees(np.linspace(min_lat, max_lat, 7)), labels=[1,0,0,1], linewidth=0.5, color='gray')
+    stressplot.vector_points(stresscalc=nsr_stresscalc, lons=vector_mesh_lons, lats=vector_mesh_lats,\
+                             time_t=0.0, basemap_ax=grid_basemap, arrow_width=0.002,\
+                             plot_tens=plot_tens, plot_comp=plot_comp,\
+                             plot_lesser=plot_lesser, plot_greater=plot_greater, scale=nsr_scale)
+
+    grid_basemap.drawmeridians(np.degrees(np.linspace(min_lon, max_lon, 13)), labels=[1,0,0,1], linewidth=0.1, color='gray')
+    grid_basemap.drawparallels(np.degrees(np.linspace(min_lat, max_lat, 13)), labels=[1,0,0,1], linewidth=0.1, color='gray')
     grid_basemap.drawmapboundary()
 
     # Need some kind of scale bar for the scalar field in the background:
     cb_ax,kw = colorbar.make_axes(map_ax, orientation='vertical')
-    colorbar.ColorbarBase(cb_ax, cmap=cmap, norm=colors.Normalize(vmin=0.0,vmax=np.max(field_data)), orientation='vertical', format='%.2f')
-    cb_ax.set_ylabel("w_stress")
+    colorbar.ColorbarBase(cb_ax, cmap=cmap, norm=colors.Normalize(vmin=np.min(field_data), vmax=np.max(field_data)), orientation='vertical', format='%.2g')
+    cb_ax.set_ylabel(scalar_field)
+    draw()
 
     if save_fmt is not None:
-        the_fig.savefig(os.path.join(figdir,'StressFieldNSR.'+save_fmt))
+        the_fig.savefig(os.path.join(figdir,'StressFieldNSR_Delta%.3g.%s' % (Delta_nsr,save_fmt)))
+
+#}}} end StressFieldNSR
+
+def StressFieldDiurnal(scalar_field='tens', cmap=cm.gray, plot_tens=True, plot_comp=True, plot_lesser=True, plot_greater=True, orbital_pos=0.0, scale=None): #{{{
+
+    min_lon = np.radians(  0.0)
+    max_lon = np.radians(180.0)
+    min_lat = np.radians(-90.0)
+    max_lat = np.radians( 90.0)
+
+    scalar_nlons = 300
+    scalar_nlats = scalar_nlons*(max_lat-min_lat)/(max_lon-min_lon)
+
+    satfile="input/ConvectingEuropa_GlobalDiurnalNSR.ssrun"
+    europa = satstress.Satellite(open(satfile,'r'))
+    Diurnal = satstress.Diurnal(europa)
+    diurnal_stresscalc = satstress.StressCalc([Diurnal,])
+
+    the_fig = figure(figsize=(16,12))
+    map_ax  = the_fig.add_subplot(1,1,1)
+    map_ax.set_title(r'Diurnal Tidal Stresses ($nt=%.3g^\circ$)' % (orbital_pos,))
+
+    grid_basemap = Basemap(llcrnrlon = np.degrees(min_lon),\
+                             llcrnrlat = np.degrees(min_lat),\
+                             urcrnrlon = np.degrees(max_lon),\
+                             urcrnrlat = np.degrees(max_lat),\
+                                    ax = map_ax)
+
+    field_data = stressplot.scalar_grid(stresscalc=diurnal_stresscalc, nlons=scalar_nlons,\
+                                        nlats=scalar_nlats, min_lon=min_lon,\
+                                        max_lon=max_lon, min_lat=min_lat,\
+                                        max_lat=max_lat, field=scalar_field,\
+                                        time_t=(orbital_pos/360.0)*europa.orbit_period(),\
+                                        cmap=cmap, basemap_ax=grid_basemap)
+    vector_nlons = 13
+    vector_nlats = 13
+
+    vector_lons  = np.linspace(min_lon, max_lon, vector_nlons)
+    vector_lats  = np.linspace(min_lat, max_lat, vector_nlats)
+    vector_mesh_lons, vector_mesh_lats = np.meshgrid(vector_lons, vector_lats)
+    vector_mesh_lons = np.ravel(vector_mesh_lons)
+    vector_mesh_lats = np.ravel(vector_mesh_lats)
+
+    if scale is None:
+        diurnal_scale = max(np.fabs(diurnal_stresscalc.mean_global_stressmag()))*50
+    else:
+        diurnal_scale = scale
+
+    stressplot.vector_points(stresscalc=diurnal_stresscalc, lons=vector_mesh_lons, lats=vector_mesh_lats,\
+                             basemap_ax=grid_basemap, arrow_width=0.002,\
+                             plot_tens=plot_tens, plot_comp=plot_comp,\
+                             time_t=(orbital_pos/360.0)*europa.orbit_period(),\
+                             plot_lesser=plot_lesser, plot_greater=plot_greater, scale=diurnal_scale)
+
+    grid_basemap.drawmeridians(np.degrees(np.linspace(min_lon, max_lon, 13)), labels=[1,0,0,1], linewidth=0.1, color='gray')
+    grid_basemap.drawparallels(np.degrees(np.linspace(min_lat, max_lat, 13)), labels=[1,0,0,1], linewidth=0.1, color='gray')
+    grid_basemap.drawmapboundary()
+
+    # Need some kind of scale bar for the scalar field in the background:
+    cb_ax,kw = colorbar.make_axes(map_ax, orientation='vertical')
+    colorbar.ColorbarBase(cb_ax, cmap=cmap, norm=colors.Normalize(vmin=np.min(field_data),vmax=np.max(field_data)), orientation='vertical', format='%.2g')
+    cb_ax.set_ylabel(scalar_field)
+    plt.draw()
+
+    if save_fmt is not None:
+        the_fig.savefig(os.path.join(figdir,'StressFieldDiurnal_nt%.3g.%s' % (orbital_pos,save_fmt)))
 
 #}}} end StressFieldNSR
 
@@ -1149,7 +1244,7 @@ def ActHist_GreatCircleStats(gclins, maplins, N=100): #{{{
 
 #}}} end ActHist_GreatCricleStats()
 
-def ActHist_PeakStats(maplins, nbins=20, N=100, scale=np.radians(15)): #{{{
+def ActHist_PeakStats(maplins, N=100, scale=np.radians(15)): #{{{
     """
     Create a large number of synthetic datasets composed partly of a
     longitudinally randomized sampling of maplins, and partly from a de-rotated
@@ -1161,11 +1256,7 @@ def ActHist_PeakStats(maplins, nbins=20, N=100, scale=np.radians(15)): #{{{
     map_acthist = calc_acthist(maplins)
     mu = int(where(np.abs(map_acthist-np.max(map_acthist)) < 1e-6)[0])*(np.pi/len(map_acthist))
     maps = []
-    for i in range(N):
-        peak_dist = linresample_byN(maplins)
-        peak_dist = [ lin.lonshift(-b+lin.best_fit()[1]) for lin,b in zip(peak_dist,np.random.normal(loc=mu, scale=scale, size=len(peak_dist))) ]
-        maps.append(peak_dist)
-
+    mu, maps = synthpeak(maplins, N=N, peak_frac=1.0, scale=scale)
     maps.append(maplins)
 
     # pseudo-maps in gray
@@ -1218,7 +1309,7 @@ def ActHist_Synthesized(maplins, N=100, peak_frac=0.4, scale=np.radians(15)): #{
     activity_history(maps, labels=labels, colors=colors, alphas=alphas, the_fig=the_fig, verbose=False, outfile='ActHist_Synthesized' )
 #}}}
 
-def FitMap(lins, titlestr="Features colored by fit", lin_cm=cm.jet, nbins=9, stresscentric=False, outfile=None, dbar_max=0.125, showbad=True, derotate=False): #{{{
+def FitMap(lins, titlestr="Features colored by fit", lin_cm=cm.jet, nbins=18, stresscentric=False, outfile=None, dbar_max=0.125, showbad=True, derotate=False): #{{{
     """
     Creates a global map of the lineaments, color coding them by what amount of
     backrotation (b) minimizes delta_rms(b) when compared to the NSR stress
@@ -1270,7 +1361,7 @@ def FitMap(lins, titlestr="Features colored by fit", lin_cm=cm.jet, nbins=9, str
                 if derotate:
                     backrot = best_b
                 # Map the color of the lineament to its best_b
-                lin_color = lin_cm(int((lin_cm.N)*(best_b/pi)))
+                lin_color = lin_cm(int((lin_cm.N)*(0.5+(best_b/pi))))
                 # use line width to indicate goodness of best_fit
                 lin_width = 1.0 + 5.0*best_fit
 
@@ -1290,10 +1381,10 @@ def FitMap(lins, titlestr="Features colored by fit", lin_cm=cm.jet, nbins=9, str
 
     map_ax.set_title(titlestr)
     cb_ax,kw = colorbar.make_axes(map_ax, orientation="horizontal", pad=0.05, shrink=0.5)
-    colorbar.ColorbarBase(cb_ax, cmap=lin_cm, orientation="horizontal", norm=colors.BoundaryNorm(linspace(0,180,nbins+1),nbins), format=r'%.0f$^\circ$')
+    colorbar.ColorbarBase(cb_ax, cmap=lin_cm, orientation="horizontal", norm=colors.BoundaryNorm(linspace(-90,90,nbins+1),nbins), format=r'%.0f$^\circ$')
     # Fix up the colorbar a bit:
-    cb_ax.invert_xaxis()
-    cb_ax.set_xlabel("backrotation b")
+    #cb_ax.invert_xaxis()
+    cb_ax.set_xlabel("longitudinal shift b")
 
     the_fig.show()
     if outfile is not None and save_fmt is not None:
@@ -1502,7 +1593,6 @@ def ActHist_RMDMap(tpwdir="tpw_polesearch", maplins=None, ncols=50, cmap='jet', 
 
     colorbar.ColorbarBase(cb_ax, cmap=cm.get_cmap(cmap, ncols-1), norm=colors.Normalize(vmin=levels[0],vmax=levels[-1]), orientation='horizontal', format='%.2f')
     cb_ax.set_xlabel("RMD(H(b))")
-
     plt.draw()
 
     if save_fmt is not None:
@@ -1788,7 +1878,7 @@ def FitCurveExamples(lins, labels=[], dbar_max=0.125): #{{{
     [ setp(ax.get_xticklabels(),visible=False) for ax in the_fig.axes[0:6] ]
     [ setp(ax.get_xticklabels(),visible=False) for ax in the_fig.axes[8:17] ]
     [ the_fig.axes[N].set_ylabel(r'$\bar{D}(b)$') for N in (0,2,4,6) ]
-    [ the_fig.axes[N].set_ylabel(r'$f_{nsr}(b)$', rotation=270) for N in (10,12,14,16) ]
+    [ the_fig.axes[N].set_ylabel(r'$H(b)$', rotation=270) for N in (10,12,14,16) ]
 
     eg_map_ax.set_title(r'Example Lineaments and Fit Probabilities')
 
@@ -1984,15 +2074,17 @@ def fitcurve(lin, color='black', ax=None, dbar_max=0.125, show_dbar=True, show_w
     fit_ax  = twinx(ax=dbar_ax)
 
     # Plot the mapped lineament's fit curve:
-    dbar_ax.set_xlabel(r'$b$')
+    dbar_ax.set_xlabel('b')
     if show_dbar is True:
         dbar_ax.plot(degrees(lin.bs), lin.nsrdbars, ls='-', linewidth=2, color=color)
         dbar_ax.grid()
-        dbar_ax.axis([0,179,0,0.3])
+        dbar_ax.axis([-90,90,0,0.3])
         dbar_ax.set_yticks(linspace(0,0.3,5,endpoint=False))
+        dbar_ax.set_ylabel('Dbar')
 
     if show_fnsr is True:
         fit_ax.fill_between(degrees(lin.bs), lin.nsrfits(dbar_max=dbar_max, use_stress=use_stress), 0, color=color, alpha=0.3)
+        fit_ax_label = "H(b)"
 
     if show_w is True:
         fit_ax.plot(degrees(lin.bs), lin.nsrstresswts, ls='--', linewidth=2, color=color)
@@ -2000,9 +2092,10 @@ def fitcurve(lin, color='black', ax=None, dbar_max=0.125, show_dbar=True, show_w
     if show_fnsr is True or show_w is True:
         fit_ax.set_yticks(linspace(0,1.5,5,endpoint=False))
         fit_ax.grid()
-        fit_ax.axis([0,179,0,1.5])
+        fit_ax.axis([-90,90,0,1.5])
+        fit_ax.set_xticks(linspace(-90,90,7))
+        fit_ax.set_ylabel(fit_ax_label)
 
-    dbar_ax.invert_xaxis()
     dbar_ax.grid(True)
     fit_ax.grid(True)
 #}}}
@@ -2073,15 +2166,17 @@ def activity_history(lins_list, the_fig=None, labels=[], colors=[], alphas=[], l
         if verbose is True:
             print("Calculating activity histories for %s" % (label,))
         acthist = calc_acthist(lins, dbar_max=dbar_max, norm_length=norm_length)
-        hist_ax.plot(degrees(lins[0].bs), acthist, label=label, lw=3, c=color, alpha=alpha)
+        x = np.concatenate([degrees(lins[0].bs)-180, degrees(lins[0].bs), degrees(lins[0].bs)+180])
+        y = np.tile(acthist,3)
+        hist_ax.plot(x, y, label=label, lw=3, c=color, alpha=alpha)
 
     hist_ax.set_ylabel("H(b)")
-    hist_ax.set_xlabel("westward translation b")
+    hist_ax.set_xlabel("longitudinal translation b")
     hist_ax.grid(True)
-    hist_ax.set_xticks(linspace(0,170,18))
+    hist_ax.set_xticks(linspace(-90,90,19))
     degree_formatter = matplotlib.ticker.FormatStrFormatter(r'%.0f$^\circ$')
     hist_ax.xaxis.set_major_formatter(degree_formatter)
-    hist_ax.set_xlim(179,0)
+    hist_ax.set_xlim(-90,90)
     hist_ax.legend(loc="upper left")
     if norm_by_all is True:
         titlestr += ' (Normalized)'

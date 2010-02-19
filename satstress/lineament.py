@@ -444,7 +444,7 @@ class Lineament(object): #{{{1
             self.stresscalc = stresscalc
 
         # set the b values first, so that the fit metrics can refer to them.
-        self.bs = linspace(0,pi,nb,endpoint=False)
+        self.bs = linspace(-pi/2.0,pi/2.0,nb,endpoint=False)
 
         # Create vectors of non-stress and non-b dependent values:
         mp_lons, mp_lats = self.seg_midpoints()
@@ -458,7 +458,7 @@ class Lineament(object): #{{{1
         # making up the lineament and the values of b at which we are doing
         # calculations
         calc_thetas = tile((pi/2)-mp_lats, nb)
-        calc_phis = repeat(linspace(0,pi,nb,endpoint=False),nsegs) + tile(mp_lons,nb)
+        calc_phis = repeat(self.bs,nsegs) + tile(mp_lons,nb)
 
         # use SatStress to perform the stress calculations at those locations
         tens_mag, tens_az, comp_mag, comp_az = stresscalc.principal_components(calc_thetas, calc_phis, 0.0)

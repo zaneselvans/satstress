@@ -552,18 +552,16 @@ class GeoSupNet(nx.MultiDiGraph): #{{{
 
         sub_GSNs = self.get_sub_GSNs(minsize=minsize, minconf=minconf)
 
-        rel_info = self.completeness(minconf=minconf)
+        C = self.completeness(minconf=minconf)
         for sub_gsn,n in zip(sub_GSNs, range(len(sub_GSNs))):
 
             # generate an array of colors to use on the nodes:
             nc_array = np.array([ cmap(float(n)/len(sub_GSNs)) for i in range(len(sub_gsn)) ])
 
             sub_agsn = nx.to_agraph(sub_gsn)
-            sub_agsn.graph_attr.update(splines  = 'true',\
-                                       rankdir  = 'BT',\
-                                       nslimit1 = '100',\
-                                       nodesep  = '0.2',\
-                                       ranksep  = '0.5 equally',\
+            sub_agsn.graph_attr.update(rankdir  = 'BT',\
+                                       nodesep  = '0.25',\
+                                       ranksep  = '0.5',\
                                        rank     = 'source')
             sub_agsn.node_attr.update(color=rgb2hex(nc_array[0][0:3]), shape='point', width='0.25')
             sub_agsn.layout(prog='dot')
@@ -578,7 +576,7 @@ class GeoSupNet(nx.MultiDiGraph): #{{{
             im = plt.imshow(png_out, origin='lower')
             gax.set_xticks([])
             gax.set_yticks([])
-            gax.set_xlabel('I=%.3g' % (rel_info[n],))
+            gax.set_xlabel('C=%.3g' % (C[n],))
 
                 
     #}}}2 end draw_graph
@@ -1700,6 +1698,93 @@ def ActHist_Spun(the_gsn, iters=100, nb=180, nbins=180, label='E15', linfile='ou
     acthist_fig.savefig('output/figs/%s_ActHist.pdf' % (label,) )
 
 #}}}
+
+def Type_Intersections():
+    import Image
+    from matplotlib import rcParams
+
+    k05_1_png = Image.open('input/type_intersections/k05_1.png')
+    k05_2_png = Image.open('input/type_intersections/k05_2.png')
+    k05_3_png = Image.open('input/type_intersections/k05_3.png')
+    k06_1_png = Image.open('input/type_intersections/k06_1.png')
+    k06_2_png = Image.open('input/type_intersections/k06_2.png')
+    k06_3_png = Image.open('input/type_intersections/k06_3.png')
+    k07_1_png = Image.open('input/type_intersections/k07_1.png')
+    k07_2_png = Image.open('input/type_intersections/k07_2.png')
+    k07_3_png = Image.open('input/type_intersections/k07_3.png')
+
+    the_fig_low_k = plt.figure(figsize=(6,6))
+    gax_k05_1 = the_fig_low_k.add_subplot(331)
+    gax_k05_1.set_ylabel('k=0.5')
+    gax_k05_2 = the_fig_low_k.add_subplot(332)
+    gax_k05_2.set_title('Low Confidence Type Intersections')
+    gax_k05_3 = the_fig_low_k.add_subplot(333)
+    gax_k06_1 = the_fig_low_k.add_subplot(334)
+    gax_k06_1.set_ylabel('k=0.6')
+    gax_k06_2 = the_fig_low_k.add_subplot(335)
+    gax_k06_3 = the_fig_low_k.add_subplot(336)
+    gax_k07_1 = the_fig_low_k.add_subplot(337)
+    gax_k07_1.set_ylabel('k=0.7')
+    gax_k07_2 = the_fig_low_k.add_subplot(338)
+    gax_k07_3 = the_fig_low_k.add_subplot(339)
+
+    im1 = gax_k05_1.imshow(k05_1_png, origin='lower')
+    im2 = gax_k05_2.imshow(k05_2_png, origin='lower')
+    im3 = gax_k05_3.imshow(k05_3_png, origin='lower')
+    im4 = gax_k06_1.imshow(k06_1_png, origin='lower')
+    im5 = gax_k06_2.imshow(k06_2_png, origin='lower')
+    im6 = gax_k06_3.imshow(k06_3_png, origin='lower')
+    im7 = gax_k07_1.imshow(k07_1_png, origin='lower')
+    im8 = gax_k07_2.imshow(k07_2_png, origin='lower')
+    im9 = gax_k07_3.imshow(k07_3_png, origin='lower')
+
+    for gax in the_fig_low_k.axes:
+        gax.set_xticks([])
+        gax.set_yticks([])
+
+    the_fig_low_k.savefig('output/figs/ExampleIntersections_LowK.pdf')
+
+    k08_1_png = Image.open('input/type_intersections/k08_1.png')
+    k08_2_png = Image.open('input/type_intersections/k08_2.png')
+    k08_3_png = Image.open('input/type_intersections/k08_3.png')
+    k09_1_png = Image.open('input/type_intersections/k09_1.png')
+    k09_2_png = Image.open('input/type_intersections/k09_2.png')
+    k09_3_png = Image.open('input/type_intersections/k09_3.png')
+    k10_1_png = Image.open('input/type_intersections/k10_1.png')
+    k10_2_png = Image.open('input/type_intersections/k10_2.png')
+    k10_3_png = Image.open('input/type_intersections/k10_3.png')
+
+    the_fig_hi_k = plt.figure(figsize=(6,6))
+    gax_k08_1 = the_fig_hi_k.add_subplot(331)
+    gax_k08_1.set_ylabel('k=0.8')
+    gax_k08_2 = the_fig_hi_k.add_subplot(332)
+    gax_k08_2.set_title('High Confidence Type Intersections')
+    gax_k08_3 = the_fig_hi_k.add_subplot(333)
+    gax_k09_1 = the_fig_hi_k.add_subplot(334)
+    gax_k09_1.set_ylabel('k=0.9')
+    gax_k09_2 = the_fig_hi_k.add_subplot(335)
+    gax_k09_3 = the_fig_hi_k.add_subplot(336)
+    gax_k10_1 = the_fig_hi_k.add_subplot(337)
+    gax_k10_1.set_ylabel('k=1.0')
+    gax_k10_2 = the_fig_hi_k.add_subplot(338)
+    gax_k10_3 = the_fig_hi_k.add_subplot(339)
+
+    im1 = gax_k08_1.imshow(k08_1_png, origin='lower')
+    im2 = gax_k08_2.imshow(k08_2_png, origin='lower')
+    im3 = gax_k08_3.imshow(k08_3_png, origin='lower')
+    im4 = gax_k09_1.imshow(k09_1_png, origin='lower')
+    im5 = gax_k09_2.imshow(k09_2_png, origin='lower')
+    im6 = gax_k09_3.imshow(k09_3_png, origin='lower')
+    im7 = gax_k10_1.imshow(k10_1_png, origin='lower')
+    im8 = gax_k10_2.imshow(k10_2_png, origin='lower')
+    im9 = gax_k10_3.imshow(k10_3_png, origin='lower')
+
+    for gax in the_fig_hi_k.axes:
+        gax.set_xticks([])
+        gax.set_yticks([])
+
+    the_fig_hi_k.savefig('output/figs/ExampleIntersections_HiK.pdf')
+
 
 # Possible Figures:
 # -----------------
