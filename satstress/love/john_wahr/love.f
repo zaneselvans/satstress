@@ -79,7 +79,7 @@ c convert densities from cgs to mks units
       rhorock=1000.0*rhorock
       
       murock=Erock/(2.0*(1.0+nurock))
-      lambdarock=Erock/((1.0+nurock)*(1.0-(2.0*nurock)))
+      lambdarock=(nurock*Erock)/((1.0+nurock)*(1.0-(2.0*nurock)))
 c program wants seismic velocities in cm/s
       vpc=100.0*sqrt((2.0*murock+lambdarock)/(rhorock))
       vsc=100.0*sqrt(murock/rhorock)
@@ -103,7 +103,7 @@ c convert densities from cgs to mks units
       densi=1000.0*densi
       
       muice=Eice/(2.0*(1.0+nuice))
-      lambdaice=Eice/((1.0+nuice)*(1.0-(2.0*nuice)))
+      lambdaice=(nuice*Eice)/((1.0+nuice)*(1.0-(2.0*nuice)))
 c program wants seismic velocities in cm/s
       vpi=100.0*sqrt((2.0*muice+lambdaice)/(densi))
       vsi=100.0*sqrt(muice/densi)
